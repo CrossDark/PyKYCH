@@ -168,3 +168,223 @@ uvicorn src.pykych.main:app --host 0.0.0.0 --port 8000 --reload
 ## 许可证
 
 MIT License © 2026 跨越晨昏
+
+## 生产部署 (Ubuntu 24.04 + Nginx)
+
+### 1. 服务器环境准备
+
+```bash
+# 更新系统
+sudo apt update && sudo apt upgrade -y
+
+# 安装 Python 3.12（Ubuntu 24.04 自带）及必要工具
+sudo apt install -y python3 python3-pip python3-venv git nginx
+
+# 安装 MySQL 8.0（如果尚未安装）
+sudo apt install -y mysql-server
+sudo mysql_secure_installation
+```
+
+### 2. 创建项目目录与用户
+
+```bash
+# 创建专用用户（出于安全考虑）
+sudo useradd -m -s /bin/bash pykych
+sudo usermod -aG www-data pykych
+
+# 部署项目
+sudo mkdir -p /opt/pykych
+sudo chown -R pykych:pykych /opt/pykych
+sudo -u pykych git clone <repo-url> /opt/pykych
+```
+
+### 3. 创建 Python 虚拟环境
+
+```bash
+sudo -u pykych python3 -m venv /opt/pykych/.venv
+sudo -u pykych /opt/pykych/.venv/bin/pip install -e /opt/pykych
+sudo -u pykych /opt/pykych/.venv/bin/pip install uvicorn
+```
+
+### 4. 配置 MySQL 数据库
+
+```sql
+sudo mysql -u root
+
+CREATE DATABASE IF NOT EXISTS pykych_md CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS pykych_wiki CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS pykych_sys CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- 创建专用数据库用户
+CREATE USER 'pykych'@'localhost' IDENTIFIED BY 'your_secure_password';
+GRANT ALL PRIVILEGES ON pykych_md.* TO 'pykych'@'localhost';
+GRANT ALL PRIVILEGES ON pykych_wiki.* TO 'pykych'@'localhost';
+GRANT ALL PRIVILEGES ON pykych_sys.* TO 'pykych'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+### 5. 配置 settings/db.yaml
+
+```bash
+sudo -u pykych cp /opt/pykych/db.yaml.example /opt/pykych/settings/db.yaml
+sudo -u pykych nano /opt/pykych/settings/db.yaml
+```
+
+填入实际的数据库连接信息：
+
+```yaml
+mysql:
+  host: localhost
+  port: 3306
+  user: pykych
+  password: your_secure_password
+  markdown_db: pykych_md
+  wikidot_db: pykych_wiki
+  system_db: pykych_sys
+  charset: utf8mb4
+  pool:
+    minsize: 2
+    maxsize: 20
+    pool_recycle: 3600
+```
+
+### 6. 创建 systemd 服务
+
+创建服务文件 `/etc/systemd/system/pykych.service`：
+
+```bash
+sudo nano /etc/systemd/system/pykych.service
+```
+
+```ini
+[Unit]
+Description=PyKYCH Personal Website
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=pykych
+Group=pykych
+WorkingDirectory=/opt/pykych
+Environment="PATH=/opt/pykych/.venv/bin"
+# 生产模式：去掉 --reload，增加 worker 数
+ExecStart=/opt/pykych/.venv/bin/uvicorn src.pykych.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 4 \
+    --log-level info
+Restart=always
+RestartSec=3
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/pykych
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启动服务：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable pykych
+sudo systemctl start pykych
+sudo systemctl status pykych   # 确认运行正常
+```
+
+### 7. 配置 Nginx 反向代理
+
+创建站点配置 `/etc/nginx/sites-available/pykych`：
+
+```bash
+sudo nano /etc/nginx/sites-available/pykych
+```
+
+```nginx
+# HTTP → HTTPS 重定向
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # 静态资源由 Nginx 直接提供服务
+    location /static/ {
+        alias /opt/pykych/src/pykych/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 反向代理到 uvicorn
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket 支持（如后续需要）
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # 超时设置
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+}
+```
+
+启用站点：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/pykych /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default   # 删除默认站点
+
+# 测试配置并重载
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 8. 配置 HTTPS（Certbot）
+
+```bash
+# 安装 certbot
+sudo apt install -y certbot python3-certbot-nginx
+
+# 自动获取证书并配置 HTTPS
+sudo certbot --nginx -d your-domain.com
+
+# 设置自动续期
+sudo systemctl enable certbot.timer
+```
+
+完成后 Nginx 配置将自动更新为同时支持 HTTP 重定向和 HTTPS。
+
+### 9. 生产环境安全检查清单
+
+- [ ] 修改 `main.py` 中的 `SessionMiddleware` 密钥为随机字符串
+- [ ] 修改默认管理员密码 (admin / admin123)
+- [ ] 配置防火墙：`sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw enable`
+- [ ] 配置 MySQL 仅监听本地：编辑 `/etc/mysql/mysql.conf.d/mysqld.cnf`，设置 `bind-address = 127.0.0.1`
+- [ ] 检查日志：`journalctl -u pykych -f`、`tail -f /var/log/nginx/access.log`
+
+### 10. 日常维护命令
+
+```bash
+# 更新代码
+sudo -u pykych git -C /opt/pykych pull
+sudo systemctl restart pykych
+
+# 查看服务状态
+sudo systemctl status pykych
+journalctl -u pykych -n 50 --no-pager
+
+# 查看 Nginx 日志
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
+```
