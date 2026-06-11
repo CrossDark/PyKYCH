@@ -6,6 +6,25 @@
     <p class="subtitle">{{ subtitle }}</p>
 </div>
 
+<!-- 快捷入口 -->
+<div style="text-align: center; margin-bottom: 0.5rem;">
+    <a href="/md" style="
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 2rem;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: background 0.2s;
+    " onmouseover="this.style.background='var(--accent-hover)'"
+       onmouseout="this.style.background='var(--accent)'">
+        📝 Markdown 文章
+    </a>
+</div>
+
+<h2 style="margin-top: 1.5rem; margin-bottom: 0.75rem;">📖 推荐阅读</h2>
 <div class="article-list">
     {% for article in articles %}
     <a href="/article/{{ article.slug }}" class="article-card card">
