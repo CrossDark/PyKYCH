@@ -88,6 +88,19 @@
         display: flex;
         gap: 0.4rem;
     }
+    .form-input {
+        padding: 0.45rem 0.6rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 0.88rem;
+        font-family: inherit;
+        background: var(--bg-card);
+        transition: border-color 0.2s;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: var(--accent);
+    }
     .empty-state {
         text-align: center;
         padding: 2rem;
@@ -181,6 +194,79 @@
     </table>
     {% else %}
     <div class="card empty-state">暂无 Wikidot 页面</div>
+    {% endif %}
+</div>
+
+<!-- 用户管理 -->
+<div class="admin-section">
+    <h2>
+        👥 用户管理
+        <span style="display:flex;gap:0.5rem;align-items:center;">
+            <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">
+                🔑 {{ current_user.nickname }}
+            </span>
+            <a href="/auth/logout" class="btn btn-outline btn-sm">退出登录</a>
+        </span>
+    </h2>
+
+    <!-- 添加用户 -->
+    <details style="margin-bottom:1rem;">
+        <summary style="cursor:pointer;font-weight:500;color:var(--accent);padding:0.4rem 0;">+ 添加新用户</summary>
+        <form method="POST" action="/admin/users/add" style="
+            display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;
+            padding:0.75rem;background:var(--code-bg);border-radius:var(--radius);margin-top:0.5rem;
+        ">
+            <input name="username" placeholder="用户名" class="form-input" style="width:auto;flex:1;min-width:120px;" required>
+            <input name="password" type="password" placeholder="密码" class="form-input" style="width:auto;flex:1;min-width:120px;" required>
+            <input name="nickname" placeholder="昵称(可选)" class="form-input" style="width:auto;flex:1;min-width:100px;">
+            <button type="submit" class="btn btn-primary btn-sm">添加</button>
+        </form>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.25rem;">用户只能由管理员添加，不支持自行注册</p>
+    </details>
+
+    {% if users %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>用户名</th>
+                <th>昵称</th>
+                <th>管理员</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td><code>{{ u.username }}</code></td>
+                <td>{{ u.nickname }}</td>
+                <td>{% if u.is_admin %}✅{% else %}—{% endif %}</td>
+                <td>{{ u.created_at[:10] }}</td>
+                <td>
+                    <div class="actions">
+                        <details>
+                            <summary class="btn btn-outline btn-sm" style="list-style:none;cursor:pointer;">🔑 重置密码</summary>
+                            <form method="POST" action="/admin/users/{{ u.username }}/reset-password" style="
+                                display:inline-flex;gap:0.3rem;align-items:center;margin-left:0.3rem;
+                            ">
+                                <input name="new_password" type="password" placeholder="新密码" class="form-input" style="width:100px;padding:0.25rem 0.4rem;font-size:0.8rem;" required>
+                                <button type="submit" class="btn btn-primary btn-sm">确定</button>
+                            </form>
+                        </details>
+                        {% if u.username != current_user.username %}
+                        <form method="POST" action="/admin/users/{{ u.username }}/delete" style="display:inline"
+                              onsubmit="return confirm('确定要删除用户 «{{ u.username }}» 吗？')">
+                            <button type="submit" class="btn btn-danger btn-sm">🗑 删除</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="card empty-state">暂无用户</div>
     {% endif %}
 </div>
 {% endblock %}

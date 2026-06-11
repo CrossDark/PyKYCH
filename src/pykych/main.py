@@ -1,5 +1,6 @@
 from lihil import Lihil, Route
 from starlette.responses import HTMLResponse
+from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 from contextlib import asynccontextmanager
 from jinja2 import Environment, FileSystemLoader
@@ -9,7 +10,8 @@ from . import wikidot_db
 from .routes import md
 from .routes import wikidot
 from .routes import admin
-from .mysql_manager import init_tables, close_pools
+from .routes import auth
+from .mysql_manager import init_tables, close_pools, seed_admin
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -19,6 +21,10 @@ async def lifespan(app):
     await init_tables()
     await db.seed_db()
     await wikidot_db.seed_db()
+
+    # 创建默认管理员（如不存在）
+    await seed_admin("admin", "admin123", "管理员")
+
     yield
     await close_pools()
 
@@ -32,6 +38,14 @@ jinja_env = Environment(
 
 # 创建 Lihil 应用
 app = Lihil(lifespan=lifespan)
+
+# Session 中间件（用于登录状态保持）
+from starlette.middleware.sessions import SessionMiddleware
+from functools import partial
+
+app.add_middleware(
+    partial(SessionMiddleware, secret_key="pykych-secret-change-in-production")
+)
 
 
 # 模板渲染辅助函数
@@ -216,3 +230,6 @@ app.include(wikidot.wikidot_route)
 
 # ===== 管理后台路由 =====
 app.include(admin.admin_route)
+
+# ===== 认证路由 (登录/登出) =====
+app.include(auth.auth_route)

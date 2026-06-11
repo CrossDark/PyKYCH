@@ -107,6 +107,19 @@ CREATE TABLE IF NOT EXISTS pages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+USERS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(64)  UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    nickname      VARCHAR(128) NOT NULL DEFAULT '',
+    is_admin      TINYINT(1)   NOT NULL DEFAULT 0,
+    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def init_tables() -> None:
     """在应用启动时确保表结构存在。"""
@@ -114,11 +127,28 @@ async def init_tables() -> None:
     async with md_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(MD_TABLE_SQL)
+            await cur.execute(USERS_TABLE_SQL)
 
     wk_pool = await get_wk_pool()
     async with wk_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(WK_TABLE_SQL)
+
+
+async def seed_admin(username: str, password: str, nickname: str = "") -> None:
+    """创建默认管理员（如不存在）。"""
+    from .auth import hash_password
+    pool = await get_md_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))
+            if (await cur.fetchone())[0] == 0:
+                pwd_hash = hash_password(password)
+                await cur.execute(
+                    "INSERT INTO users (username, password_hash, nickname, is_admin) "
+                    "VALUES (%s, %s, %s, 1)",
+                    (username, pwd_hash, nickname or username),
+                )
 
 
 # ── 工具函数 ────────────────────────────────────────────────
