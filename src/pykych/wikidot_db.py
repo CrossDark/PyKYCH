@@ -1,133 +1,83 @@
 """
-Wikidot 独立数据库模块 — 与 Markdown 文章数据库分离。
+MySQL 数据库模块 — 管理 Wikidot 页面的存储与查询。
+配置来自 settings/db.yaml，通过 mysql_manager 获取连接池。
 """
 
-import aiosqlite
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent.parent / "data" / "wikidot.db"
-
-
-async def get_db() -> aiosqlite.Connection:
-    """获取 Wikidot 数据库连接。"""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = await aiosqlite.connect(str(DB_PATH))
-    conn.row_factory = aiosqlite.Row
-    await conn.execute("PRAGMA journal_mode=WAL")
-    await conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-
-async def init_db() -> None:
-    """初始化 Wikidot 数据库表结构。"""
-    conn = await get_db()
-    try:
-        await conn.executescript("""
-            CREATE TABLE IF NOT EXISTS pages (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                slug        TEXT    UNIQUE NOT NULL,
-                title       TEXT    NOT NULL,
-                content     TEXT    NOT NULL,
-                created_at  TEXT    NOT NULL,
-                updated_at  TEXT    NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_wikidot_slug
-                ON pages(slug);
-
-            CREATE INDEX IF NOT EXISTS idx_wikidot_created
-                ON pages(created_at DESC);
-        """)
-        await conn.commit()
-    finally:
-        await conn.close()
-
-
-# ── CRUD ────────────────────────────────────────────────────
+from .mysql_manager import get_wk_pool, row_to_dict
 
 
 async def list_pages(page: int = 1, per_page: int = 10) -> dict:
     """分页获取 Wikidot 页面列表。"""
-    conn = await get_db()
-    try:
-        offset = (page - 1) * per_page
-        rows = await conn.execute_fetchall(
-            "SELECT id, slug, title, created_at, updated_at "
-            "FROM pages ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (per_page, offset),
-        )
-        row = await conn.execute_fetchall("SELECT COUNT(*) FROM pages")
-        total = row[0][0] if row else 0
-        return {
-            "pages": [dict(r) for r in rows],
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "total_pages": max(1, (total + per_page - 1) // per_page),
-        }
-    finally:
-        await conn.close()
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            offset = (page - 1) * per_page
+            await cur.execute(
+                "SELECT id, slug, title, created_at, updated_at "
+                "FROM pages ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                (per_page, offset),
+            )
+            rows = await cur.fetchall()
+            pages = [row_to_dict(r, cur) for r in rows]
+
+            await cur.execute("SELECT COUNT(*) FROM pages")
+            total = (await cur.fetchone())[0]
+
+    return {
+        "pages": pages,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": max(1, (total + per_page - 1) // per_page),
+    }
 
 
 async def get_page_by_slug(slug: str) -> Optional[dict]:
     """根据 slug 获取 Wikidot 页面。"""
-    conn = await get_db()
-    try:
-        row = await conn.execute_fetchall(
-            "SELECT * FROM pages WHERE slug = ?", (slug,)
-        )
-        return dict(row[0]) if row else None
-    finally:
-        await conn.close()
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT * FROM pages WHERE slug = %s", (slug,))
+            row = await cur.fetchone()
+            return row_to_dict(row, cur) if row else None
 
 
 async def create_page(slug: str, title: str, content: str) -> dict:
     """创建新页面。"""
-    conn = await get_db()
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        await conn.execute(
-            "INSERT INTO pages (slug, title, content, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (slug, title, content, now, now),
-        )
-        await conn.commit()
-        return await get_page_by_slug(slug)
-    finally:
-        await conn.close()
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "INSERT INTO pages (slug, title, content) VALUES (%s, %s, %s)",
+                (slug, title, content),
+            )
+            return await get_page_by_slug(slug)
 
 
 async def update_page(slug: str, title: str, content: str) -> Optional[dict]:
     """更新已有页面。"""
-    conn = await get_db()
-    try:
-        now = datetime.now(timezone.utc).isoformat()
-        cursor = await conn.execute(
-            "UPDATE pages SET title = ?, content = ?, updated_at = ? "
-            "WHERE slug = ?",
-            (title, content, now, slug),
-        )
-        await conn.commit()
-        if cursor.rowcount == 0:
-            return None
-        return await get_page_by_slug(slug)
-    finally:
-        await conn.close()
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE pages SET title = %s, content = %s WHERE slug = %s",
+                (title, content, slug),
+            )
+            if cur.rowcount == 0:
+                return None
+            return await get_page_by_slug(slug)
 
 
 async def delete_page(slug: str) -> bool:
     """删除页面，返回是否成功。"""
-    conn = await get_db()
-    try:
-        cursor = await conn.execute(
-            "DELETE FROM pages WHERE slug = ?", (slug,)
-        )
-        await conn.commit()
-        return cursor.rowcount > 0
-    finally:
-        await conn.close()
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("DELETE FROM pages WHERE slug = %s", (slug,))
+            return cur.rowcount > 0
 
 
 # ── 种子数据 ──────────────────────────────────────────────
@@ -253,7 +203,7 @@ asyncio.run(main())
 
 | 组件 | 技术选型 |
 | **框架** | [[[https://lihil.cc | LiHiL]]] |
-| **数据库** | SQLite (独立于 Markdown) |
+| **数据库** | MySQL (独立于 Markdown) |
 | **语法** | 自定义 Wikidot 解析器 |
 | **模板** | Jinja2 |
 
@@ -286,18 +236,18 @@ asyncio.run(main())
 
 async def seed_db() -> int:
     """向数据库插入种子数据（如已存在则跳过）。"""
-    conn = await get_db()
-    try:
-        count = 0
-        for p in SEED_PAGES:
-            now = datetime.now(timezone.utc).isoformat()
-            cursor = await conn.execute(
-                "INSERT OR IGNORE INTO pages (slug, title, content, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (p["slug"], p["title"], p["content"], now, now),
-            )
-            count += cursor.rowcount
-        await conn.commit()
-        return count
-    finally:
-        await conn.close()
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            count = 0
+            for p in SEED_PAGES:
+                await cur.execute(
+                    "SELECT COUNT(*) FROM pages WHERE slug = %s", (p["slug"],)
+                )
+                if (await cur.fetchone())[0] == 0:
+                    await cur.execute(
+                        "INSERT INTO pages (slug, title, content) VALUES (%s, %s, %s)",
+                        (p["slug"], p["title"], p["content"]),
+                    )
+                    count += 1
+            return count

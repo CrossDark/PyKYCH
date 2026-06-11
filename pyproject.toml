@@ -6,6 +6,10 @@ requires-python = ">=3.10"
 dependencies = [
     "lihil[standard]>=0.2.41",
     "jinja2>=3.1.0",
+    "aiomysql>=0.2.0",
+    "pyyaml>=6.0",
+    "markdown>=3.5",
+    "cryptography>=42.0",
 ]
 
 [project.scripts]

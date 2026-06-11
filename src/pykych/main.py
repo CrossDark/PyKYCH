@@ -1,6 +1,7 @@
 from lihil import Lihil, Route
 from starlette.responses import HTMLResponse
 from pathlib import Path
+from contextlib import asynccontextmanager
 from jinja2 import Environment, FileSystemLoader
 
 from . import db
@@ -8,44 +9,18 @@ from . import wikidot_db
 from .routes import md
 from .routes import wikidot
 from .routes import admin
+from .mysql_manager import init_tables, close_pools
 
-# ── 数据库初始化（同步建表，确保首次导入即可用）──
-import sqlite3, os
+# ── 应用生命周期 ──────────────────────────────────────────────
 
-DB_DIR = Path(__file__).parent.parent / "data"
-DB_DIR.mkdir(parents=True, exist_ok=True)
-_sync_conn = sqlite3.connect(str(DB_DIR / "markdown.db"))
-_sync_conn.executescript("""
-    CREATE TABLE IF NOT EXISTS articles (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        slug        TEXT    UNIQUE NOT NULL,
-        title       TEXT    NOT NULL,
-        content     TEXT    NOT NULL,
-        created_at  TEXT    NOT NULL,
-        updated_at  TEXT    NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug);
-    CREATE INDEX IF NOT EXISTS idx_articles_created ON articles(created_at DESC);
-""")
-_sync_conn.commit()
-_sync_conn.close()
-
-# Wikidot 独立数据库
-_wiki_conn = sqlite3.connect(str(DB_DIR / "wikidot.db"))
-_wiki_conn.executescript("""
-    CREATE TABLE IF NOT EXISTS pages (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        slug        TEXT    UNIQUE NOT NULL,
-        title       TEXT    NOT NULL,
-        content     TEXT    NOT NULL,
-        created_at  TEXT    NOT NULL,
-        updated_at  TEXT    NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_wikidot_slug ON pages(slug);
-    CREATE INDEX IF NOT EXISTS idx_wikidot_created ON pages(created_at DESC);
-""")
-_wiki_conn.commit()
-_wiki_conn.close()
+@asynccontextmanager
+async def lifespan(app):
+    """启动时建表并写入种子数据，关闭时释放连接池。"""
+    await init_tables()
+    await db.seed_db()
+    await wikidot_db.seed_db()
+    yield
+    await close_pools()
 
 # ── 模板引擎 ──
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -56,7 +31,7 @@ jinja_env = Environment(
 )
 
 # 创建 Lihil 应用
-app = Lihil()
+app = Lihil(lifespan=lifespan)
 
 
 # 模板渲染辅助函数
@@ -241,13 +216,3 @@ app.include(wikidot.wikidot_route)
 
 # ===== 管理后台路由 =====
 app.include(admin.admin_route)
-
-
-# ── 数据库种子数据（异步，首次启动时写入示例文章）──
-import asyncio as _asyncio
-
-try:
-    _asyncio.get_event_loop().run_until_complete(db.seed_db())
-    _asyncio.get_event_loop().run_until_complete(wikidot_db.seed_db())
-except RuntimeError:
-    pass  # 事件循环已在其他线程运行，跳过
