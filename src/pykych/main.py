@@ -13,7 +13,7 @@ import sqlite3, os
 
 DB_DIR = Path(__file__).parent.parent / "data"
 DB_DIR.mkdir(parents=True, exist_ok=True)
-_sync_conn = sqlite3.connect(str(DB_DIR / "pykych.db"))
+_sync_conn = sqlite3.connect(str(DB_DIR / "markdown.db"))
 _sync_conn.executescript("""
     CREATE TABLE IF NOT EXISTS articles (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,

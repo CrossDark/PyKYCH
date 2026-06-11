@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent.parent / "data" / "pykych.db"
+DB_PATH = Path(__file__).parent.parent / "data" / "markdown.db"
 
 
 async def get_db() -> aiosqlite.Connection:
