@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .form-container {
+        max-width: 780px;
+    }
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.35rem;
+        color: var(--text);
+    }
+    .form-group .hint {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 400;
+    }
+    .form-input {
+        width: 100%;
+        padding: 0.6rem 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.95rem;
+        font-family: inherit;
+        background: var(--bg-card);
+        color: var(--text);
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+    .form-input.mono {
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 0.85rem;
+    }
+    textarea.form-input {
+        min-height: 360px;
+        line-height: 1.65;
+        resize: vertical;
+    }
+    .form-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        margin-top: 1.5rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--border);
+    }
+    .btn {
+        display: inline-block;
+        padding: 0.55rem 1.25rem;
+        border-radius: var(--radius);
+        font-size: 0.92rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid transparent;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .btn-primary {
+        background: var(--accent);
+        color: #fff;
+    }
+    .btn-primary:hover {
+        background: var(--accent-hover);
+        color: #fff;
+    }
+    .btn-cancel {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--text-secondary);
+    }
+    .btn-cancel:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+        text-decoration: none;
+    }
+    .error-msg {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #dc2626;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius);
+        margin-bottom: 1.25rem;
+        font-size: 0.9rem;
+    }
+    .preview-hint {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        margin-top: 0.35rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header form-container">
+    <h1>{{ form_title }}</h1>
+</div>
+
+<div class="form-container">
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ action }}">
+        <div class="form-group">
+            <label for="title">标题</label>
+            <input type="text" id="title" name="title" class="form-input"
+                   value="{{ article.title if article else '' }}"
+                   placeholder="输入文章标题" required autofocus>
+        </div>
+
+        <div class="form-group">
+            <label for="slug">
+                Slug
+                <span class="hint">— URL 标识，例如: my-article</span>
+            </label>
+            <input type="text" id="slug" name="slug" class="form-input mono"
+                   value="{{ article.slug if article else '' }}"
+                   placeholder="my-article-slug"
+                   {% if article and article.slug %}readonly{% endif %}
+                   required>
+            {% if article and article.slug %}
+            <p class="preview-hint">Slug 创建后不可修改</p>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="content">
+                内容
+                {% if article_type == 'md' %}
+                <span class="hint">— Markdown 语法</span>
+                {% elif article_type == 'wikidot' %}
+                <span class="hint">— Wikidot 语法</span>
+                {% endif %}
+            </label>
+            <textarea id="content" name="content" class="form-input mono"
+                      placeholder="在此编写内容..." required>{{ article.content if article else '' }}</textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 保存</button>
+            <a href="/admin" class="btn btn-cancel">取消</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

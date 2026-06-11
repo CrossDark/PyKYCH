@@ -7,6 +7,7 @@ from . import db
 from . import wikidot_db
 from .routes import md
 from .routes import wikidot
+from .routes import admin
 
 # ── 数据库初始化（同步建表，确保首次导入即可用）──
 import sqlite3, os
@@ -237,6 +238,9 @@ app.include(md.md_route)
 
 # ===== Wikidot 页面路由 =====
 app.include(wikidot.wikidot_route)
+
+# ===== 管理后台路由 =====
+app.include(admin.admin_route)
 
 
 # ── 数据库种子数据（异步，首次启动时写入示例文章）──

@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .admin-section {
+        margin-bottom: 2.5rem;
+    }
+    .admin-section h2 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+    }
+    .admin-table th,
+    .admin-table td {
+        padding: 0.7rem 0.9rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+    }
+    .admin-table th {
+        background: var(--code-bg);
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .admin-table tr:last-child td {
+        border-bottom: none;
+    }
+    .admin-table tr:hover td {
+        background: var(--code-bg);
+    }
+    .btn {
+        display: inline-block;
+        padding: 0.35rem 0.85rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.8rem;
+    }
+    .btn-primary {
+        background: var(--accent);
+        color: #fff;
+    }
+    .btn-primary:hover {
+        background: var(--accent-hover);
+        text-decoration: none;
+        color: #fff;
+    }
+    .btn-outline {
+        border-color: var(--border);
+        color: var(--text-secondary);
+        background: transparent;
+    }
+    .btn-outline:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        text-decoration: none;
+    }
+    .btn-danger {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+    .btn-danger:hover {
+        background: #dc2626;
+        color: #fff;
+        border-color: #dc2626;
+        text-decoration: none;
+    }
+    .actions {
+        display: flex;
+        gap: 0.4rem;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📋 文章管理</h1>
+    <p class="subtitle">创建、编辑和删除文章</p>
+</div>
+
+<!-- Markdown 文章 -->
+<div class="admin-section">
+    <h2>
+        📝 Markdown 文章
+        <a href="/admin/md/new" class="btn btn-primary">+ 新建</a>
+    </h2>
+    {% if md_articles %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>标题</th>
+                <th>Slug</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in md_articles %}
+            <tr>
+                <td><strong>{{ a.title }}</strong></td>
+                <td><code>{{ a.slug }}</code></td>
+                <td>{{ a.created_at[:10] }}</td>
+                <td>
+                    <div class="actions">
+                        <a href="/md/{{ a.slug }}" class="btn btn-outline btn-sm" title="查看">👁</a>
+                        <a href="/admin/md/{{ a.slug }}/edit" class="btn btn-outline btn-sm">✏️ 编辑</a>
+                        <form method="POST" action="/admin/md/{{ a.slug }}/delete" style="display:inline"
+                              onsubmit="return confirm('确定要删除 «{{ a.title }}» 吗？此操作不可撤销。')">
+                            <button type="submit" class="btn btn-danger btn-sm">🗑 删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="card empty-state">暂无 Markdown 文章</div>
+    {% endif %}
+</div>
+
+<!-- Wikidot 页面 -->
+<div class="admin-section">
+    <h2>
+        📚 Wikidot 页面
+        <a href="/admin/wikidot/new" class="btn btn-primary">+ 新建</a>
+    </h2>
+    {% if wk_pages %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>标题</th>
+                <th>Slug</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in wk_pages %}
+            <tr>
+                <td><strong>{{ p.title }}</strong></td>
+                <td><code>{{ p.slug }}</code></td>
+                <td>{{ p.created_at[:10] }}</td>
+                <td>
+                    <div class="actions">
+                        <a href="/wikidot/{{ p.slug }}" class="btn btn-outline btn-sm" title="查看">👁</a>
+                        <a href="/admin/wikidot/{{ p.slug }}/edit" class="btn btn-outline btn-sm">✏️ 编辑</a>
+                        <form method="POST" action="/admin/wikidot/{{ p.slug }}/delete" style="display:inline"
+                              onsubmit="return confirm('确定要删除 «{{ p.title }}» 吗？此操作不可撤销。')">
+                            <button type="submit" class="btn btn-danger btn-sm">🗑 删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="card empty-state">暂无 Wikidot 页面</div>
+    {% endif %}
+</div>
+{% endblock %}
