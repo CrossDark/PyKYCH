@@ -34,7 +34,7 @@ async def page_list(page: int = 1):
     result = await db.list_pages(page=page, per_page=10)
     return render(
         "wikidot_list.html",
-        title="Wiki 页面 - PyKYCH",
+        title="Wiki 页面 - 跨越晨昏",
         pages=result["pages"],
         page=result["page"],
         total_pages=result["total_pages"],
@@ -49,7 +49,7 @@ async def page_detail(slug: str):
     if not page:
         return render(
             "wikidot_detail.html",
-            title="页面未找到 - PyKYCH",
+            title="页面未找到 - 跨越晨昏",
             status_code=404,
             page=None,
             html_content="<p>抱歉，该 Wiki 页面不存在。</p>",
@@ -58,7 +58,7 @@ async def page_detail(slug: str):
     html_body = parse_wikidot(page["content"])
     return render(
         "wikidot_detail.html",
-        title=f"{page['title']} - PyKYCH Wiki",
+        title=f"{page['title']} - 跨越晨昏 Wiki",
         page=page,
         html_content=html_body,
     )

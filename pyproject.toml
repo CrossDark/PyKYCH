@@ -1,7 +1,7 @@
 [project]
 name = "pykych"
 version = "0.1.0"
-description = "PyKYCH - 个人网站 Python 版"
+description = "跨越晨昏 - 个人网站 Python 版"
 requires-python = ">=3.10"
 dependencies = [
     "lihil[standard]>=0.2.41",

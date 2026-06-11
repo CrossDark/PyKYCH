@@ -64,7 +64,7 @@ async def home():
     """首页"""
     return render_template(
         "home.html",
-        title="PyKYCH - 首页",
+        title="跨越晨昏 - 首页",
         subtitle="欢迎来到我的个人网站",
         articles=[
             {
@@ -97,9 +97,9 @@ async def about():
     """关于页面"""
     return render_template(
         "page.html",
-        title="关于我 - PyKYCH",
+        title="关于我 - 跨越晨昏",
         content_heading="关于我",
-        content_body="""<p>你好！我是 PyKYCH 的作者，一名热爱编程和写作的开发者。</p>
+        content_body="""<p>你好！我是跨越晨昏的作者，一名热爱编程和写作的开发者。</p>
         <p>这个网站使用 <strong>LiHiL</strong> 框架构建 —— 一个高性能、高产出的 Python ASGI Web 框架。</p>
         <p>我创建这个网站的目的是：</p>
         <ul>
@@ -198,7 +198,7 @@ async def get_data():
     if not article_data:
         return render_template(
             "page.html",
-            title="文章未找到 - PyKYCH",
+            title="文章未找到 - 跨越晨昏",
             content_heading="404 - 文章未找到",
             content_body="""<p>抱歉，您查找的文章不存在。</p>
             <p><a href="/" class="back-link">← 返回首页</a></p>""",
@@ -206,7 +206,7 @@ async def get_data():
 
     return render_template(
         "page.html",
-        title=f"{article_data['title']} - PyKYCH",
+        title=f"{article_data['title']} - 跨越晨昏",
         content_heading=article_data["title"],
         content_date=article_data["date"],
         content_body=article_data["body"],
@@ -219,7 +219,7 @@ async def get_data():
 @app.sub("/health").get
 async def health():
     """健康检查接口"""
-    return {"status": "healthy", "framework": "LiHiL", "app": "PyKYCH"}
+    return {"status": "healthy", "framework": "LiHiL", "app": "跨越晨昏"}
 
 
 # ===== Markdown 文章路由 =====
