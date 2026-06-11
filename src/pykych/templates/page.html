@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ content_heading }}</h1>
+    {% if content_date %}
+    <div class="content-date">{{ content_date }}</div>
+    {% endif %}
+</div>
+
+<div class="content-body">
+    {{ content_body | safe }}
+</div>
+
+{% if back_link %}
+<a href="{{ back_link }}" class="back-link">{{ back_text | default('← 返回') }}</a>
+{% endif %}
+{% endblock %}

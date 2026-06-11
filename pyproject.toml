@@ -1,0 +1,17 @@
+[project]
+name = "pykych"
+version = "0.1.0"
+description = "PyKYCH - 个人网站 Python 版"
+requires-python = ">=3.10"
+dependencies = [
+    "lihil[standard]>=0.2.41",
+    "jinja2>=3.1.0",
+]
+
+[project.scripts]
+dev = "pykych.main:main"
+
+[tool.lihil]
+host = "0.0.0.0"
+port = 8000
+reload = true

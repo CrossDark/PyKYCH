@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero">
+    <h1>{{ title }}</h1>
+    <p class="subtitle">{{ subtitle }}</p>
+</div>
+
+<div class="article-list">
+    {% for article in articles %}
+    <a href="/article/{{ article.slug }}" class="article-card card">
+        <h3>{{ article.title }}</h3>
+        <div class="date">{{ article.date }}</div>
+        <p class="summary">{{ article.summary }}</p>
+        <span class="read-more">阅读全文 →</span>
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}
