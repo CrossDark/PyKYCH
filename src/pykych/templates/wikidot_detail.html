@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% if page %}
+{% block extra_head %}
+<style>
+    /* ── Wikidot 排版样式 ── */
+    .wiki-content h1 {
+        font-size: 1.9rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid var(--accent);
+    }
+
+    .wiki-content h2 {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin-top: 2rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.3rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .wiki-content h3 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .wiki-content h4 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin-top: 1.25rem;
+        margin-bottom: 0.4rem;
+        color: var(--text-secondary);
+    }
+
+    .wiki-content blockquote {
+        border-left: 4px solid var(--accent);
+        padding: 0.5rem 1rem;
+        margin: 1rem 0;
+        background: var(--code-bg);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        color: var(--text-secondary);
+        font-style: italic;
+    }
+
+    /* ── Wikidot 特殊块 ── */
+    .wiki-content .wiki-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.95rem;
+    }
+
+    .wiki-content .wiki-table th,
+    .wiki-content .wiki-table td {
+        border: 1px solid var(--border);
+        padding: 0.6rem 0.9rem;
+        text-align: left;
+    }
+
+    .wiki-content .wiki-table th {
+        background: var(--code-bg);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .wiki-content .wiki-table tr:hover td {
+        background: var(--code-bg);
+    }
+
+    .wiki-content .wiki-image {
+        max-width: 100%;
+        border-radius: var(--radius);
+        margin: 1rem 0;
+    }
+
+    /* ── 提示框 ── */
+    .wiki-content .admonition {
+        border-left: 4px solid #3b82f6;
+        padding: 0.75rem 1.1rem;
+        margin: 1rem 0;
+        background: #eff6ff;
+        border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .wiki-content .admonition.warning {
+        border-left-color: #f59e0b;
+        background: #fffbeb;
+    }
+
+    .wiki-content .admonition.danger {
+        border-left-color: #ef4444;
+        background: #fef2f2;
+    }
+
+    .wiki-content .admonition.info {
+        border-left-color: #06b6d4;
+        background: #ecfeff;
+    }
+
+    .wiki-content .admonition.tip {
+        border-left-color: #10b981;
+        background: #ecfdf5;
+    }
+
+    .wiki-content .admonition-title {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+
+    /* ── 代码块 ── */
+    .wiki-content pre {
+        background: #1e293b;
+        color: #e2e8f0;
+        border: none;
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        margin: 1rem 0;
+        font-size: 0.875rem;
+        line-height: 1.6;
+    }
+
+    .wiki-content pre code {
+        background: none;
+        color: inherit;
+        padding: 0;
+        font-size: inherit;
+        white-space: pre;
+    }
+
+    /* ── 行内代码 ── */
+    .wiki-content code {
+        font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+        font-size: 0.875rem;
+        background: var(--code-bg);
+        padding: 0.15em 0.4em;
+        border-radius: 4px;
+    }
+
+    .wiki-content hr {
+        border: none;
+        border-top: 2px solid var(--border);
+        margin: 1.5rem 0;
+    }
+
+    /* ── 页面 meta ── */
+    .wiki-meta {
+        display: flex;
+        gap: 1.5rem;
+        color: var(--text-muted);
+        font-size: 0.875rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .wiki-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    /* ── div 容器 ── */
+    .wiki-content .content-body {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.5rem 2rem;
+        margin: 1rem 0;
+    }
+</style>
+{% endblock %}
+{% endif %}
+
+{% block content %}
+{% if page %}
+<div class="page-header">
+    <h1>{{ page.title }}</h1>
+</div>
+
+<div class="wiki-meta">
+    <span>📅 创建于 {{ page.created_at[:10] }}</span>
+    <span>🔄 更新于 {{ page.updated_at[:10] }}</span>
+</div>
+
+<div class="wiki-content">
+    {{ html_content | safe }}
+</div>
+
+<a href="/wikidot" class="back-link">← 返回 Wiki 首页</a>
+{% else %}
+<div class="page-header">
+    <h1>404 - 页面未找到</h1>
+</div>
+<div class="content-body">
+    {{ html_content | safe }}
+</div>
+<a href="/wikidot" class="back-link">← 返回 Wiki 首页</a>
+{% endif %}
+{% endblock %}

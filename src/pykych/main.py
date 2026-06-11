@@ -4,7 +4,9 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from . import db
+from . import wikidot_db
 from .routes import md
+from .routes import wikidot
 
 # ── 数据库初始化（同步建表，确保首次导入即可用）──
 import sqlite3, os
@@ -26,6 +28,23 @@ _sync_conn.executescript("""
 """)
 _sync_conn.commit()
 _sync_conn.close()
+
+# Wikidot 独立数据库
+_wiki_conn = sqlite3.connect(str(DB_DIR / "wikidot.db"))
+_wiki_conn.executescript("""
+    CREATE TABLE IF NOT EXISTS pages (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug        TEXT    UNIQUE NOT NULL,
+        title       TEXT    NOT NULL,
+        content     TEXT    NOT NULL,
+        created_at  TEXT    NOT NULL,
+        updated_at  TEXT    NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_wikidot_slug ON pages(slug);
+    CREATE INDEX IF NOT EXISTS idx_wikidot_created ON pages(created_at DESC);
+""")
+_wiki_conn.commit()
+_wiki_conn.close()
 
 # ── 模板引擎 ──
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -216,11 +235,15 @@ async def health():
 # ===== Markdown 文章路由 =====
 app.include(md.md_route)
 
+# ===== Wikidot 页面路由 =====
+app.include(wikidot.wikidot_route)
+
 
 # ── 数据库种子数据（异步，首次启动时写入示例文章）──
 import asyncio as _asyncio
 
 try:
     _asyncio.get_event_loop().run_until_complete(db.seed_db())
+    _asyncio.get_event_loop().run_until_complete(wikidot_db.seed_db())
 except RuntimeError:
     pass  # 事件循环已在其他线程运行，跳过
