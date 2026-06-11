@@ -10,6 +10,7 @@ dependencies = [
     "pyyaml>=6.0",
     "markdown>=3.5",
     "cryptography>=42.0",
+    "itsdangerous>=2.1",
 ]
 
 [project.scripts]

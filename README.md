@@ -179,11 +179,9 @@ sudo apt update && sudo apt upgrade -y
 
 # 安装 Python 3.12（Ubuntu 24.04 自带）及必要工具
 sudo apt install -y python3 python3-pip python3-venv git nginx
-
-# 安装 MySQL 8.0（如果尚未安装）
-sudo apt install -y mysql-server
-sudo mysql_secure_installation
 ```
+
+> **注意：** 如果使用远程 MySQL（即数据库不在本机），则无需安装 MySQL Server，只需确保服务器能连通远程数据库端口（默认 3306）。
 
 ### 2. 创建项目目录与用户
 
@@ -208,6 +206,10 @@ sudo -u pykych /opt/pykych/.venv/bin/pip install uvicorn
 
 ### 4. 配置 MySQL 数据库
 
+> **如果数据库已存在（例如本地开发已在用同一远程数据库），可跳过此步骤，直接进入步骤 5。**
+
+仅当 MySQL 在本机且首次部署时执行：
+
 ```sql
 sudo mysql -u root
 
@@ -227,15 +229,20 @@ EXIT;
 ### 5. 配置 settings/db.yaml
 
 ```bash
+# 如果沿用本地开发时的远程数据库，直接将本地的 settings/db.yaml 复制到服务器即可
+# scp settings/db.yaml user@your-server:/opt/pykych/settings/db.yaml
+
+# 如果数据库在服务器本机，则从示例创建
 sudo -u pykych cp /opt/pykych/db.yaml.example /opt/pykych/settings/db.yaml
 sudo -u pykych nano /opt/pykych/settings/db.yaml
 ```
 
-填入实际的数据库连接信息：
+示例配置：
 
 ```yaml
+# 场景 A：远程数据库（本地开发已在用的同一数据库）
 mysql:
-  host: localhost
+  host: your-db-host.com     # 如 kych.net
   port: 3306
   user: pykych
   password: your_secure_password
@@ -247,7 +254,17 @@ mysql:
     minsize: 2
     maxsize: 20
     pool_recycle: 3600
+
+# 场景 B：本地数据库
+# mysql:
+#   host: localhost
+#   port: 3306
+#   user: pykych
+#   password: your_secure_password
+#   ...
 ```
+
+> **提示：** 使用远程数据库时，确保服务器防火墙允许出站到数据库端口 3306。可在服务器上测试连通性：`nc -zv your-db-host.com 3306`
 
 ### 6. 创建 systemd 服务
 
@@ -260,8 +277,10 @@ sudo nano /etc/systemd/system/pykych.service
 ```ini
 [Unit]
 Description=PyKYCH Personal Website
-After=network.target mysql.service
-Wants=mysql.service
+After=network.target
+# 如果 MySQL 在本机，取消下一行注释：
+# After=network.target mysql.service
+# Wants=mysql.service
 
 [Service]
 Type=simple
@@ -269,7 +288,11 @@ User=pykych
 Group=pykych
 WorkingDirectory=/opt/pykych
 Environment="PATH=/opt/pykych/.venv/bin"
-# 生产模式：去掉 --reload，增加 worker 数
+
+# ── --host 参数说明 ──────────────────────────────────
+# 127.0.0.1 → 仅本地访问（配合 Nginx 反代，最安全，推荐）
+# 0.0.0.0   → 监听所有网卡（直连外部 / 同机容器访问 / 无 Nginx 时使用）
+# 内网 IP   → 仅允许指定网段访问（如 10.0.0.5）
 ExecStart=/opt/pykych/.venv/bin/uvicorn src.pykych.main:app \
     --host 127.0.0.1 \
     --port 8000 \
@@ -370,7 +393,7 @@ sudo systemctl enable certbot.timer
 - [ ] 修改 `main.py` 中的 `SessionMiddleware` 密钥为随机字符串
 - [ ] 修改默认管理员密码 (admin / admin123)
 - [ ] 配置防火墙：`sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw enable`
-- [ ] 配置 MySQL 仅监听本地：编辑 `/etc/mysql/mysql.conf.d/mysqld.cnf`，设置 `bind-address = 127.0.0.1`
+- [ ] 若 MySQL 在本机，限制仅本地监听：编辑 `/etc/mysql/mysql.conf.d/mysqld.cnf`，设置 `bind-address = 127.0.0.1`
 - [ ] 检查日志：`journalctl -u pykych -f`、`tail -f /var/log/nginx/access.log`
 
 ### 10. 日常维护命令
