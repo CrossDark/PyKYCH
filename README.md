@@ -396,13 +396,45 @@ sudo systemctl enable certbot.timer
 - [ ] 若 MySQL 在本机，限制仅本地监听：编辑 `/etc/mysql/mysql.conf.d/mysqld.cnf`，设置 `bind-address = 127.0.0.1`
 - [ ] 检查日志：`journalctl -u pykych -f`、`tail -f /var/log/nginx/access.log`
 
-### 10. 日常维护命令
+### 10. 更新部署
+
+当本地开发完成后，按照以下步骤将最新代码部署到服务器。
+
+#### 快速更新（日常小改动）
 
 ```bash
-# 更新代码
+sudo -u pykych git -C /opt/pykych pull && sudo systemctl restart pykych
+```
+
+#### 完整更新流程
+
+```bash
+# 1. 拉取最新代码
 sudo -u pykych git -C /opt/pykych pull
+
+# 2. 更新依赖（每次建议执行，确保新增依赖也被安装）
+sudo -u pykych /opt/pykych/.venv/bin/pip install -e /opt/pykych
+
+# 3. 重启服务
 sudo systemctl restart pykych
 
+# 4. 验证服务状态
+sudo systemctl status pykych
+journalctl -u pykych -n 30 --no-pager
+```
+
+#### 不同场景的额外操作
+
+| 场景 | 需要额外执行的操作 |
+|------|-------------------|
+| 数据库结构有变更 | 手动执行 SQL 迁移语句 |
+| `settings/db.yaml` 有变动 | 参考 `db.yaml.example` 手动更新服务器上的配置 |
+| 仅修改了模板/静态资源 | 只需 `git pull`，无需重启服务（静态资源由 Nginx 直接代理） |
+| 首次部署到新服务器 | 从第 1 步开始完整部署 |
+
+### 11. 日常维护命令
+
+```bash
 # 查看服务状态
 sudo systemctl status pykych
 journalctl -u pykych -n 50 --no-pager
