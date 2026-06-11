@@ -21,6 +21,9 @@ mysql:
   # Wikidot 页面数据库名
   wikidot_db: pykych_wiki
 
+  # 系统管理数据库名（用户、配置等）
+  system_db: pykych_sys
+
   # 字符集
   charset: utf8mb4
 

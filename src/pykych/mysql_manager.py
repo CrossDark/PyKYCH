@@ -2,11 +2,7 @@
 MySQL 连接管理器 — 读取 settings/db.yaml，管理连接池。
 
 用法:
-    from .mysql_manager import get_md_pool, get_wk_pool
-
-    async with get_md_pool() as pool:
-        async with pool.acquire() as conn:
-            ...
+    from .mysql_manager import get_md_pool, get_wk_pool, get_sys_pool
 """
 
 import yaml
@@ -29,6 +25,7 @@ _mysql = _config["mysql"]
 
 _md_pool: aiomysql.Pool | None = None
 _wk_pool: aiomysql.Pool | None = None
+_sys_pool: aiomysql.Pool | None = None
 
 
 async def _create_pool(database: str) -> aiomysql.Pool:
@@ -64,17 +61,22 @@ async def get_wk_pool() -> aiomysql.Pool:
     return _wk_pool
 
 
+async def get_sys_pool() -> aiomysql.Pool:
+    """获取系统管理数据库连接池（用户、配置等）。"""
+    global _sys_pool
+    if _sys_pool is None:
+        _sys_pool = await _create_pool(_mysql["system_db"])
+    return _sys_pool
+
+
 async def close_pools() -> None:
     """关闭所有连接池（应用关闭时调用）。"""
-    global _md_pool, _wk_pool
-    if _md_pool:
-        _md_pool.close()
-        await _md_pool.wait_closed()
-        _md_pool = None
-    if _wk_pool:
-        _wk_pool.close()
-        await _wk_pool.wait_closed()
-        _wk_pool = None
+    global _md_pool, _wk_pool, _sys_pool
+    for pool in (_md_pool, _wk_pool, _sys_pool):
+        if pool:
+            pool.close()
+            await pool.wait_closed()
+    _md_pool = _wk_pool = _sys_pool = None
 
 
 # ── 表初始化 ────────────────────────────────────────────────
@@ -127,18 +129,22 @@ async def init_tables() -> None:
     async with md_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(MD_TABLE_SQL)
-            await cur.execute(USERS_TABLE_SQL)
 
     wk_pool = await get_wk_pool()
     async with wk_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(WK_TABLE_SQL)
 
+    sys_pool = await get_sys_pool()
+    async with sys_pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(USERS_TABLE_SQL)
+
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:
     """创建默认管理员（如不存在）。"""
     from .auth import hash_password
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))

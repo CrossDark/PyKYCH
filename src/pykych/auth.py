@@ -7,7 +7,7 @@ import hashlib
 import os
 from typing import Optional
 
-from .mysql_manager import get_md_pool, row_to_dict
+from .mysql_manager import get_sys_pool, row_to_dict
 
 # ── 密码哈希 (PBKDF2-HMAC-SHA256) ────────────────────────────
 
@@ -43,7 +43,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 async def get_user_by_username(username: str) -> Optional[dict]:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
@@ -55,7 +55,7 @@ async def get_user_by_username(username: str) -> Optional[dict]:
 
 
 async def get_user_with_password(username: str) -> Optional[dict]:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
@@ -66,7 +66,7 @@ async def get_user_with_password(username: str) -> Optional[dict]:
 
 
 async def list_users() -> list[dict]:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
@@ -80,7 +80,7 @@ async def list_users() -> list[dict]:
 async def create_user(
     username: str, password: str, nickname: str = "", is_admin: bool = False
 ) -> dict:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             pwd_hash = hash_password(password)
@@ -93,7 +93,7 @@ async def create_user(
 
 
 async def update_user_password(username: str, new_password: str) -> bool:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             pwd_hash = hash_password(new_password)
@@ -107,7 +107,7 @@ async def update_user_password(username: str, new_password: str) -> bool:
 async def update_user_info(
     username: str, nickname: str = "", is_admin: bool = False
 ) -> bool:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
@@ -118,7 +118,7 @@ async def update_user_info(
 
 
 async def delete_user(username: str) -> bool:
-    pool = await get_md_pool()
+    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
