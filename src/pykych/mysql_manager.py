@@ -23,60 +23,97 @@ _mysql = _config["mysql"]
 
 # ── 全局连接池 (惰性创建) ───────────────────────────────────
 
-_md_pool: aiomysql.Pool | None = None
-_wk_pool: aiomysql.Pool | None = None
-_sys_pool: aiomysql.Pool | None = None
+_pool: aiomysql.Pool | None = None
 
 
-async def _create_pool(database: str) -> aiomysql.Pool:
-    """创建 MySQL 连接池。"""
+async def _create_pool() -> aiomysql.Pool:
+    """创建 MySQL 连接池（统一使用 pykych 数据库）。如果数据库不存在则尝试自动创建。"""
     pool_cfg = _mysql.get("pool", {})
-    return await aiomysql.create_pool(
-        host=_mysql["host"],
-        port=_mysql.get("port", 3306),
-        user=_mysql["user"],
-        password=_mysql["password"],
-        db=database,
-        charset=_mysql.get("charset", "utf8mb4"),
-        minsize=pool_cfg.get("minsize", 2),
-        maxsize=pool_cfg.get("maxsize", 10),
-        pool_recycle=pool_cfg.get("pool_recycle", 3600),
-        autocommit=True,
-    )
+    db_name = _mysql["database"]
+
+    async def _connect(db: str) -> aiomysql.Pool:
+        return await aiomysql.create_pool(
+            host=_mysql["host"],
+            port=_mysql.get("port", 3306),
+            user=_mysql["user"],
+            password=_mysql["password"],
+            db=db,
+            charset=_mysql.get("charset", "utf8mb4"),
+            minsize=pool_cfg.get("minsize", 2),
+            maxsize=pool_cfg.get("maxsize", 10),
+            pool_recycle=pool_cfg.get("pool_recycle", 3600),
+            autocommit=True,
+        )
+
+    # 尝试直接连接目标数据库
+    try:
+        return await _connect(db_name)
+    except Exception as e:
+        err_msg = str(e)
+        # 如果数据库不存在 (错误码 1049)，尝试创建
+        if "1049" not in err_msg and "Unknown database" not in err_msg:
+            raise
+
+    # 数据库不存在，尝试创建
+    try:
+        temp_conn = await aiomysql.connect(
+            host=_mysql["host"],
+            port=_mysql.get("port", 3306),
+            user=_mysql["user"],
+            password=_mysql["password"],
+            charset=_mysql.get("charset", "utf8mb4"),
+            autocommit=True,
+        )
+        try:
+            async with temp_conn.cursor() as cur:
+                await cur.execute(
+                    f"CREATE DATABASE IF NOT EXISTS `{db_name}` "
+                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                )
+        finally:
+            temp_conn.close()
+    except Exception as e:
+        raise RuntimeError(
+            f"数据库 '{db_name}' 不存在且无法自动创建（权限不足）。\n"
+            f"请在 MySQL 中手动执行: CREATE DATABASE IF NOT EXISTS `{db_name}` "
+            "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
+            f"原始错误: {e}"
+        ) from e
+
+    # 创建成功后连接目标数据库
+    return await _connect(db_name)
+
+
+async def _get_pool() -> aiomysql.Pool:
+    """获取统一数据库连接池（惰性创建）。"""
+    global _pool
+    if _pool is None:
+        _pool = await _create_pool()
+    return _pool
 
 
 async def get_md_pool() -> aiomysql.Pool:
-    """获取 Markdown 数据库连接池。"""
-    global _md_pool
-    if _md_pool is None:
-        _md_pool = await _create_pool(_mysql["markdown_db"])
-    return _md_pool
+    """获取 Markdown 文章连接池（指向统一 pykych 数据库）。"""
+    return await _get_pool()
 
 
 async def get_wk_pool() -> aiomysql.Pool:
-    """获取 Wikidot 数据库连接池。"""
-    global _wk_pool
-    if _wk_pool is None:
-        _wk_pool = await _create_pool(_mysql["wikidot_db"])
-    return _wk_pool
+    """获取 Wikidot 页面连接池（指向统一 pykych 数据库）。"""
+    return await _get_pool()
 
 
 async def get_sys_pool() -> aiomysql.Pool:
-    """获取系统管理数据库连接池（用户、配置等）。"""
-    global _sys_pool
-    if _sys_pool is None:
-        _sys_pool = await _create_pool(_mysql["system_db"])
-    return _sys_pool
+    """获取系统管理连接池（指向统一 pykych 数据库）。"""
+    return await _get_pool()
 
 
 async def close_pools() -> None:
-    """关闭所有连接池（应用关闭时调用）。"""
-    global _md_pool, _wk_pool, _sys_pool
-    for pool in (_md_pool, _wk_pool, _sys_pool):
-        if pool:
-            pool.close()
-            await pool.wait_closed()
-    _md_pool = _wk_pool = _sys_pool = None
+    """关闭连接池（应用关闭时调用）。"""
+    global _pool
+    if _pool:
+        _pool.close()
+        await _pool.wait_closed()
+    _pool = None
 
 
 # ── 表初始化 ────────────────────────────────────────────────
@@ -170,32 +207,26 @@ async def _migrate_user_roles(cur) -> None:
 
 async def init_tables() -> None:
     """在应用启动时确保表结构存在，并执行必要的迁移。"""
-    md_pool = await get_md_pool()
-    async with md_pool.acquire() as conn:
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
         async with conn.cursor() as cur:
+            # Markdown 文章表
             await cur.execute(MD_TABLE_SQL)
-            # 迁移：添加 author_id 列（如果不存在）
             await _safe_add_column(cur, "articles", "author_id", "INT DEFAULT NULL")
 
-    wk_pool = await get_wk_pool()
-    async with wk_pool.acquire() as conn:
-        async with conn.cursor() as cur:
+            # Wikidot 页面表
             await cur.execute(WK_TABLE_SQL)
-            # 迁移：添加 author_id 列（如果不存在）
             await _safe_add_column(cur, "pages", "author_id", "INT DEFAULT NULL")
 
-    sys_pool = await get_sys_pool()
-    async with sys_pool.acquire() as conn:
-        async with conn.cursor() as cur:
+            # 用户表
             await cur.execute(USERS_TABLE_SQL)
-            # 迁移：从 is_admin 升级到 role
             await _migrate_user_roles(cur)
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:
     """创建默认站长（如不存在），或将已有管理员升级为站长。"""
     from .auth import hash_password
-    pool = await get_sys_pool()
+    pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))

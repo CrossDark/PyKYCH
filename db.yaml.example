@@ -15,14 +15,8 @@ mysql:
   # 数据库密码
   password: CHANGEME
 
-  # Markdown 文章数据库名
-  markdown_db: pykych_md
-
-  # Wikidot 页面数据库名
-  wikidot_db: pykych_wiki
-
-  # 系统管理数据库名（用户、配置等）
-  system_db: pykych_sys
+  # 统一数据库名（所有表存放在同一数据库中）
+  database: pykych
 
   # 字符集
   charset: utf8mb4
