@@ -9,3 +9,6 @@
 7. [ ] 网站logo: 添加一个空白的logo文件，我稍后手动替换为真实的logo，并更新网站logo
 8. [ ] 搜索功能: 路由/search/，支持根据文章内容搜索文章，同时在导航栏新增搜索图标并链接
 9. [ ] BBCode: 增加bbcode模块，类似markdown和wikidot模块
+10. [ ] html: 增加html模块，路由/html/，其中本地html文章类似markdown和wikidot，存放在数据库中，路由/html/local/
+11. [ ] 外部html: 
+
