@@ -189,6 +189,94 @@
         padding: 1.5rem 2rem;
         margin: 1rem 0;
     }
+
+    /* ── 可折叠块 ── */
+    .wiki-content .wiki-collapsible {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin: 1rem 0;
+        overflow: hidden;
+    }
+
+    .wiki-content .wiki-collapsible summary {
+        padding: 0.75rem 1rem;
+        background: var(--code-bg);
+        cursor: pointer;
+        font-weight: 600;
+        user-select: none;
+        list-style: none;
+    }
+
+    .wiki-content .wiki-collapsible summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .wiki-content .wiki-collapsible summary::before {
+        content: "▶";
+        display: inline-block;
+        margin-right: 0.5rem;
+        font-size: 0.75rem;
+        transition: transform 0.2s;
+    }
+
+    .wiki-content .wiki-collapsible[open] summary::before {
+        transform: rotate(90deg);
+    }
+
+    .wiki-content .collapsible-show {
+        display: inline;
+    }
+
+    .wiki-content .collapsible-hide {
+        display: none;
+    }
+
+    .wiki-content .wiki-collapsible[open] .collapsible-show {
+        display: none;
+    }
+
+    .wiki-content .wiki-collapsible[open] .collapsible-hide {
+        display: inline;
+    }
+
+    .wiki-content .collapsible-content {
+        padding: 1rem;
+        border-top: 1px solid var(--border);
+    }
+
+    /* ── 上标 / 下标 ── */
+    .wiki-content sup {
+        font-size: 0.75em;
+        vertical-align: super;
+        line-height: 0;
+    }
+
+    .wiki-content sub {
+        font-size: 0.75em;
+        vertical-align: sub;
+        line-height: 0;
+    }
+
+    /* ── 辅助类 span ── */
+    .wiki-content span.wiki-note {
+        display: inline-block;
+        background: var(--code-bg);
+        padding: 0.15em 0.5em;
+        border-radius: 4px;
+        font-size: 0.9em;
+        color: var(--text-secondary);
+    }
+
+    .wiki-content span.wiki-highlight {
+        background: #fef08a;
+        padding: 0.1em 0.3em;
+        border-radius: 3px;
+    }
+
+    [data-theme="dark"] .wiki-content span.wiki-highlight {
+        background: rgba(250, 204, 21, 0.3);
+        color: #fde047;
+    }
 </style>
 {% endblock %}
 {% endif %}
