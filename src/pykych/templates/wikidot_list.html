@@ -11,6 +11,13 @@
     <a href="/wikidot/{{ p.slug }}" class="article-card card">
         <h3>{{ p.title }}</h3>
         <div class="date">{{ p.created_at[:10] }} · 更新于 {{ p.updated_at[:10] }}</div>
+        {% if p.tags %}
+        <div class="inline-tags">
+            {% for tag in p.tags %}
+            <span class="inline-tag">#{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
         <p class="summary">slug: {{ p.slug }}</p>
     </a>
     {% else %}

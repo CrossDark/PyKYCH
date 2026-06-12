@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏷️ 标签</h1>
+    <p class="subtitle">共 {{ tags | length }} 个标签</p>
+</div>
+
+{% if tags %}
+<div class="tag-cloud">
+    {% for tag in tags %}
+    <a href="/labels/{{ tag.name }}" class="tag-item tag-{{ tag.count }}">
+        <span class="tag-name">#{{ tag.name }}</span>
+        <span class="tag-count">{{ tag.count }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+    <p style="color: var(--text-muted); margin: 0;">暂无标签</p>
+</div>
+{% endif %}
+{% endblock %}

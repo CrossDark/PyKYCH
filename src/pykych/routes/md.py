@@ -9,6 +9,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
 from .. import db
+from .. import tag_manager
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -55,6 +56,9 @@ md_route = Route("/md")
 async def md_article_list(page: int = 1):
     """Markdown 文章列表页。"""
     result = await db.list_articles(page=page, per_page=10)
+    # 为每篇文章加载标签
+    for article in result["articles"]:
+        article["tags"] = await tag_manager.get_tags_for_article("md", article["slug"])
     return render(
         "md_list.html",
         title="Markdown 文章 - PyKYCH",
@@ -78,6 +82,8 @@ async def md_article_detail(slug: str):
             html_content="<p>抱歉，您查找的文章不存在。</p>",
         )
 
+    # 加载标签
+    article["tags"] = await tag_manager.get_tags_for_article("md", slug)
     html_body = render_markdown(article["content"])
     return render(
         "md_detail.html",

@@ -159,6 +159,30 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+TAGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS tags (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(64) UNIQUE NOT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_tag_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+ARTICLE_TAGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS article_tags (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    article_type ENUM('md', 'wikidot') NOT NULL,
+    article_slug VARCHAR(255) NOT NULL,
+    tag_id       INT NOT NULL,
+
+    UNIQUE KEY uq_article_tag (article_type, article_slug, tag_id),
+    INDEX idx_article (article_type, article_slug),
+    INDEX idx_tag (tag_id),
+    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -205,6 +229,35 @@ async def _migrate_user_roles(cur) -> None:
         pass  # 列不存在或已迁移
 
 
+async def _migrate_tags() -> None:
+    """为已有文章（无标签的）添加默认标签。"""
+    from . import tag_manager
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            # Markdown 文章
+            await cur.execute(
+                "SELECT a.slug FROM articles a "
+                "WHERE NOT EXISTS ("
+                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'md' AND at.article_slug = a.slug"
+                ")"
+            )
+            rows = await cur.fetchall()
+            for row in rows:
+                await tag_manager.auto_tag_article("md", row[0])
+
+            # Wikidot 页面
+            await cur.execute(
+                "SELECT p.slug FROM pages p "
+                "WHERE NOT EXISTS ("
+                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'wikidot' AND at.article_slug = p.slug"
+                ")"
+            )
+            rows = await cur.fetchall()
+            for row in rows:
+                await tag_manager.auto_tag_article("wikidot", row[0])
+
+
 async def init_tables() -> None:
     """在应用启动时确保表结构存在，并执行必要的迁移。"""
     pool = await _get_pool()
@@ -221,6 +274,13 @@ async def init_tables() -> None:
             # 用户表
             await cur.execute(USERS_TABLE_SQL)
             await _migrate_user_roles(cur)
+
+            # 标签表
+            await cur.execute(TAGS_TABLE_SQL)
+            await cur.execute(ARTICLE_TAGS_TABLE_SQL)
+
+    # 迁移：为已有文章添加默认标签
+    await _migrate_tags()
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:

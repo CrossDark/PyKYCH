@@ -5,6 +5,9 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from jinja2 import Environment, FileSystemLoader
 
+from .routes import labels
+
+# ... existing imports ...
 from . import db
 from . import wikidot_db
 from .routes import md
@@ -227,6 +230,9 @@ app.include(md.md_route)
 
 # ===== Wikidot 页面路由 =====
 app.include(wikidot.wikidot_route)
+
+# ===== 标签路由 =====
+app.include(labels.labels_route)
 
 # ===== 管理后台路由 =====
 app.include(admin.admin_route)

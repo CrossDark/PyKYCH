@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .mysql_manager import get_md_pool, row_to_dict
+from . import tag_manager
 
 
 async def list_articles(page: int = 1, per_page: int = 10) -> dict:
@@ -80,6 +81,8 @@ async def create_article(slug: str, title: str, content: str, author_id: int = N
                 "INSERT INTO articles (slug, title, content, author_id) VALUES (%s, %s, %s, %s)",
                 (slug, title, content, author_id),
             )
+            # 自动添加 md 标签
+            await tag_manager.auto_tag_article("md", slug)
             return await get_article_by_slug(slug)
 
 
@@ -307,5 +310,7 @@ async def seed_db() -> int:
                         "INSERT INTO articles (slug, title, content) VALUES (%s, %s, %s)",
                         (a["slug"], a["title"], a["content"]),
                     )
+                    # 自动添加 md 标签
+                    await tag_manager.auto_tag_article("md", a["slug"])
                     count += 1
             return count

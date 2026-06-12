@@ -190,6 +190,14 @@
     <span>🔄 {{ article.updated_at[:10] }}</span>
 </div>
 
+{% if article.tags %}
+<div class="inline-tags" style="margin-bottom: 1rem;">
+    {% for tag in article.tags %}
+    <a href="/labels/{{ tag.name }}" class="inline-tag">#{{ tag.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
 <div class="content-body md-content">
     {{ html_content | safe }}
 </div>

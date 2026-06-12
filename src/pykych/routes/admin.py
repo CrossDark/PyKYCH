@@ -13,6 +13,7 @@ from urllib.parse import quote
 from .. import db
 from .. import wikidot_db
 from .. import auth as auth_mod
+from .. import tag_manager
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -125,6 +126,9 @@ async def md_edit_form(slug: str, request: Request):
     if not _can_edit(article, user):
         return render("admin_form.html", title="权限不足", form_title="错误",
             action="", article_type="md", article=None, error="您没有权限编辑此文章。")
+    # 加载标签
+    article["tags"] = await tag_manager.get_tags_for_article("md", slug)
+    article["_tag_str"] = ", ".join(t["name"] for t in article["tags"])
     return render("admin_form.html", title=f"编辑: {article['title']} - PyKYCH",
         form_title="编辑 Markdown 文章", action=f"/admin/md/{slug}/edit",
         article_type="md", article=article, error=None)
@@ -140,6 +144,7 @@ async def md_update(slug: str, request: Request):
     form = await request.form()
     title = form.get("title", "").strip()
     content = form.get("content", "")
+    tags_str = form.get("tags", "").strip()
     error = _validate(title, slug, content, is_edit=True)
     if error:
         return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
@@ -150,6 +155,10 @@ async def md_update(slug: str, request: Request):
         return render("admin_form.html", title="编辑失败", form_title="编辑 Markdown 文章",
             action=f"/admin/md/{slug}/edit", article_type="md",
             article={"title":title,"slug":slug,"content":content}, error=f"文章 '{slug}' 不存在。")
+    # 更新标签
+    tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+    tag_names.append("md")  # 确保 md 标签始终存在
+    await tag_manager.set_article_tags("md", slug, tag_names)
     return redirect("/admin")
 
 @admin_route.sub("/md/{slug}/delete").post
@@ -204,6 +213,9 @@ async def wk_edit_form(slug: str, request: Request):
     if not _can_edit(page, user):
         return render("admin_form.html", title="权限不足", form_title="错误",
             action="", article_type="wikidot", article=None, error="您没有权限编辑此页面。")
+    # 加载标签
+    page["tags"] = await tag_manager.get_tags_for_article("wikidot", slug)
+    page["_tag_str"] = ", ".join(t["name"] for t in page["tags"])
     return render("admin_form.html", title=f"编辑: {page['title']} - PyKYCH",
         form_title="编辑 Wikidot 页面", action=f"/admin/wikidot/{slug}/edit",
         article_type="wikidot", article=page, error=None)
@@ -219,6 +231,7 @@ async def wk_update(slug: str, request: Request):
     form = await request.form()
     title = form.get("title", "").strip()
     content = form.get("content", "")
+    tags_str = form.get("tags", "").strip()
     error = _validate(title, slug, content, is_edit=True)
     if error:
         return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
@@ -229,6 +242,10 @@ async def wk_update(slug: str, request: Request):
         return render("admin_form.html", title="编辑失败", form_title="编辑 Wikidot 页面",
             action=f"/admin/wikidot/{slug}/edit", article_type="wikidot",
             article={"title":title,"slug":slug,"content":content}, error=f"页面 '{slug}' 不存在。")
+    # 更新标签
+    tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+    tag_names.append("wikidot")  # 确保 wikidot 标签始终存在
+    await tag_manager.set_article_tags("wikidot", slug, tag_names)
     return redirect("/admin")
 
 @admin_route.sub("/wikidot/{slug}/delete").post

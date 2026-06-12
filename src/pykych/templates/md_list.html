@@ -11,6 +11,13 @@
     <a href="/md/{{ article.slug }}" class="article-card card">
         <h3>{{ article.title }}</h3>
         <div class="date">{{ article.created_at[:10] }}</div>
+        {% if article.tags %}
+        <div class="inline-tags">
+            {% for tag in article.tags %}
+            <span class="inline-tag">#{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
         <p class="summary">阅读全文 →</p>
     </a>
     {% else %}

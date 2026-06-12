@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .mysql_manager import get_wk_pool, row_to_dict
+from . import tag_manager
 
 
 async def list_pages(page: int = 1, per_page: int = 10) -> dict:
@@ -80,6 +81,8 @@ async def create_page(slug: str, title: str, content: str, author_id: int = None
                 "INSERT INTO pages (slug, title, content, author_id) VALUES (%s, %s, %s, %s)",
                 (slug, title, content, author_id),
             )
+            # 自动添加 wikidot 标签
+            await tag_manager.auto_tag_article("wikidot", slug)
             return await get_page_by_slug(slug)
 
 
@@ -275,5 +278,7 @@ async def seed_db() -> int:
                         "INSERT INTO pages (slug, title, content) VALUES (%s, %s, %s)",
                         (p["slug"], p["title"], p["content"]),
                     )
+                    # 自动添加 wikidot 标签
+                    await tag_manager.auto_tag_article("wikidot", p["slug"])
                     count += 1
             return count

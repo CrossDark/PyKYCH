@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏷️ #{{ tag.name }}</h1>
+    <p class="subtitle">共 {{ total }} 篇相关文章</p>
+</div>
+
+{% if articles %}
+<div class="article-list">
+    {% for article in articles %}
+    <a href="/{{ article.article_type }}/{{ article.article_slug }}" class="article-card card">
+        <h3>
+            {% if article.article_type == 'md' %}📝{% else %}📚{% endif %}
+            {{ article.title }}
+        </h3>
+        <div class="date">
+            {{ article.created_at[:10] if article.created_at else '' }}
+            {% if article.updated_at and article.updated_at != article.created_at %}
+            · 更新于 {{ article.updated_at[:10] }}
+            {% endif %}
+        </div>
+        <p class="summary">
+            <span class="article-type-badge">{{ article.article_type }}</span>
+            阅读全文 →
+        </p>
+    </a>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}" class="page-btn">← 上一页</a>
+    {% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}" class="page-btn">下一页 →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% else %}
+<div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+    <p style="color: var(--text-muted); margin: 0;">此标签下暂无文章</p>
+</div>
+{% endif %}
+{% endblock %}

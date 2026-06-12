@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from .. import wikidot_db as db
 from ..wikidot_parser import parse_wikidot
+from .. import tag_manager
 
 # ── 模板 ────────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -32,6 +33,9 @@ wikidot_route = Route("/wikidot")
 async def page_list(page: int = 1):
     """Wikidot 页面列表。"""
     result = await db.list_pages(page=page, per_page=10)
+    # 为每个页面加载标签
+    for p in result["pages"]:
+        p["tags"] = await tag_manager.get_tags_for_article("wikidot", p["slug"])
     return render(
         "wikidot_list.html",
         title="Wiki 页面 - 跨越晨昏",
@@ -55,6 +59,8 @@ async def page_detail(slug: str):
             html_content="<p>抱歉，该 Wiki 页面不存在。</p>",
         )
 
+    # 加载标签
+    page["tags"] = await tag_manager.get_tags_for_article("wikidot", slug)
     html_body = parse_wikidot(page["content"])
     return render(
         "wikidot_detail.html",
