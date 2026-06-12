@@ -11,4 +11,4 @@
 9. [ ] BBCode: 增加bbcode模块，类似markdown和wikidot模块
 10. [ ] html: 增加html模块，路由/html/，其中本地html文章类似markdown和wikidot，存放在数据库中，路由/html/local/
 11. [ ] 外部html: 从特定的静态网站（站长在后台管理）中获取html并显示在/html/<名称>/中，路由结构与源静态网站相同.网站正文部分从静态站获取html，其余部分为本站元素
-12. [ ] 评论区
+12. [ ] 评论区: 在所有文章底部增加评论区功能
