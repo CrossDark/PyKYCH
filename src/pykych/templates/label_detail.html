@@ -9,9 +9,9 @@
 {% if articles %}
 <div class="article-list">
     {% for article in articles %}
-    <a href="/{{ article.article_type }}/{{ article.article_slug }}" class="article-card card">
+    <a href="/{{ article.article_type }}{% if article.article_type == 'html' %}/local{% endif %}/{{ article.article_slug }}" class="article-card card">
         <h3>
-            {% if article.article_type == 'md' %}📝{% else %}📚{% endif %}
+            {% if article.article_type == 'md' %}📝{% elif article.article_type == 'html' %}🌐{% else %}📚{% endif %}
             {{ article.title }}
         </h3>
         <div class="date">

@@ -133,15 +133,16 @@ async def get_articles_by_tag(
 
             offset = (page - 1) * per_page
 
-            # 合并查询：先取 md 文章，再取 wikidot 页面
+            # 合并查询：md / wikidot / html 三种文章类型
             await cur.execute(
                 "SELECT at.article_type, at.article_slug, "
-                "COALESCE(a.title, p.title) AS title, "
-                "COALESCE(a.created_at, p.created_at) AS created_at, "
-                "COALESCE(a.updated_at, p.updated_at) AS updated_at "
+                "COALESCE(a.title, p.title, h.title) AS title, "
+                "COALESCE(a.created_at, p.created_at, h.created_at) AS created_at, "
+                "COALESCE(a.updated_at, p.updated_at, h.updated_at) AS updated_at "
                 "FROM article_tags at "
                 "LEFT JOIN articles a ON at.article_type = 'md' AND at.article_slug = a.slug "
                 "LEFT JOIN pages p ON at.article_type = 'wikidot' AND at.article_slug = p.slug "
+                "LEFT JOIN html_pages h ON at.article_type = 'html' AND at.article_slug = h.slug "
                 "WHERE at.tag_id = %s "
                 "ORDER BY created_at DESC "
                 "LIMIT %s OFFSET %s",
