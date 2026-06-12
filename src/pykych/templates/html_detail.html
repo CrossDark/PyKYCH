@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if page %}
+<div class="page-header">
+    <h1>{{ page.title }}</h1>
+</div>
+
+<div class="wiki-meta">
+    <span>📅 创建于 {{ page.created_at[:10] }}</span>
+    <span>🔄 更新于 {{ page.updated_at[:10] }}</span>
+</div>
+
+{% if page.tags %}
+<div class="inline-tags" style="margin-bottom: 1rem;">
+    {% for tag in page.tags %}
+    <a href="/labels/{{ tag.name }}" class="inline-tag">#{{ tag.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="content-body">
+    {{ html_content | safe }}
+</div>
+
+<a href="/html" class="back-link">← 返回 HTML 列表</a>
+{% else %}
+<div class="page-header">
+    <h1>404 - 页面未找到</h1>
+</div>
+<div class="content-body">
+    {{ html_content | safe }}
+</div>
+<a href="/html" class="back-link">← 返回 HTML 列表</a>
+{% endif %}
+{% endblock %}

@@ -12,6 +12,7 @@ from urllib.parse import quote
 
 from .. import db
 from .. import wikidot_db
+from .. import html_db
 from .. import auth as auth_mod
 from .. import tag_manager
 
@@ -73,15 +74,18 @@ async def dashboard(request: Request):
     if auth_mod.is_admin(user):
         md_r = await db.list_articles(page=1, per_page=100)
         wk_r = await wikidot_db.list_pages(page=1, per_page=100)
+        html_r = await html_db.list_html_pages(page=1, per_page=100)
     else:
         uid = user.get("id")
         md_r = await db.get_articles_by_author(uid, page=1, per_page=100) if uid else {"articles": [], "total": 0}
         wk_r = await wikidot_db.get_pages_by_author(uid, page=1, per_page=100) if uid else {"pages": [], "total": 0}
+        html_r = await html_db.get_html_pages_by_author(uid, page=1, per_page=100) if uid else {"pages": [], "total": 0}
 
     users = await auth_mod.list_users() if auth_mod.is_owner(user) else []
     return render("admin_dashboard.html", title="文章管理 - PyKYCH",
         current_user=user, md_articles=md_r["articles"], wk_pages=wk_r["pages"],
-        md_total=md_r["total"], wk_total=wk_r["total"], users=users,
+        html_pages=html_r["pages"],
+        md_total=md_r["total"], wk_total=wk_r["total"], html_total=html_r["total"], users=users,
         permission_error=None)
 
 # ===== Markdown CRUD =====
@@ -256,6 +260,91 @@ async def wk_delete(slug: str, request: Request):
     if not _can_edit(page, user):
         return redirect("/admin")
     await wikidot_db.delete_page(slug)
+    return redirect("/admin")
+
+# ===== HTML CRUD =====
+
+@admin_route.sub("/html/new").get
+async def html_create_form(request: Request):
+    user, err = await _check(request)
+    if err: return err
+    return render("admin_form.html", title="新建 HTML 页面 - PyKYCH",
+        form_title="新建 HTML 页面", action="/admin/html/new",
+        article_type="html", article=None, error=None)
+
+@admin_route.sub("/html/new").post
+async def html_create(request: Request):
+    user, err = await _check(request)
+    if err: return err
+    form = await request.form()
+    title = form.get("title", "").strip()
+    slug = form.get("slug", "").strip()
+    content = form.get("content", "")
+    error = _validate(title, slug, content)
+    if error:
+        return render("admin_form.html", title="新建 HTML - PyKYCH",
+            form_title="新建 HTML 页面", action="/admin/html/new",
+            article_type="html", article={"title":title,"slug":slug,"content":content}, error=error)
+    try:
+        await html_db.create_html_page(slug, title, content, author_id=user.get("id"))
+        return redirect("/admin")
+    except Exception as e:
+        return render("admin_form.html", title="新建 HTML - PyKYCH",
+            form_title="新建 HTML 页面", action="/admin/html/new",
+            article_type="html", article={"title":title,"slug":slug,"content":content}, error=f"创建失败: {e}")
+
+@admin_route.sub("/html/{slug}/edit").get
+async def html_edit_form(slug: str, request: Request):
+    user, err = await _check(request)
+    if err: return err
+    page = await html_db.get_html_page_by_slug(slug)
+    if not page:
+        return render("admin_form.html", title="页面未找到", form_title="错误",
+            action="", article_type="html", article=None, error=f"页面 '{slug}' 不存在。")
+    if not _can_edit(page, user):
+        return render("admin_form.html", title="权限不足", form_title="错误",
+            action="", article_type="html", article=None, error="您没有权限编辑此页面。")
+    page["tags"] = await tag_manager.get_tags_for_article("html", slug)
+    page["_tag_str"] = ", ".join(t["name"] for t in page["tags"])
+    return render("admin_form.html", title=f"编辑: {page['title']} - PyKYCH",
+        form_title="编辑 HTML 页面", action=f"/admin/html/{slug}/edit",
+        article_type="html", article=page, error=None)
+
+@admin_route.sub("/html/{slug}/edit").post
+async def html_update(slug: str, request: Request):
+    user, err = await _check(request)
+    if err: return err
+    page = await html_db.get_html_page_by_slug(slug)
+    if not _can_edit(page, user):
+        return render("admin_form.html", title="权限不足", form_title="错误",
+            action="", article_type="html", article=None, error="您没有权限编辑此页面。")
+    form = await request.form()
+    title = form.get("title", "").strip()
+    content = form.get("content", "")
+    tags_str = form.get("tags", "").strip()
+    error = _validate(title, slug, content, is_edit=True)
+    if error:
+        return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
+            form_title="编辑 HTML 页面", action=f"/admin/html/{slug}/edit",
+            article_type="html", article={"title":title,"slug":slug,"content":content}, error=error)
+    result = await html_db.update_html_page(slug, title, content)
+    if result is None:
+        return render("admin_form.html", title="编辑失败", form_title="编辑 HTML 页面",
+            action=f"/admin/html/{slug}/edit", article_type="html",
+            article={"title":title,"slug":slug,"content":content}, error=f"页面 '{slug}' 不存在。")
+    tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+    tag_names.append("html")
+    await tag_manager.set_article_tags("html", slug, tag_names)
+    return redirect("/admin")
+
+@admin_route.sub("/html/{slug}/delete").post
+async def html_delete(slug: str, request: Request):
+    user, err = await _check(request)
+    if err: return err
+    page = await html_db.get_html_page_by_slug(slug)
+    if not _can_edit(page, user):
+        return redirect("/admin")
+    await html_db.delete_html_page(slug)
     return redirect("/admin")
 
 # ===== 用户管理（仅站长） =====

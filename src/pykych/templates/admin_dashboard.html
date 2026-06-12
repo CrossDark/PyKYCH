@@ -202,6 +202,47 @@
     {% endif %}
 </div>
 
+<!-- HTML 页面 -->
+<div class="admin-section">
+    <h2>
+        🌐 HTML 页面
+        <a href="/admin/html/new" class="btn btn-primary">+ 新建</a>
+    </h2>
+    {% if html_pages %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>标题</th>
+                <th>Slug</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in html_pages %}
+            <tr>
+                <td><strong>{{ p.title }}</strong></td>
+                <td><code>{{ p.slug }}</code></td>
+                <td>{{ p.created_at[:10] }}</td>
+                <td>
+                    <div class="actions">
+                        <a href="/html/local/{{ p.slug }}" class="btn btn-outline btn-sm" title="查看">👁</a>
+                        <a href="/admin/html/{{ p.slug }}/edit" class="btn btn-outline btn-sm">✏️ 编辑</a>
+                        <form method="POST" action="/admin/html/{{ p.slug }}/delete" style="display:inline"
+                              onsubmit="return confirm('确定要删除 «{{ p.title }}» 吗？此操作不可撤销。')">
+                            <button type="submit" class="btn btn-danger btn-sm">🗑 删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="card empty-state">暂无 HTML 页面</div>
+    {% endif %}
+</div>
+
 <!-- 用户管理 -->
 <div class="admin-section">
     <h2>

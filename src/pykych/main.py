@@ -8,13 +8,17 @@ from jinja2 import Environment, FileSystemLoader
 from .routes import labels
 
 # ... existing imports ...
+from .mysql_manager import init_tables, close_pools, seed_admin
+
 from . import db
 from . import wikidot_db
+from . import html_db
 from .routes import md
 from .routes import wikidot
 from .routes import admin
 from .routes import auth
-from .mysql_manager import init_tables, close_pools, seed_admin
+from .routes import labels
+from .routes import html_route
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -24,6 +28,7 @@ async def lifespan(app):
     await init_tables()
     await db.seed_db()
     await wikidot_db.seed_db()
+    await html_db.seed_db()
 
     # 创建默认管理员（如不存在）
     await seed_admin("admin", "admin123", "管理员")
@@ -230,6 +235,9 @@ app.include(md.md_route)
 
 # ===== Wikidot 页面路由 =====
 app.include(wikidot.wikidot_route)
+
+# ===== HTML 页面路由 =====
+app.include(html_route.html_route)
 
 # ===== 标签路由 =====
 app.include(labels.labels_route)

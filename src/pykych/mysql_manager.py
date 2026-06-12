@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS tags (
 ARTICLE_TAGS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS article_tags (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    article_type ENUM('md', 'wikidot') NOT NULL,
+    article_type ENUM('md', 'wikidot', 'html') NOT NULL,
     article_slug VARCHAR(255) NOT NULL,
     tag_id       INT NOT NULL,
 
@@ -180,6 +180,21 @@ CREATE TABLE IF NOT EXISTS article_tags (
     INDEX idx_article (article_type, article_slug),
     INDEX idx_tag (tag_id),
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+HTML_PAGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS html_pages (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    slug        VARCHAR(255) UNIQUE NOT NULL,
+    title       VARCHAR(255) NOT NULL,
+    content     LONGTEXT NOT NULL,
+    author_id   INT DEFAULT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_slug (slug),
+    INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
@@ -235,6 +250,15 @@ async def _migrate_tags() -> None:
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
+            # 迁移 article_tags ENUM 以支持新类型
+            try:
+                await cur.execute(
+                    "ALTER TABLE article_tags MODIFY article_type "
+                    "ENUM('md','wikidot','html') NOT NULL"
+                )
+            except Exception:
+                pass
+
             # Markdown 文章
             await cur.execute(
                 "SELECT a.slug FROM articles a "
@@ -257,6 +281,17 @@ async def _migrate_tags() -> None:
             for row in rows:
                 await tag_manager.auto_tag_article("wikidot", row[0])
 
+            # HTML 页面
+            await cur.execute(
+                "SELECT hp.slug FROM html_pages hp "
+                "WHERE NOT EXISTS ("
+                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'html' AND at.article_slug = hp.slug"
+                ")"
+            )
+            rows = await cur.fetchall()
+            for row in rows:
+                await tag_manager.auto_tag_article("html", row[0])
+
 
 async def init_tables() -> None:
     """在应用启动时确保表结构存在，并执行必要的迁移。"""
@@ -278,6 +313,9 @@ async def init_tables() -> None:
             # 标签表
             await cur.execute(TAGS_TABLE_SQL)
             await cur.execute(ARTICLE_TAGS_TABLE_SQL)
+
+            # HTML 页面表
+            await cur.execute(HTML_PAGES_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()
