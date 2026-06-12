@@ -163,7 +163,7 @@ async def get_articles_by_tag(
 
 async def auto_tag_article(article_type: str, slug: str) -> None:
     """自动为文章添加默认标签（md 文章添加 'md'，wikidot 添加 'wikidot'）。"""
-    type_tag_map = {"md": "md", "wikidot": "wikidot", "html": "html"}
+    type_tag_map = {"md": "md", "wikidot": "wikidot", "html": "html", "bbcode": "bbcode"}
     default_tag = type_tag_map.get(article_type)
     if default_tag:
         await add_tag_to_article(article_type, slug, default_tag)

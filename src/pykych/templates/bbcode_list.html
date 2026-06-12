@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📋 BBCode 文章</h1>
+    <p class="subtitle">共 {{ total }} 篇文章</p>
+</div>
+
+<div class="article-list">
+    {% for p in pages %}
+    <a href="/bbcode/{{ p.slug }}" class="article-card card">
+        <h3>{{ p.title }}</h3>
+        <div class="date">{{ p.created_at[:10] }} · 更新于 {{ p.updated_at[:10] }}</div>
+        {% if p.tags %}
+        <div class="inline-tags">
+            {% for tag in p.tags %}
+            <span class="inline-tag">#{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <p class="summary">阅读全文 →</p>
+    </a>
+    {% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+        <p style="color: var(--text-muted); margin: 0;">暂无 BBCode 文章</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}" class="page-btn">← 上一页</a>
+    {% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}" class="page-btn">下一页 →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

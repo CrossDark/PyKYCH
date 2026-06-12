@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS tags (
 ARTICLE_TAGS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS article_tags (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    article_type ENUM('md', 'wikidot', 'html') NOT NULL,
+    article_type ENUM('md', 'wikidot', 'html', 'bbcode') NOT NULL,
     article_slug VARCHAR(255) NOT NULL,
     tag_id       INT NOT NULL,
 
@@ -185,6 +185,21 @@ CREATE TABLE IF NOT EXISTS article_tags (
 
 HTML_PAGES_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS html_pages (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    slug        VARCHAR(255) UNIQUE NOT NULL,
+    title       VARCHAR(255) NOT NULL,
+    content     LONGTEXT NOT NULL,
+    author_id   INT DEFAULT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_slug (slug),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+BBCODE_PAGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS bbcode_pages (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     slug        VARCHAR(255) UNIQUE NOT NULL,
     title       VARCHAR(255) NOT NULL,
@@ -254,7 +269,7 @@ async def _migrate_tags() -> None:
             try:
                 await cur.execute(
                     "ALTER TABLE article_tags MODIFY article_type "
-                    "ENUM('md','wikidot','html') NOT NULL"
+                    "ENUM('md','wikidot','html','bbcode') NOT NULL"
                 )
             except Exception:
                 pass
@@ -292,6 +307,17 @@ async def _migrate_tags() -> None:
             for row in rows:
                 await tag_manager.auto_tag_article("html", row[0])
 
+            # BBCode 页面
+            await cur.execute(
+                "SELECT bp.slug FROM bbcode_pages bp "
+                "WHERE NOT EXISTS ("
+                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'bbcode' AND at.article_slug = bp.slug"
+                ")"
+            )
+            rows = await cur.fetchall()
+            for row in rows:
+                await tag_manager.auto_tag_article("bbcode", row[0])
+
 
 async def init_tables() -> None:
     """在应用启动时确保表结构存在，并执行必要的迁移。"""
@@ -316,6 +342,9 @@ async def init_tables() -> None:
 
             # HTML 页面表
             await cur.execute(HTML_PAGES_TABLE_SQL)
+
+            # BBCode 页面表
+            await cur.execute(BBCODE_PAGES_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

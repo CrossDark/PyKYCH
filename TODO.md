@@ -8,7 +8,7 @@
 6. [x] 完善wikidot: 支持更多wikidot语法
 7. [ ] 网站logo: 添加一个空白的logo文件，我稍后手动替换为真实的logo，并更新网站logo
 8. [ ] 搜索功能: 路由/search/，支持根据文章内容搜索文章，同时在导航栏新增搜索图标并链接
-9. [ ] BBCode: 增加bbcode模块，类似markdown和wikidot模块
+9. [x] BBCode: 增加bbcode模块，类似markdown和wikidot模块
 10. [x] html: 增加html模块，路由/html/，其中本地html文章类似markdown和wikidot，存放在数据库中，路由/html/local/
 11. [ ] 外部html: 从特定的静态网站（站长在后台管理）中获取html并显示在/html/<名称>/中，路由结构与源静态网站相同.网站正文部分从静态站获取html，其余部分为本站元素.获取的内容存储在数据库中（图片等文件则不转存），并定时更新，也可以在后台手动更新
 12. [ ] 评论区: 在所有文章底部增加评论区功能，评论存储在数据库中单独的表中

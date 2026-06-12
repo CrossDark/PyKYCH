@@ -13,12 +13,14 @@ from .mysql_manager import init_tables, close_pools, seed_admin
 from . import db
 from . import wikidot_db
 from . import html_db
+from . import bbcode_db
 from .routes import md
 from .routes import wikidot
 from .routes import admin
 from .routes import auth
 from .routes import labels
 from .routes import html_route
+from .routes import bbcode
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -29,6 +31,7 @@ async def lifespan(app):
     await db.seed_db()
     await wikidot_db.seed_db()
     await html_db.seed_db()
+    await bbcode_db.seed_db()
 
     # 创建默认管理员（如不存在）
     await seed_admin("admin", "admin123", "管理员")
@@ -238,6 +241,9 @@ app.include(wikidot.wikidot_route)
 
 # ===== HTML 页面路由 =====
 app.include(html_route.html_route)
+
+# ===== BBCode 页面路由 =====
+app.include(bbcode.bbcode_route)
 
 # ===== 标签路由 =====
 app.include(labels.labels_route)

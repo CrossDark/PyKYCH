@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    /* ── BBCode 排版样式 ── */
+
+    .bbcode-content blockquote.bbcode-quote {
+        border-left: 4px solid var(--accent);
+        padding: 0.75rem 1rem;
+        margin: 1rem 0;
+        background: var(--code-bg);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        color: var(--text-secondary);
+        font-style: italic;
+    }
+
+    .bbcode-content blockquote.bbcode-quote cite {
+        display: block;
+        font-weight: 600;
+        font-style: normal;
+        color: var(--accent);
+        margin-bottom: 0.25rem;
+        font-size: 0.9rem;
+    }
+
+    .bbcode-content pre {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+
+    .bbcode-content pre code {
+        background: none;
+        padding: 0;
+        font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    }
+
+    .bbcode-content code {
+        background: var(--code-bg);
+        padding: 0.15em 0.4em;
+        border-radius: 4px;
+        font-size: 0.9em;
+        font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    }
+
+    /* ── 表格 ── */
+    .bbcode-table-wrapper {
+        overflow-x: auto;
+        margin: 1rem 0;
+    }
+
+    .bbcode-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+    }
+
+    .bbcode-table th,
+    .bbcode-table td {
+        border: 1px solid var(--border);
+        padding: 0.6rem 0.9rem;
+        text-align: left;
+    }
+
+    .bbcode-table th {
+        background: var(--code-bg);
+        font-weight: 600;
+    }
+
+    /* ── 列表 ── */
+    .bbcode-list {
+        padding-left: 1.5rem;
+        margin: 0.75rem 0;
+    }
+
+    .bbcode-list li {
+        margin-bottom: 0.3rem;
+    }
+
+    /* ── 折叠块 ── */
+    .bbcode-spoiler {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin: 1rem 0;
+        overflow: hidden;
+    }
+
+    .bbcode-spoiler summary {
+        padding: 0.6rem 1rem;
+        background: var(--code-bg);
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.95rem;
+        user-select: none;
+        transition: background 0.2s;
+    }
+
+    .bbcode-spoiler summary:hover {
+        background: var(--border);
+    }
+
+    .bbcode-spoiler-content {
+        padding: 1rem;
+    }
+
+    .bbcode-spoiler[open] summary {
+        border-bottom: 1px solid var(--border);
+    }
+
+    /* ── 水平线 ── */
+    .bbcode-content hr {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 1.5rem 0;
+    }
+
+    /* ── 锚点 ── */
+    .bbcode-anchor {
+        display: block;
+        position: relative;
+        top: -80px;
+        visibility: hidden;
+    }
+
+    /* ── 图片 ── */
+    .bbcode-content img {
+        border-radius: var(--radius);
+        display: block;
+        margin: 0.75rem 0;
+    }
+
+    /* ── 视频/音频 ── */
+    .bbcode-content video,
+    .bbcode-content audio {
+        max-width: 100%;
+        border-radius: var(--radius);
+        margin: 0.75rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if page %}
+<div class="page-header">
+    <h1>{{ page.title }}</h1>
+</div>
+
+<div class="wiki-meta">
+    <span>📅 创建于 {{ page.created_at[:10] }}</span>
+    <span>🔄 更新于 {{ page.updated_at[:10] }}</span>
+</div>
+
+{% if page.tags %}
+<div class="inline-tags" style="margin-bottom: 1rem;">
+    {% for tag in page.tags %}
+    <a href="/labels/{{ tag.name }}" class="inline-tag">#{{ tag.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="content-body bbcode-content">
+    {{ html_content | safe }}
+</div>
+
+<a href="/bbcode" class="back-link">← 返回 BBCode 列表</a>
+{% else %}
+<div class="page-header">
+    <h1>404 - 页面未找到</h1>
+</div>
+<div class="content-body">
+    {{ html_content | safe }}
+</div>
+<a href="/bbcode" class="back-link">← 返回 BBCode 列表</a>
+{% endif %}
+{% endblock %}
