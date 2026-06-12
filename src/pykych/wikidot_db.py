@@ -16,7 +16,7 @@ async def list_pages(page: int = 1, per_page: int = 10) -> dict:
         async with conn.cursor() as cur:
             offset = (page - 1) * per_page
             await cur.execute(
-                "SELECT id, slug, title, created_at, updated_at "
+                "SELECT id, slug, title, author_id, created_at, updated_at "
                 "FROM pages ORDER BY created_at DESC LIMIT %s OFFSET %s",
                 (per_page, offset),
             )
@@ -45,14 +45,40 @@ async def get_page_by_slug(slug: str) -> Optional[dict]:
             return row_to_dict(row, cur) if row else None
 
 
-async def create_page(slug: str, title: str, content: str) -> dict:
+async def get_pages_by_author(author_id: int, page: int = 1, per_page: int = 10) -> dict:
+    """获取指定作者的页面列表。"""
+    pool = await get_wk_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            offset = (page - 1) * per_page
+            await cur.execute(
+                "SELECT id, slug, title, author_id, created_at, updated_at "
+                "FROM pages WHERE author_id = %s ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                (author_id, per_page, offset),
+            )
+            rows = await cur.fetchall()
+            pages = [row_to_dict(r, cur) for r in rows]
+
+            await cur.execute("SELECT COUNT(*) FROM pages WHERE author_id = %s", (author_id,))
+            total = (await cur.fetchone())[0]
+
+    return {
+        "pages": pages,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": max(1, (total + per_page - 1) // per_page),
+    }
+
+
+async def create_page(slug: str, title: str, content: str, author_id: int = None) -> dict:
     """创建新页面。"""
     pool = await get_wk_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "INSERT INTO pages (slug, title, content) VALUES (%s, %s, %s)",
-                (slug, title, content),
+                "INSERT INTO pages (slug, title, content, author_id) VALUES (%s, %s, %s, %s)",
+                (slug, title, content, author_id),
             )
             return await get_page_by_slug(slug)
 

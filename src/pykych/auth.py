@@ -47,7 +47,7 @@ async def get_user_by_username(username: str) -> Optional[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, username, nickname, is_admin, created_at "
+                "SELECT id, username, nickname, role, created_at "
                 "FROM users WHERE username = %s", (username,),
             )
             row = await cur.fetchone()
@@ -70,7 +70,7 @@ async def list_users() -> list[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, username, nickname, is_admin, created_at "
+                "SELECT id, username, nickname, role, created_at "
                 "FROM users ORDER BY created_at DESC"
             )
             rows = await cur.fetchall()
@@ -78,16 +78,16 @@ async def list_users() -> list[dict]:
 
 
 async def create_user(
-    username: str, password: str, nickname: str = "", is_admin: bool = False
+    username: str, password: str, nickname: str = "", role: str = "user"
 ) -> dict:
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             pwd_hash = hash_password(password)
             await cur.execute(
-                "INSERT INTO users (username, password_hash, nickname, is_admin) "
+                "INSERT INTO users (username, password_hash, nickname, role) "
                 "VALUES (%s, %s, %s, %s)",
-                (username, pwd_hash, nickname or username, is_admin),
+                (username, pwd_hash, nickname or username, role),
             )
             return await get_user_by_username(username)
 
@@ -105,16 +105,47 @@ async def update_user_password(username: str, new_password: str) -> bool:
 
 
 async def update_user_info(
-    username: str, nickname: str = "", is_admin: bool = False
+    username: str, nickname: str = "", role: str = "user"
 ) -> bool:
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "UPDATE users SET nickname = %s, is_admin = %s WHERE username = %s",
-                (nickname, username, is_admin),
+                "UPDATE users SET nickname = %s, role = %s WHERE username = %s",
+                (nickname, role, username),
             )
             return cur.rowcount > 0
+
+
+async def update_user_role(username: str, role: str) -> bool:
+    """更新用户角色（仅站长可用）。"""
+    if role not in ("user", "admin", "owner"):
+        return False
+    pool = await get_sys_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE users SET role = %s WHERE username = %s",
+                (role, username),
+            )
+            return cur.rowcount > 0
+
+
+# ── 角色检查辅助函数 ────────────────────────────────────────
+
+def is_owner(user: dict | None) -> bool:
+    """检查用户是否为站长。"""
+    return user is not None and user.get("role") == "owner"
+
+
+def is_admin(user: dict | None) -> bool:
+    """检查用户是否为管理员及以上。"""
+    return user is not None and user.get("role") in ("admin", "owner")
+
+
+def can_manage_users(user: dict | None) -> bool:
+    """检查用户是否可以管理其他用户（仅站长）。"""
+    return is_owner(user)
 
 
 async def delete_user(username: str) -> bool:

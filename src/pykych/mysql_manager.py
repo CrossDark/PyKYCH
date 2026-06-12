@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS users (
     username      VARCHAR(64)  UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     nickname      VARCHAR(128) NOT NULL DEFAULT '',
-    is_admin      TINYINT(1)   NOT NULL DEFAULT 0,
+    role          ENUM('user', 'admin', 'owner') NOT NULL DEFAULT 'user',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     INDEX idx_username (username)
@@ -123,26 +123,77 @@ CREATE TABLE IF NOT EXISTS users (
 """
 
 
+async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
+    """安全地添加列（如果不存在则添加，忽略错误）。"""
+    try:
+        await cur.execute(
+            f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+        )
+    except Exception:
+        pass  # 列已存在则跳过
+
+
+async def _migrate_user_roles(cur) -> None:
+    """将旧的 is_admin 字段迁移为 role 枚举。"""
+    try:
+        # 检查 role 列是否存在
+        await cur.execute(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+            "AND COLUMN_NAME = 'role'"
+        )
+        has_role = await cur.fetchone() is not None
+
+        if not has_role:
+            # 添加 role 列
+            await cur.execute(
+                "ALTER TABLE users ADD COLUMN role ENUM('user','admin','owner') "
+                "NOT NULL DEFAULT 'user'"
+            )
+
+        # 检查 is_admin 列是否存在
+        await cur.execute(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
+            "AND COLUMN_NAME = 'is_admin'"
+        )
+        if await cur.fetchone():
+            # 迁移：is_admin=1 -> role='admin'
+            await cur.execute(
+                "UPDATE users SET role = 'admin' WHERE is_admin = 1 AND role = 'user'"
+            )
+            # 删除旧列
+            await cur.execute("ALTER TABLE users DROP COLUMN is_admin")
+    except Exception:
+        pass  # 列不存在或已迁移
+
+
 async def init_tables() -> None:
-    """在应用启动时确保表结构存在。"""
+    """在应用启动时确保表结构存在，并执行必要的迁移。"""
     md_pool = await get_md_pool()
     async with md_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(MD_TABLE_SQL)
+            # 迁移：添加 author_id 列（如果不存在）
+            await _safe_add_column(cur, "articles", "author_id", "INT DEFAULT NULL")
 
     wk_pool = await get_wk_pool()
     async with wk_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(WK_TABLE_SQL)
+            # 迁移：添加 author_id 列（如果不存在）
+            await _safe_add_column(cur, "pages", "author_id", "INT DEFAULT NULL")
 
     sys_pool = await get_sys_pool()
     async with sys_pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(USERS_TABLE_SQL)
+            # 迁移：从 is_admin 升级到 role
+            await _migrate_user_roles(cur)
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:
-    """创建默认管理员（如不存在）。"""
+    """创建默认站长（如不存在），或将已有管理员升级为站长。"""
     from .auth import hash_password
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
@@ -151,9 +202,15 @@ async def seed_admin(username: str, password: str, nickname: str = "") -> None:
             if (await cur.fetchone())[0] == 0:
                 pwd_hash = hash_password(password)
                 await cur.execute(
-                    "INSERT INTO users (username, password_hash, nickname, is_admin) "
-                    "VALUES (%s, %s, %s, 1)",
+                    "INSERT INTO users (username, password_hash, nickname, role) "
+                    "VALUES (%s, %s, %s, 'owner')",
                     (username, pwd_hash, nickname or username),
+                )
+            else:
+                # 确保已有管理员升级为站长
+                await cur.execute(
+                    "UPDATE users SET role = 'owner' WHERE username = %s AND role = 'admin'",
+                    (username,),
                 )
 
 

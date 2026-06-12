@@ -110,6 +110,11 @@
 {% endblock %}
 
 {% block content %}
+{% if permission_error %}
+<div class="card" style="border-color:#fecaca;background:#fef2f2;padding:1.5rem;text-align:center;margin-bottom:1.5rem;">
+    <p style="color:#dc2626;font-weight:600;">⚠️ {{ permission_error }}</p>
+</div>
+{% endif %}
 <div class="page-header">
     <h1>📋 文章管理</h1>
     <p class="subtitle">创建、编辑和删除文章</p>
@@ -203,13 +208,16 @@
         👥 用户管理
         <span style="display:flex;gap:0.5rem;align-items:center;">
             <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">
-                🔑 {{ current_user.nickname }}
+                {% if current_user.role == 'owner' %}🔧 站长{% elif current_user.role == 'admin' %}🛡️ 管理员{% else %}👤 用户{% endif %}
+                {{ current_user.nickname }}
             </span>
             <a href="/auth/logout" class="btn btn-outline btn-sm">退出登录</a>
         </span>
     </h2>
 
-    <!-- 添加用户 -->
+    {% if users %}
+    <!-- 添加用户（仅站长可见） -->
+    {% if current_user.role == 'owner' %}
     <details style="margin-bottom:1rem;">
         <summary style="cursor:pointer;font-weight:500;color:var(--accent);padding:0.4rem 0;">+ 添加新用户</summary>
         <form method="POST" action="/admin/users/add" style="
@@ -219,18 +227,23 @@
             <input name="username" placeholder="用户名" class="form-input" style="width:auto;flex:1;min-width:120px;" required>
             <input name="password" type="password" placeholder="密码" class="form-input" style="width:auto;flex:1;min-width:120px;" required>
             <input name="nickname" placeholder="昵称(可选)" class="form-input" style="width:auto;flex:1;min-width:100px;">
+            <select name="role" class="form-input" style="width:auto;">
+                <option value="user">用户</option>
+                <option value="admin">管理员</option>
+                <option value="owner">站长</option>
+            </select>
             <button type="submit" class="btn btn-primary btn-sm">添加</button>
         </form>
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.25rem;">用户只能由管理员添加，不支持自行注册</p>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.25rem;">用户只能由站长添加</p>
     </details>
+    {% endif %}
 
-    {% if users %}
     <table class="admin-table">
         <thead>
             <tr>
                 <th>用户名</th>
                 <th>昵称</th>
-                <th>管理员</th>
+                <th>角色</th>
                 <th>创建时间</th>
                 <th>操作</th>
             </tr>
@@ -240,12 +253,31 @@
             <tr>
                 <td><code>{{ u.username }}</code></td>
                 <td>{{ u.nickname }}</td>
-                <td>{% if u.is_admin %}✅{% else %}—{% endif %}</td>
+                <td>
+                    {% if u.role == 'owner' %}
+                    <span style="color:#8b5cf6;font-weight:600;">🔧 站长</span>
+                    {% elif u.role == 'admin' %}
+                    <span style="color:#3b82f6;font-weight:600;">🛡️ 管理员</span>
+                    {% else %}
+                    <span style="color:var(--text-muted);">👤 用户</span>
+                    {% endif %}
+                </td>
                 <td>{{ u.created_at[:10] }}</td>
                 <td>
+                    {% if current_user.role == 'owner' %}
                     <div class="actions">
+                        <!-- 角色变更 -->
+                        <form method="POST" action="/admin/users/{{ u.username }}/role" style="display:inline-flex;gap:0.3rem;align-items:center;">
+                            <select name="role" class="form-input" style="width:auto;padding:0.2rem 0.3rem;font-size:0.78rem;">
+                                <option value="user" {% if u.role == 'user' %}selected{% endif %}>用户</option>
+                                <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>管理员</option>
+                                <option value="owner" {% if u.role == 'owner' %}selected{% endif %}>站长</option>
+                            </select>
+                            <button type="submit" class="btn btn-outline btn-sm">💾</button>
+                        </form>
+                        <!-- 重置密码 -->
                         <details>
-                            <summary class="btn btn-outline btn-sm" style="list-style:none;cursor:pointer;">🔑 重置密码</summary>
+                            <summary class="btn btn-outline btn-sm" style="list-style:none;cursor:pointer;">🔑</summary>
                             <form method="POST" action="/admin/users/{{ u.username }}/reset-password" style="
                                 display:inline-flex;gap:0.3rem;align-items:center;margin-left:0.3rem;
                             ">
@@ -256,17 +288,20 @@
                         {% if u.username != current_user.username %}
                         <form method="POST" action="/admin/users/{{ u.username }}/delete" style="display:inline"
                               onsubmit="return confirm('确定要删除用户 «{{ u.username }}» 吗？')">
-                            <button type="submit" class="btn btn-danger btn-sm">🗑 删除</button>
+                            <button type="submit" class="btn btn-danger btn-sm">🗑</button>
                         </form>
                         {% endif %}
                     </div>
+                    {% else %}
+                    <span style="color:var(--text-muted);font-size:0.8rem;">—</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <div class="card empty-state">暂无用户</div>
+    <div class="card empty-state">暂无用户数据</div>
     {% endif %}
 </div>
 {% endblock %}
