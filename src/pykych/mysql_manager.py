@@ -213,6 +213,20 @@ CREATE TABLE IF NOT EXISTS bbcode_pages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+COMMENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS comments (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    article_type ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_slug VARCHAR(255) NOT NULL,
+    author_name  VARCHAR(128) NOT NULL DEFAULT '匿名',
+    content      TEXT NOT NULL,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_article (article_type, article_slug),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -345,6 +359,9 @@ async def init_tables() -> None:
 
             # BBCode 页面表
             await cur.execute(BBCODE_PAGES_TABLE_SQL)
+
+            # 评论表
+            await cur.execute(COMMENTS_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

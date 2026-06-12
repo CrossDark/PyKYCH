@@ -305,6 +305,61 @@
 </div>
 
 <a href="/wikidot" class="back-link">← 返回 Wiki 首页</a>
+
+<!-- ── 评论区 ── -->
+<section class="comments-section" style="margin-top: 2.5rem;">
+    <h3 style="font-size: 1.3rem; margin-bottom: 1.25rem;">
+        💬 评论
+        {% if comments %}
+        <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 400;">({{ comments | length }})</span>
+        {% endif %}
+    </h3>
+
+    {% if comments %}
+    <div class="comments-list" style="margin-bottom: 2rem;">
+        {% for comment in comments %}
+        <div class="comment-item" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 0.75rem;">
+            <div class="comment-meta" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                <strong style="color: var(--accent);">{{ comment.author_name | e }}</strong>
+                <span style="color: var(--text-muted);">·</span>
+                <span style="color: var(--text-muted);">{{ comment.created_at[:19] }}</span>
+            </div>
+            <div class="comment-body" style="color: var(--text); line-height: 1.7; white-space: pre-wrap;">{{ comment.content | e }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">暂无评论，来抢沙发吧～</p>
+    {% endif %}
+
+    <form method="post" action="/comments/add" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem;">
+        <input type="hidden" name="article_type" value="wikidot">
+        <input type="hidden" name="article_slug" value="{{ page.slug }}">
+        <input type="hidden" name="redirect_url" value="/wikidot/{{ page.slug }}">
+        <div style="margin-bottom: 0.75rem;">
+            <input
+                type="text"
+                name="author_name"
+                placeholder="你的昵称（选填，默认「匿名」）"
+                maxlength="64"
+                style="width: 100%; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.95rem; font-family: inherit;"
+            >
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <textarea
+                name="content"
+                placeholder="写下你的评论..."
+                required
+                maxlength="2000"
+                rows="3"
+                style="width: 100%; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.95rem; font-family: inherit; resize: vertical; min-height: 80px;"
+            ></textarea>
+        </div>
+        <button type="submit" style="padding: 0.55rem 1.5rem; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); cursor: pointer; font-size: 0.95rem; font-weight: 500; transition: background 0.2s;">
+            发表评论
+        </button>
+    </form>
+</section>
 {% else %}
 <div class="page-header">
     <h1>404 - 页面未找到</h1>

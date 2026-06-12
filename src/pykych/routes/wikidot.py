@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader
 from .. import wikidot_db as db
 from ..wikidot_parser import parse_wikidot
 from .. import tag_manager
+from .. import comment_manager
 
 # ── 模板 ────────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -61,10 +62,13 @@ async def page_detail(slug: str):
 
     # 加载标签
     page["tags"] = await tag_manager.get_tags_for_article("wikidot", slug)
+    # 加载评论
+    comments = await comment_manager.get_comments("wikidot", slug)
     html_body = parse_wikidot(page["content"])
     return render(
         "wikidot_detail.html",
         title=f"{page['title']} - 跨越晨昏 Wiki",
         page=page,
         html_content=html_body,
+        comments=comments,
     )

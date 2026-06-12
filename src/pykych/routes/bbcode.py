@@ -10,6 +10,7 @@ from jinja2 import Environment, FileSystemLoader
 from .. import bbcode_db as db
 from ..bbcode_parser import parse_bbcode
 from .. import tag_manager
+from .. import comment_manager
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -59,10 +60,13 @@ async def page_detail(slug: str):
         )
 
     page["tags"] = await tag_manager.get_tags_for_article("bbcode", slug)
+    # 加载评论
+    comments = await comment_manager.get_comments("bbcode", slug)
     html_body = parse_bbcode(page["content"])
     return render(
         "bbcode_detail.html",
         title=f"{page['title']} - 跨越晨昏",
         page=page,
         html_content=html_body,
+        comments=comments,
     )

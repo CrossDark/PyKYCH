@@ -21,6 +21,7 @@ from .routes import auth
 from .routes import labels
 from .routes import html_route
 from .routes import bbcode
+from .routes import comments
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -244,6 +245,7 @@ app.include(html_route.html_route)
 
 # ===== BBCode 页面路由 =====
 app.include(bbcode.bbcode_route)
+app.include(comments.comments_route)
 
 # ===== 标签路由 =====
 app.include(labels.labels_route)

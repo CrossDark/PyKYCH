@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from .. import html_db as db
 from .. import tag_manager
+from .. import comment_manager
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -58,9 +59,12 @@ async def html_page_detail(slug: str):
         )
 
     page["tags"] = await tag_manager.get_tags_for_article("html", slug)
+    # 加载评论
+    comments = await comment_manager.get_comments("html", slug)
     return render(
         "html_detail.html",
         title=f"{page['title']} - PyKYCH",
         page=page,
         html_content=page["content"],
+        comments=comments,
     )
