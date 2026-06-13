@@ -82,7 +82,7 @@ async def home():
     important_notifications = await notification_manager.get_important_notifications()
     return render_template(
         "home.html",
-        title="跨越晨昏 - 首页",
+        title="跨越晨昏",
         subtitle="欢迎来到我的个人网站",
         subsite_links=subsite_links,
         featured_articles=featured,
