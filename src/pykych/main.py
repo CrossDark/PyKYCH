@@ -23,6 +23,7 @@ from .routes import labels
 from .routes import html_route
 from .routes import bbcode
 from .routes import comments
+from .routes import search
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -240,3 +241,6 @@ app.include(admin.admin_route)
 
 # ===== 认证路由 (登录/登出) =====
 app.include(auth.auth_route)
+
+# ===== 搜索路由 =====
+app.include(search.search_route)

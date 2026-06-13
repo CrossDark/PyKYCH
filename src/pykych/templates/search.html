@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔍 搜索</h1>
+</div>
+
+<!-- 搜索框 -->
+<form class="search-form" method="get" action="/search">
+    <div class="search-input-wrapper">
+        <input
+            type="text"
+            name="q"
+            class="search-input"
+            placeholder="输入关键词搜索文章…"
+            value="{{ q }}"
+            autofocus
+        />
+        <button type="submit" class="search-btn">搜索</button>
+    </div>
+</form>
+
+<!-- 搜索结果 -->
+{% if q %}
+<div class="search-info">
+    {% if total > 0 %}
+    <p>找到 <strong>{{ total }}</strong> 篇相关文章</p>
+    {% else %}
+    <p>未找到与 "<strong>{{ q }}</strong>" 相关的文章</p>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if results %}
+<div class="article-list">
+    {% for r in results %}
+    <a href="{{ r.url }}" class="article-card card">
+        <h3>
+            <span class="article-type-badge">{{ r.type_label }}</span>
+            {{ r.title }}
+        </h3>
+        <div class="date">{{ r.created_at }}</div>
+        <p class="summary">{{ r.snippet }}</p>
+        <span class="read-more">阅读全文 →</span>
+    </a>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?q={{ q }}&page={{ page - 1 }}" class="page-btn">← 上一页</a>
+    {% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?q={{ q }}&page={{ page + 1 }}" class="page-btn">下一页 →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% elif q and not results %}
+<div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+    <p style="color: var(--text-muted); margin: 0;">试试其他关键词吧</p>
+</div>
+{% endif %}
+{% endblock %}
