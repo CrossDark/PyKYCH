@@ -127,7 +127,7 @@
                 Slug
                 <span class="hint">— URL 标识，例如: my-article</span>
             </label>
-            <input type="text" id="slug" name="slug" class="form-input mono"
+            <input type="text" id="slug" name="article_slug" class="form-input mono"
                    value="{{ article.slug if article else '' }}"
                    placeholder="my-article-slug"
                    {% if article and article.slug %}readonly{% endif %}

@@ -119,7 +119,7 @@ async def md_create(request: Request):
     if err: return err
     form = await request.form()
     title = form.get("title", "").strip()
-    slug = form.get("slug", "").strip()
+    slug = form.get("article_slug", "").strip()
     content = form.get("content", "")
     error = _validate(title, slug, content)
     if error:
@@ -211,7 +211,7 @@ async def wk_create(request: Request):
     if err: return err
     form = await request.form()
     title = form.get("title", "").strip()
-    slug = form.get("slug", "").strip()
+    slug = form.get("article_slug", "").strip()
     content = form.get("content", "")
     error = _validate(title, slug, content)
     if error:
@@ -303,7 +303,7 @@ async def html_create(request: Request):
     if err: return err
     form = await request.form()
     title = form.get("title", "").strip()
-    slug = form.get("slug", "").strip()
+    slug = form.get("article_slug", "").strip()
     content = form.get("content", "")
     error = _validate(title, slug, content)
     if error:
@@ -393,7 +393,7 @@ async def bb_create(request: Request):
     if err: return err
     form = await request.form()
     title = form.get("title", "").strip()
-    slug = form.get("slug", "").strip()
+    slug = form.get("article_slug", "").strip()
     content = form.get("content", "")
     error = _validate(title, slug, content)
     if error:
