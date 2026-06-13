@@ -269,6 +269,38 @@ CREATE TABLE IF NOT EXISTS notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+EXTERNAL_SITES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS external_sites (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    name         VARCHAR(64) UNIQUE NOT NULL,
+    source_url   VARCHAR(1024) NOT NULL,
+    description  VARCHAR(512) DEFAULT '',
+    auto_tags    VARCHAR(512) DEFAULT '',
+    is_active    TINYINT(1) NOT NULL DEFAULT 1,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_name (name),
+    INDEX idx_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+EXTERNAL_PAGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS external_pages (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    site_id      INT NOT NULL,
+    path         VARCHAR(512) NOT NULL,
+    title        VARCHAR(255) NOT NULL DEFAULT '',
+    content      LONGTEXT NOT NULL,
+    fetched_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_site_path (site_id, path),
+    INDEX idx_site (site_id),
+    INDEX idx_path (path(255)),
+    FOREIGN KEY (site_id) REFERENCES external_sites(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -413,6 +445,10 @@ async def init_tables() -> None:
 
             # 通知表
             await cur.execute(NOTIFICATIONS_TABLE_SQL)
+
+            # 外部站点表
+            await cur.execute(EXTERNAL_SITES_TABLE_SQL)
+            await cur.execute(EXTERNAL_PAGES_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

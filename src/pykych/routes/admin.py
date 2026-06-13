@@ -18,6 +18,7 @@ from .. import auth as auth_mod
 from .. import tag_manager
 from .. import site_settings
 from .. import notification_manager
+from .. import external_html
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -595,6 +596,91 @@ async def delete_notification_route(notif_id: int, request: Request):
         return redirect("/admin")
     await notification_manager.delete_notification(notif_id)
     return redirect("/admin/notifications")
+
+# ===== 外部站点管理（管理员/站长） =====
+
+@admin_route.sub("/external").get
+async def manage_external_sites(request: Request):
+    """外部站点管理页面。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return render("admin_dashboard.html", title="权限不足 - PyKYCH",
+            current_user=user, md_articles=[], wk_pages=[],
+            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
+            html_total=0, bb_total=0, users=[],
+            subsite_links=[], featured_articles=[],
+            permission_error="仅管理员和站长可管理外部站点。")
+    sites = await external_html.list_external_sites()
+    return render("admin_external.html", title="外部站点管理 - PyKYCH",
+        current_user=user, sites=sites, error=None)
+
+@admin_route.sub("/external/add").post
+async def add_external_site(request: Request):
+    """添加外部站点。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    name = form.get("name", "").strip()
+    source_url = form.get("source_url", "").strip()
+    description = form.get("description", "").strip()
+    auto_tags = form.get("auto_tags", "").strip()
+    if name and source_url:
+        try:
+            await external_html.create_external_site(name, source_url, description, auto_tags)
+        except Exception:
+            pass
+    return redirect("/admin/external")
+
+@admin_route.sub("/external/{site_id}/edit").post
+async def edit_external_site(site_id: int, request: Request):
+    """编辑外部站点配置。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    source_url = form.get("source_url", "").strip()
+    description = form.get("description", "").strip()
+    auto_tags = form.get("auto_tags", "").strip()
+    is_active = form.get("is_active") == "1"
+    await external_html.update_external_site(
+        site_id, source_url=source_url, description=description,
+        auto_tags=auto_tags, is_active=is_active
+    )
+    return redirect("/admin/external")
+
+@admin_route.sub("/external/{site_id}/fetch").post
+async def fetch_external_site(site_id: int, request: Request):
+    """手动刷新外部站点缓存。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    result = await external_html.fetch_and_cache_site(site_id)
+    return redirect("/admin/external")
+
+@admin_route.sub("/external/{site_id}/clear-cache").post
+async def clear_external_cache(site_id: int, request: Request):
+    """清除外部站点缓存。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await external_html.clear_site_cache(site_id)
+    return redirect("/admin/external")
+
+@admin_route.sub("/external/{site_id}/delete").post
+async def delete_external_site(site_id: int, request: Request):
+    """删除外部站点。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await external_html.delete_external_site(site_id)
+    return redirect("/admin/external")
 
 # ===== 用户管理（仅站长） =====
 

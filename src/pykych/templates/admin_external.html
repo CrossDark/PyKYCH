@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .ext-container {
+        max-width: 820px;
+    }
+    .ext-create-form {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .ext-create-form h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+    }
+    .form-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+    .form-row .form-group {
+        flex: 1;
+        min-width: 140px;
+    }
+    .form-group {
+        margin-bottom: 0.75rem;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.82rem;
+        margin-bottom: 0.2rem;
+        color: var(--text);
+    }
+    .form-input {
+        width: 100%;
+        padding: 0.45rem 0.65rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.88rem;
+        font-family: inherit;
+        background: var(--bg-card);
+        color: var(--text);
+        transition: border-color 0.2s;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+    .site-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+    .site-card.inactive {
+        opacity: 0.55;
+    }
+    .site-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .site-name {
+        font-weight: 600;
+        font-size: 1.05rem;
+    }
+    .site-url {
+        font-size: 0.82rem;
+        color: var(--accent);
+        word-break: break-all;
+    }
+    .site-meta {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+    .site-desc {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+    .site-tags {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+    }
+    .actions {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+    .btn {
+        display: inline-block;
+        padding: 0.35rem 0.8rem;
+        border-radius: 6px;
+        font-size: 0.83rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.55rem;
+        font-size: 0.78rem;
+    }
+    .btn-primary {
+        background: var(--accent);
+        color: #fff;
+    }
+    .btn-primary:hover {
+        background: var(--accent-hover);
+        text-decoration: none;
+        color: #fff;
+    }
+    .btn-outline {
+        border-color: var(--border);
+        color: var(--text-secondary);
+        background: transparent;
+    }
+    .btn-outline:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        text-decoration: none;
+    }
+    .btn-success {
+        background: #d1fae5;
+        color: #059669;
+        border-color: #a7f3d0;
+    }
+    .btn-success:hover {
+        background: #10b981;
+        color: #fff;
+        border-color: #10b981;
+        text-decoration: none;
+    }
+    .btn-warning {
+        background: #fef3c7;
+        color: #d97706;
+        border-color: #fcd34d;
+    }
+    .btn-warning:hover {
+        background: #f59e0b;
+        color: #fff;
+        border-color: #f59e0b;
+        text-decoration: none;
+    }
+    .btn-danger {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+    .btn-danger:hover {
+        background: #dc2626;
+        color: #fff;
+        border-color: #dc2626;
+        text-decoration: none;
+    }
+    [data-theme="dark"] .btn-success {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    [data-theme="dark"] .btn-success:hover {
+        background: #10b981;
+        color: #fff;
+    }
+    [data-theme="dark"] .btn-warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+    [data-theme="dark"] .btn-warning:hover {
+        background: #f59e0b;
+        color: #fff;
+    }
+    [data-theme="dark"] .btn-danger {
+        background: rgba(220, 38, 38, 0.15);
+        color: #f87171;
+        border-color: rgba(220, 38, 38, 0.3);
+    }
+    [data-theme="dark"] .btn-danger:hover {
+        background: #dc2626;
+        color: #fff;
+    }
+    .badge {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        border-radius: 1rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
+    .badge-active {
+        background: #d1fae5;
+        color: #059669;
+    }
+    .badge-inactive {
+        background: var(--code-bg);
+        color: var(--text-muted);
+    }
+    [data-theme="dark"] .badge-active {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-decoration: none;
+        margin-bottom: 1.5rem;
+        transition: color 0.2s;
+    }
+    .back-link:hover {
+        color: var(--accent);
+        text-decoration: none;
+    }
+    details summary {
+        cursor: pointer;
+        color: var(--accent);
+        font-size: 0.85rem;
+        font-weight: 500;
+        padding: 0.25rem 0;
+    }
+    .inline-edit-form {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        padding: 0.5rem 0;
+    }
+    .inline-edit-form .form-group {
+        margin-bottom: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if permission_error %}
+<div class="card" style="border-color:#fecaca;background:#fef2f2;padding:1.5rem;text-align:center;margin-bottom:1.5rem;">
+    <p style="color:#dc2626;font-weight:600;">⚠️ {{ permission_error }}</p>
+</div>
+{% endif %}
+
+<a href="/admin" class="back-link">← 返回管理后台</a>
+
+<div class="page-header ext-container">
+    <h1>🌐 外部站点管理</h1>
+    <p class="subtitle">导入外部静态网站的 HTML 内容并在本站展示</p>
+</div>
+
+<div class="ext-container">
+    <!-- 添加新站点 -->
+    <div class="ext-create-form">
+        <h3>➕ 添加外部站点</h3>
+        <form method="POST" action="/admin/external/add">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="name">站点标识</label>
+                    <input type="text" id="name" name="name" class="form-input mono"
+                           placeholder="my-site" required>
+                </div>
+                <div class="form-group">
+                    <label for="source_url">源站 URL</label>
+                    <input type="url" id="source_url" name="source_url" class="form-input"
+                           placeholder="https://example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="auto_tags">自动标签</label>
+                    <input type="text" id="auto_tags" name="auto_tags" class="form-input"
+                           placeholder="逗号分隔，如: docs, wiki">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="description">描述</label>
+                <input type="text" id="description" name="description" class="form-input"
+                       placeholder="简要描述（可选）">
+            </div>
+            <button type="submit" class="btn btn-primary">添加站点</button>
+        </form>
+    </div>
+
+    <!-- 站点列表 -->
+    <h3 style="font-size: 1rem; margin-bottom: 0.75rem;">
+        📋 已导入站点（{{ sites | length }} 个）
+    </h3>
+
+    {% if sites %}
+        {% for site in sites %}
+        <div class="site-card {% if not site.is_active %}inactive{% endif %}">
+            <div class="site-header">
+                <div>
+                    <span class="site-name">{{ site.name }}</span>
+                    {% if site.is_active %}
+                    <span class="badge badge-active">已启用</span>
+                    {% else %}
+                    <span class="badge badge-inactive">已停用</span>
+                    {% endif %}
+                </div>
+                <div class="actions">
+                    <a href="/html/{{ site.name }}" class="btn btn-sm btn-outline" target="_blank" title="查看站点">👁</a>
+                    <form method="POST" action="/admin/external/{{ site.id }}/fetch" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-success" title="刷新缓存">🔄 刷新</button>
+                    </form>
+                    <form method="POST" action="/admin/external/{{ site.id }}/clear-cache" style="display:inline"
+                          onsubmit="return confirm('确定要清除「{{ site.name }}」的所有缓存页面吗？')">
+                        <button type="submit" class="btn btn-sm btn-warning" title="清除缓存">🧹</button>
+                    </form>
+                    <form method="POST" action="/admin/external/{{ site.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('确定要删除外部站点「{{ site.name }}」吗？所有缓存将被清除。')">
+                        <button type="submit" class="btn btn-sm btn-danger">🗑</button>
+                    </form>
+                </div>
+            </div>
+            <div class="site-url">🔗 {{ site.source_url }}</div>
+            {% if site.description %}
+            <div class="site-desc">{{ site.description }}</div>
+            {% endif %}
+            <div class="site-meta">
+                缓存页面: {{ site.page_count }} 篇 · 创建于 {{ site.created_at[:10] }}
+            </div>
+            {% if site.auto_tags %}
+            <div class="site-tags">🏷️ 自动标签: {{ site.auto_tags }}</div>
+            {% endif %}
+
+            <!-- 编辑配置 -->
+            <details>
+                <summary>⚙️ 编辑配置</summary>
+                <form method="POST" action="/admin/external/{{ site.id }}/edit" class="inline-edit-form">
+                    <div class="form-group">
+                        <label>源站 URL</label>
+                        <input type="url" name="source_url" class="form-input" value="{{ site.source_url | e }}" style="min-width:220px;">
+                    </div>
+                    <div class="form-group">
+                        <label>描述</label>
+                        <input type="text" name="description" class="form-input" value="{{ site.description | e }}" style="min-width:150px;">
+                    </div>
+                    <div class="form-group">
+                        <label>自动标签</label>
+                        <input type="text" name="auto_tags" class="form-input" value="{{ site.auto_tags | e }}" style="min-width:120px;">
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:0.25rem;cursor:pointer;font-weight:400;">
+                            <input type="checkbox" name="is_active" value="1" {% if site.is_active %}checked{% endif %}>
+                            启用
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">💾 保存</button>
+                </form>
+            </details>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="card empty-state">暂无外部站点，使用上方表单添加第一个站点。</div>
+    {% endif %}
+</div>
+{% endblock %}
