@@ -1,83 +1,96 @@
 # 跨越晨昏
 
-个人网站 Python 版 —— 基于 LiHiL 异步 Web 框架构建的轻量级内容管理系统。
+基于 [LiHiL](https://pypi.org/project/lihil/) 异步 Web 框架构建的个人网站系统，支持多种内容类型。
 
 ## 项目简介
 
-跨越晨昏 是一个使用 Python 编写的个人网站系统，支持 **Markdown 文章** 和 **Wikidot 风格 Wiki 页面** 的发布与管理。系统内置用户认证与后台管理面板，适合个人博客、技术笔记、知识库等场景。
+跨越晨昏 是一个使用 Python 编写的个人网站系统，支持 **Markdown / Wikidot / BBCode / HTML** 四种内容类型的发布与管理。系统内置用户认证、评论、标签、搜索、通知、文件管理及后台管理面板。
 
 ### 功能特性
 
-- **Markdown 文章系统** — 支持 GFM 表格、围栏代码块、目录、提示框等扩展语法，文章 CRUD 完整闭环
-- **Wikidot Wiki 系统** — 自研 Wikidot 标记语言解析器，支持标题、粗斜体、代码块、表格、引用、列表等语法
-- **用户认证** — 基于 Session 的登录/登出，PBKDF2-SHA256 密码哈希，管理员权限控制
-- **后台管理** — 可视化管理面板，支持文章/页面的创建、编辑、删除及用户管理
-- **MySQL 持久化** — 单库统一架构，aiomysql 异步连接池
+**内容类型**
+- 📝 **Markdown 文章** — GFM 表格、围栏代码块、目录、提示框等扩展语法
+- 📚 **Wikidot Wiki** — 自研解析器，支持折叠块、代码高亮、上下标、锚点等
+- 💬 **BBCode 文章** — 自研解析器，兼容论坛风格标记
+- 🌐 **HTML 页面** — 原生 HTML 编写，支持从外部静态站抓取缓存
+
+**交互功能**
+- 🔍 **全文搜索** — 跨四种文章类型的全文内容检索
+- 💬 **评论区** — 所有文章底部统一的评论系统
+- 🏷️ **标签系统** — 文章标签管理，侧栏导航，标签聚合页
+- 🔔 **通知系统** — 后台发布重要通知，首页醒目展示
+- 🌙 **黑暗模式** — 纯白/纯黑双主题，跟随系统偏好
+
+**管理后台**
+- 📋 **文章管理** — 四种文章类型统一 CRUD
+- 🏷️ **标签管理** — 可视化标签增删改，行内重命名
+- 🏠 **主页管理** — 子站点链接、推荐文章、通知、外部站点管理
+- 📁 **文件管理** — 图片/附件上传，链接复制
+- 👥 **用户管理** — 三级角色（站长/管理员/用户），权限分级
+
+**技术特性**
+- PBKDF2-SHA256 密码哈希，Session 会话管理
+- MySQL + aiomysql 异步连接池，单库统一架构
+- Jinja2 模板引擎，响应式设计
 
 ## 项目架构
 
 ```
 PyKYCH/
 ├── settings/
-│   └── db.yaml                  # 数据库连接配置,已被git忽略,请根据实例进行创建
+│   └── db.yaml                  # 数据库配置 (gitignored)
 ├── src/
 │   └── pykych/
-│       ├── __init__.py
-│       ├── main.py              # 应用入口：Lihil 实例化、生命周期、模板引擎、路由挂载
-│       ├── auth.py              # 认证模块：密码哈希 (PBKDF2-SHA256)、用户 CRUD、会话管理
-│       ├── db.py                # 数据层：Markdown 文章的分页查询与 CRUD
-│       ├── wikidot_db.py        # 数据层：Wikidot 页面的分页查询与 CRUD
-│       ├── wikidot_parser.py    # 解析器：Wikidot 标记语言 → HTML 转换
-│       ├── mysql_manager.py     # 基础设施：读取 db.yaml、管理 aiomysql 连接池
+│       ├── main.py              # 应用入口
+│       ├── auth.py              # 认证模块
+│       ├── db.py                # Markdown 数据层
+│       ├── wikidot_db.py        # Wikidot 数据层
+│       ├── wikidot_parser.py    # Wikidot → HTML 解析器
+│       ├── html_db.py           # HTML 数据层
+│       ├── bbcode_db.py         # BBCode 数据层
+│       ├── bbcode_parser.py     # BBCode → HTML 解析器
+│       ├── tag_manager.py       # 标签管理
+│       ├── comment_manager.py   # 评论管理
+│       ├── site_settings.py     # 站点设置
+│       ├── notification_manager.py  # 通知管理
+│       ├── external_html.py     # 外部站点抓取缓存
+│       ├── file_manager.py      # 静态文件管理
+│       ├── mysql_manager.py     # 连接池 & 表初始化
 │       ├── routes/
-│       │   ├── __init__.py
-│       │   ├── auth.py          # 路由：/auth/login, /auth/logout
-│       │   ├── admin.py         # 路由：/admin (仪表盘、文章/Wiki/用户 CRUD)
-│       │   ├── md.py            # 路由：/md (Markdown 文章列表与详情)
-│       │   └── wikidot.py       # 路由：/wikidot (Wiki 页面列表与详情)
-│       ├── templates/           # Jinja2 模板（base / home / login / admin 等）
-│       └── static/              # 静态资源（CSS / JS）
-├── pyproject.toml               # 项目元信息与依赖
-├── db.yaml.example              # 数据库配置示例
-├── LICENSE                      # MIT 许可证
+│       │   ├── auth.py          # /auth
+│       │   ├── admin.py         # /admin
+│       │   ├── md.py            # /md
+│       │   ├── wikidot.py       # /wikidot
+│       │   ├── html_route.py    # /html
+│       │   ├── bbcode.py        # /bbcode
+│       │   ├── labels.py        # /labels
+│       │   ├── comments.py      # 评论提交
+│       │   └── search.py        # /search
+│       ├── templates/           # Jinja2 模板
+│       └── static/              # CSS / JS / 上传文件
+├── pyproject.toml
+├── LICENSE (MIT)
 └── README.md
 ```
 
-### 架构分层
+### 数据库表
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                      浏览器 / 客户端                      │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│                    路由层 (routes/)                      │
-│   auth.py: 登录/登出           admin.py: 后台管理          │
-│   md.py: Markdown 文章展示     wikidot.py: Wiki 页面展示   │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│                    业务逻辑层                             │
-│   auth.py (认证)  │  wikidot_parser.py (Wiki 解析)       │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│                     数据访问层                            │
-│   db.py (文章 CRUD)  │  wikidot_db.py (Wiki CRUD)        │
-│   auth.py (用户 CRUD)                                    │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│                   基础设施层                              │
-│   mysql_manager.py: aiomysql 连接池管理                   │
-│   settings/db.yaml: 数据库配置                            │
-└──────────────────────────┬──────────────────────────────┘
-                           │
-┌──────────────────────────▼──────────────────────────────┐
-│                      MySQL 数据库                        │
-│               pykych (articles / pages / users)           │
-└─────────────────────────────────────────────────────────┘
-```
+| 表名 | 用途 |
+|------|------|
+| `articles` | Markdown 文章 |
+| `pages` | Wikidot 页面 |
+| `html_pages` | 本地 HTML 页面 |
+| `bbcode_pages` | BBCode 文章 |
+| `users` | 用户账号 |
+| `tags` | 标签 |
+| `article_tags` | 文章-标签关联 |
+| `comments` | 评论 |
+| `subsite_links` | 子站点链接 |
+| `featured_articles` | 主页推荐文章 |
+| `notifications` | 通知 |
+| `external_sites` | 外部站点配置 |
+| `external_pages` | 外部站点缓存 |
+| `static_files` | 上传文件记录 |
 
 ### 技术栈
 
@@ -86,10 +99,9 @@ PyKYCH/
 | Web 框架 | [LiHiL](https://pypi.org/project/lihil/) | 高性能异步 ASGI 框架 |
 | 模板引擎 | Jinja2 | 服务端 HTML 渲染 |
 | 数据库 | MySQL + aiomysql | 异步连接池，单库统一 |
-| Markdown | Python-Markdown | 扩展语法支持 (extra, fenced_code, toc 等) |
-| Wikidot | 自研解析器 | Wikidot 标记语言 → HTML |
-| 密码哈希 | hashlib PBKDF2-SHA256 | 标准库实现，60 万次迭代 |
-| 配置 | PyYAML | YAML 配置文件解析 |
+| 密码哈希 | hashlib PBKDF2-SHA256 | 标准库实现 |
+| HTTP 客户端 | aiohttp | 外部站点 HTML 抓取 |
+| 配置 | PyYAML | YAML 配置解析 |
 
 ## 快速开始
 
