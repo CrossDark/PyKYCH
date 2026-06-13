@@ -90,12 +90,16 @@ async def dashboard(request: Request):
     users = await auth_mod.list_users() if auth_mod.is_owner(user) else []
     subsite_links = await site_settings.list_subsite_links() if auth_mod.is_owner(user) else []
     featured_articles = await site_settings.list_featured_articles() if auth_mod.is_owner(user) else []
-    return render("admin_dashboard.html", title="文章管理 - PyKYCH",
+    tags = await tag_manager.get_all_tags_with_counts() if auth_mod.is_admin(user) else []
+    notifications = await notification_manager.list_notifications(include_inactive=True) if auth_mod.is_admin(user) else []
+    ext_sites = await external_html.list_external_sites() if auth_mod.is_admin(user) else []
+    return render("admin_dashboard.html", title="管理后台 - PyKYCH",
         current_user=user, md_articles=md_r["articles"], wk_pages=wk_r["pages"],
         html_pages=html_r["pages"], bb_pages=bb_r["pages"],
         md_total=md_r["total"], wk_total=wk_r["total"], html_total=html_r["total"],
         bb_total=bb_r["total"], users=users,
         subsite_links=subsite_links, featured_articles=featured_articles,
+        tags=tags, notifications=notifications, ext_sites=ext_sites,
         permission_error=None)
 
 # ===== Markdown CRUD =====

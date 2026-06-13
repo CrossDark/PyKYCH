@@ -155,13 +155,21 @@
         </div>
 
         <div class="form-group">
-            <label for="tags">
-                标签
-                <span class="hint">— 逗号分隔，如: python, web, tutorial</span>
+            <label for="tagInput">
+                🏷️ 标签管理
+                <span class="hint">— 添加或移除文章标签，按回车添加新标签</span>
             </label>
-            <input type="text" id="tags" name="tags" class="form-input"
-                   value="{{ article._tag_str if article and article._tag_str else '' }}"
-                   placeholder="python, web, tutorial">
+            <!-- 隐藏字段存储逗号分隔的标签值 -->
+            <input type="hidden" id="tags" name="tags" value="{{ article._tag_str if article and article._tag_str else '' }}">
+            <!-- 标签展示区 -->
+            <div id="tagContainer" style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; min-height: 2rem; padding: 0.35rem 0;">
+            </div>
+            <!-- 添加标签输入 -->
+            <div style="display: flex; gap: 0.4rem;">
+                <input type="text" id="tagInput" class="form-input" style="flex: 1;"
+                       placeholder="输入标签名称，按回车添加..." autocomplete="off">
+                <button type="button" id="addTagBtn" class="btn btn-primary" style="white-space: nowrap;">+ 添加</button>
+            </div>
         </div>
 
         <div class="form-actions">
@@ -170,4 +178,101 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    const hiddenInput = document.getElementById('tags');
+    const container = document.getElementById('tagContainer');
+    const tagInput = document.getElementById('tagInput');
+    const addBtn = document.getElementById('addTagBtn');
+
+    // 从隐藏字段读取已有标签
+    function getTags() {
+        const val = hiddenInput.value.trim();
+        if (!val) return [];
+        return val.split(',').map(t => t.trim()).filter(t => t);
+    }
+
+    // 更新隐藏字段
+    function setTags(tags) {
+        hiddenInput.value = tags.join(', ');
+    }
+
+    // 渲染标签
+    function renderTags() {
+        const tags = getTags();
+        container.innerHTML = '';
+        tags.forEach(tag => {
+            const badge = document.createElement('span');
+            badge.className = 'tag-badge';
+            badge.style.cssText = 'display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.25rem 0.6rem; background: var(--code-bg); border: 1px solid var(--border); border-radius: 1rem; font-size: 0.85rem; color: var(--text-secondary);';
+            badge.innerHTML = '<span>#' + escapeHtml(tag) + '</span>' +
+                '<span class="tag-remove" data-tag="' + escapeHtml(tag) + '" style="cursor: pointer; font-size: 1rem; line-height: 1; color: var(--text-muted); padding: 0 0.15rem;" title="移除标签">&times;</span>';
+            container.appendChild(badge);
+        });
+
+        // 绑定移除事件
+        container.querySelectorAll('.tag-remove').forEach(el => {
+            el.addEventListener('click', function() {
+                const tag = this.dataset.tag;
+                const tags = getTags().filter(t => t !== tag);
+                setTags(tags);
+                renderTags();
+            });
+            el.addEventListener('mouseenter', function() {
+                this.style.color = '#dc2626';
+            });
+            el.addEventListener('mouseleave', function() {
+                this.style.color = 'var(--text-muted)';
+            });
+        });
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // 添加标签
+    function addTag(name) {
+        name = name.trim().toLowerCase();
+        if (!name) return;
+        name = name.replace(/,/g, '');
+        if (!name) return;
+        const tags = getTags();
+        if (tags.includes(name)) {
+            tagInput.value = '';
+            return;
+        }
+        tags.push(name);
+        setTags(tags);
+        renderTags();
+        tagInput.value = '';
+        tagInput.focus();
+    }
+
+    // 初始化
+    renderTags();
+
+    // 事件监听
+    tagInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTag(tagInput.value);
+        }
+    });
+
+    addBtn.addEventListener('click', function() {
+        addTag(tagInput.value);
+    });
+
+    // 表单提交前同步
+    document.querySelector('form').addEventListener('submit', function() {
+        setTags(getTags());
+    });
+})();
+</script>
 {% endblock %}
