@@ -247,3 +247,19 @@ app.include(auth.auth_route)
 
 # ===== 搜索路由 =====
 app.include(search.search_route)
+
+# ===== 静态文件服务（上传目录） =====
+from starlette.responses import FileResponse
+from .file_manager import UPLOAD_DIR
+
+uploads_route = Route("/static/uploads")
+
+@uploads_route.sub("/{filename}").get
+async def serve_upload(filename: str):
+    """提供上传文件的访问。"""
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        return HTMLResponse("<p>文件不存在</p>", status_code=404)
+    return FileResponse(str(file_path))
+
+app.include(uploads_route)

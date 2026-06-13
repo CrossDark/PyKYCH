@@ -301,6 +301,22 @@ CREATE TABLE IF NOT EXISTS external_pages (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+STATIC_FILES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS static_files (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    filename      VARCHAR(255) UNIQUE NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    file_path     VARCHAR(512) NOT NULL,
+    file_size     BIGINT NOT NULL DEFAULT 0,
+    mime_type     VARCHAR(128) DEFAULT 'application/octet-stream',
+    uploaded_by   INT DEFAULT NULL,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_filename (filename),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -449,6 +465,9 @@ async def init_tables() -> None:
             # 外部站点表
             await cur.execute(EXTERNAL_SITES_TABLE_SQL)
             await cur.execute(EXTERNAL_PAGES_TABLE_SQL)
+
+            # 静态文件表
+            await cur.execute(STATIC_FILES_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

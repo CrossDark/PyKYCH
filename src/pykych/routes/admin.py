@@ -19,6 +19,7 @@ from .. import tag_manager
 from .. import site_settings
 from .. import notification_manager
 from .. import external_html
+from .. import file_manager
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -685,6 +686,82 @@ async def delete_external_site(site_id: int, request: Request):
         return redirect("/admin")
     await external_html.delete_external_site(site_id)
     return redirect("/admin/external")
+
+# ===== 静态文件管理（管理员/站长） =====
+
+@admin_route.sub("/files").get
+async def manage_files(request: Request, page: int = 1):
+    """静态文件管理页面。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return render("admin_dashboard.html", title="权限不足 - PyKYCH",
+            current_user=user, md_articles=[], wk_pages=[],
+            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
+            html_total=0, bb_total=0, users=[],
+            subsite_links=[], featured_articles=[],
+            tags=[], notifications=[], ext_sites=[],
+            permission_error="仅管理员和站长可管理文件。")
+    result = await file_manager.list_files(page=page, per_page=20)
+    return render("admin_files.html", title="文件管理 - PyKYCH",
+        current_user=user, files=result["files"],
+        page=result["page"], total_pages=result["total_pages"],
+        total=result["total"], error=None)
+
+@admin_route.sub("/files/upload").post
+async def upload_file(request: Request):
+    """上传文件。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+
+    form = await request.form()
+    uploaded = form.get("file")
+
+    if uploaded is None or not hasattr(uploaded, "filename"):
+        result = await file_manager.list_files()
+        return render("admin_files.html", title="文件管理 - PyKYCH",
+            current_user=user, files=result["files"],
+            page=1, total_pages=result["total_pages"],
+            total=result["total"], error="请选择要上传的文件。")
+
+    original_name = uploaded.filename or "unknown"
+    content = await uploaded.read()
+
+    if len(content) > file_manager.MAX_FILE_SIZE:
+        result = await file_manager.list_files()
+        return render("admin_files.html", title="文件管理 - PyKYCH",
+            current_user=user, files=result["files"],
+            page=1, total_pages=result["total_pages"],
+            total=result["total"],
+            error=f"文件过大（最大 {file_manager.MAX_FILE_SIZE // 1024 // 1024}MB）。")
+
+    file_manager._ensure_upload_dir()
+    store_name = file_manager._generate_filename(original_name)
+    file_path = file_manager.UPLOAD_DIR / store_name
+
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    mime_type = getattr(uploaded, "content_type", "application/octet-stream") or "application/octet-stream"
+
+    await file_manager.save_file_record(
+        store_name, original_name, len(content), mime_type,
+        uploaded_by=user.get("id"),
+    )
+
+    return redirect("/admin/files")
+
+@admin_route.sub("/files/{file_id}/delete").post
+async def delete_file_route(file_id: int, request: Request):
+    """删除文件。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await file_manager.delete_file(file_id)
+    return redirect("/admin/files")
 
 # ===== 用户管理（仅站长） =====
 

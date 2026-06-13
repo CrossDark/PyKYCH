@@ -98,6 +98,7 @@
         <span style="font-size:0.85rem;color:var(--text-muted);">
             {% if current_user.role == 'owner' %}🔧 站长{% elif current_user.role == 'admin' %}🛡️ 管理员{% else %}👤 用户{% endif %}
             {{ current_user.nickname }}
+            · <a href="/admin/files" class="btn btn-outline btn-sm">📁 文件管理</a>
             · <a href="/auth/logout" class="btn btn-outline btn-sm">退出登录</a>
         </span>
     </div>
