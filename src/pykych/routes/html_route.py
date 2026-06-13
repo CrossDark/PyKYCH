@@ -125,8 +125,8 @@ async def external_site_page(site_name: str):
     )
 
 
-@html_route.sub("/{site_name}/{path:path}").get
-async def external_site_subpage(site_name: str, path: str):
+@html_route.sub("/{site_name}/{sub_path}").get
+async def external_site_subpage(site_name: str, sub_path: str, request=None):
     """外部站点子页面 — 显示缓存的外部 HTML 子页面。"""
     if site_name == "local":
         return render(
@@ -137,8 +137,8 @@ async def external_site_subpage(site_name: str, path: str):
             html_content="<p>抱歉，您查找的页面不存在。</p>",
         )
 
-    # 去除尾部斜杠
-    path = path.rstrip("/")
+    # sub_path 可能包含多级路径（通过 URL 手动解析）
+    path = sub_path.rstrip("/")
 
     page = await external_html.get_cached_page(site_name, path)
     if not page:
