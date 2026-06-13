@@ -460,6 +460,60 @@ async def bb_delete(slug: str, request: Request):
     await bbcode_db.delete_page(slug)
     return redirect("/admin")
 
+# ===== 标签管理（管理员/站长） =====
+
+@admin_route.sub("/tags").get
+async def manage_tags(request: Request):
+    """标签管理页面 — 管理员和站长可以管理所有标签。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return render("admin_dashboard.html", title="权限不足 - PyKYCH",
+            current_user=user, md_articles=[], wk_pages=[],
+            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
+            html_total=0, bb_total=0, users=[],
+            subsite_links=[], featured_articles=[],
+            permission_error="仅管理员和站长可管理标签。")
+    tags = await tag_manager.get_all_tags_with_counts()
+    return render("admin_tags.html", title="标签管理 - PyKYCH",
+        current_user=user, tags=tags, error=None)
+
+@admin_route.sub("/tags/create").post
+async def create_tag_route(request: Request):
+    """创建新标签。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    name = form.get("name", "").strip()
+    if name:
+        await tag_manager.create_tag(name)
+    return redirect("/admin/tags")
+
+@admin_route.sub("/tags/{tag_id}/rename").post
+async def rename_tag_route(tag_id: int, request: Request):
+    """重命名标签。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    new_name = form.get("new_name", "").strip()
+    if new_name:
+        await tag_manager.rename_tag(tag_id, new_name)
+    return redirect("/admin/tags")
+
+@admin_route.sub("/tags/{tag_id}/delete").post
+async def delete_tag_route(tag_id: int, request: Request):
+    """删除标签。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await tag_manager.delete_tag(tag_id)
+    return redirect("/admin/tags")
+
 # ===== 用户管理（仅站长） =====
 
 @admin_route.sub("/users/add").post
