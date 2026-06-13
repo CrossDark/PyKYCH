@@ -17,6 +17,7 @@ from .. import bbcode_db
 from .. import auth as auth_mod
 from .. import tag_manager
 from .. import site_settings
+from .. import notification_manager
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -513,6 +514,87 @@ async def delete_tag_route(tag_id: int, request: Request):
         return redirect("/admin")
     await tag_manager.delete_tag(tag_id)
     return redirect("/admin/tags")
+
+# ===== 通知管理（管理员/站长） =====
+
+@admin_route.sub("/notifications").get
+async def manage_notifications(request: Request):
+    """通知管理页面。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return render("admin_dashboard.html", title="权限不足 - PyKYCH",
+            current_user=user, md_articles=[], wk_pages=[],
+            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
+            html_total=0, bb_total=0, users=[],
+            subsite_links=[], featured_articles=[],
+            permission_error="仅管理员和站长可管理通知。")
+    notifications = await notification_manager.list_notifications(include_inactive=True)
+    return render("admin_notifications.html", title="通知管理 - PyKYCH",
+        current_user=user, notifications=notifications, error=None)
+
+@admin_route.sub("/notifications/create").post
+async def create_notification(request: Request):
+    """创建新通知。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    title = form.get("title", "").strip()
+    content = form.get("content", "").strip()
+    is_important = form.get("is_important") == "1"
+    if title and content:
+        await notification_manager.create_notification(title, content, is_important)
+    return redirect("/admin/notifications")
+
+@admin_route.sub("/notifications/{notif_id}/edit").post
+async def edit_notification(notif_id: int, request: Request):
+    """编辑通知。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    title = form.get("title", "").strip()
+    content = form.get("content", "").strip()
+    is_important = form.get("is_important") == "1"
+    is_active = form.get("is_active") == "1"
+    if title and content:
+        await notification_manager.update_notification(
+            notif_id, title, content, is_important, is_active
+        )
+    return redirect("/admin/notifications")
+
+@admin_route.sub("/notifications/{notif_id}/toggle-important").post
+async def toggle_notification_importance(notif_id: int, request: Request):
+    """切换通知的重要状态。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await notification_manager.toggle_notification_importance(notif_id)
+    return redirect("/admin/notifications")
+
+@admin_route.sub("/notifications/{notif_id}/toggle-active").post
+async def toggle_notification_active(notif_id: int, request: Request):
+    """切换通知的启用/停用状态。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await notification_manager.toggle_notification_active(notif_id)
+    return redirect("/admin/notifications")
+
+@admin_route.sub("/notifications/{notif_id}/delete").post
+async def delete_notification_route(notif_id: int, request: Request):
+    """删除通知。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    await notification_manager.delete_notification(notif_id)
+    return redirect("/admin/notifications")
 
 # ===== 用户管理（仅站长） =====
 

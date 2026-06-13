@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .notif-container {
+        max-width: 780px;
+    }
+    .notif-create-form {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .notif-create-form h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+    }
+    .form-group {
+        margin-bottom: 0.85rem;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.85rem;
+        margin-bottom: 0.25rem;
+        color: var(--text);
+    }
+    .form-input {
+        width: 100%;
+        padding: 0.5rem 0.7rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.9rem;
+        font-family: inherit;
+        background: var(--bg-card);
+        color: var(--text);
+        transition: border-color 0.2s;
+    }
+    .form-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    }
+    textarea.form-input {
+        min-height: 100px;
+        resize: vertical;
+    }
+    .checkbox-row {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+    }
+    .checkbox-row label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-weight: 400;
+        font-size: 0.88rem;
+        cursor: pointer;
+    }
+    .form-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-top: 1rem;
+    }
+    .btn {
+        display: inline-block;
+        padding: 0.45rem 1rem;
+        border-radius: 6px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.55rem;
+        font-size: 0.78rem;
+    }
+    .btn-primary {
+        background: var(--accent);
+        color: #fff;
+    }
+    .btn-primary:hover {
+        background: var(--accent-hover);
+        text-decoration: none;
+        color: #fff;
+    }
+    .btn-outline {
+        border-color: var(--border);
+        color: var(--text-secondary);
+        background: transparent;
+    }
+    .btn-outline:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        text-decoration: none;
+    }
+    .btn-warning {
+        background: #fef3c7;
+        color: #d97706;
+        border-color: #fcd34d;
+    }
+    .btn-warning:hover {
+        background: #f59e0b;
+        color: #fff;
+        border-color: #f59e0b;
+        text-decoration: none;
+    }
+    .btn-success {
+        background: #d1fae5;
+        color: #059669;
+        border-color: #a7f3d0;
+    }
+    .btn-success:hover {
+        background: #10b981;
+        color: #fff;
+        border-color: #10b981;
+        text-decoration: none;
+    }
+    .btn-danger {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+    .btn-danger:hover {
+        background: #dc2626;
+        color: #fff;
+        border-color: #dc2626;
+        text-decoration: none;
+    }
+    [data-theme="dark"] .btn-warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+    [data-theme="dark"] .btn-warning:hover {
+        background: #f59e0b;
+        color: #fff;
+    }
+    [data-theme="dark"] .btn-success {
+        background: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    [data-theme="dark"] .btn-success:hover {
+        background: #10b981;
+        color: #fff;
+    }
+    [data-theme="dark"] .btn-danger {
+        background: rgba(220, 38, 38, 0.15);
+        color: #f87171;
+        border-color: rgba(220, 38, 38, 0.3);
+    }
+    [data-theme="dark"] .btn-danger:hover {
+        background: #dc2626;
+        color: #fff;
+    }
+    .notif-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+    .notif-card.inactive {
+        opacity: 0.55;
+    }
+    .notif-card.important {
+        border-left: 3px solid var(--accent);
+    }
+    .notif-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .notif-title {
+        font-weight: 600;
+        font-size: 1rem;
+        margin: 0;
+    }
+    .notif-badges {
+        display: flex;
+        gap: 0.35rem;
+        align-items: center;
+    }
+    .badge {
+        display: inline-block;
+        padding: 0.12rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .badge-important {
+        background: #fef3c7;
+        color: #d97706;
+    }
+    [data-theme="dark"] .badge-important {
+        background: rgba(245, 158, 11, 0.2);
+        color: #fbbf24;
+    }
+    .badge-inactive {
+        background: var(--code-bg);
+        color: var(--text-muted);
+    }
+    .notif-content {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin-bottom: 0.5rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .notif-date {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+    }
+    .notif-actions {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-decoration: none;
+        margin-bottom: 1.5rem;
+        transition: color 0.2s;
+    }
+    .back-link:hover {
+        color: var(--accent);
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if permission_error %}
+<div class="card" style="border-color:#fecaca;background:#fef2f2;padding:1.5rem;text-align:center;margin-bottom:1.5rem;">
+    <p style="color:#dc2626;font-weight:600;">⚠️ {{ permission_error }}</p>
+</div>
+{% endif %}
+
+<a href="/admin" class="back-link">← 返回管理后台</a>
+
+<div class="page-header notif-container">
+    <h1>🔔 通知管理</h1>
+    <p class="subtitle">创建和管理网站通知，重要通知将显示在首页</p>
+</div>
+
+<div class="notif-container">
+    <!-- 创建通知表单 -->
+    <div class="notif-create-form">
+        <h3>✏️ 创建新通知</h3>
+        <form method="POST" action="/admin/notifications/create">
+            <div class="form-group">
+                <label for="title">标题</label>
+                <input type="text" id="title" name="title" class="form-input"
+                       placeholder="通知标题" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="content">内容</label>
+                <textarea id="content" name="content" class="form-input"
+                          placeholder="通知内容..." required></textarea>
+            </div>
+            <div class="checkbox-row">
+                <label>
+                    <input type="checkbox" name="is_important" value="1">
+                    标记为重要（显示在首页）
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">📢 发布通知</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 通知列表 -->
+    <h3 style="font-size: 1rem; margin-bottom: 0.75rem;">
+        📋 所有通知（{{ notifications | length }} 条）
+    </h3>
+    {% if notifications %}
+        {% for n in notifications %}
+        <div class="notif-card {% if not n.is_active %}inactive{% endif %} {% if n.is_important %}important{% endif %}">
+            <div class="notif-header">
+                <h4 class="notif-title">{{ n.title }}</h4>
+                <div class="notif-badges">
+                    {% if n.is_important %}
+                    <span class="badge badge-important">⭐ 重要</span>
+                    {% endif %}
+                    {% if not n.is_active %}
+                    <span class="badge badge-inactive">已停用</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="notif-content">{{ n.content }}</div>
+            <div class="notif-date">
+                创建于 {{ n.created_at[:10] }} · 更新于 {{ n.updated_at[:10] }}
+            </div>
+            <div class="notif-actions">
+                <!-- 切换重要 -->
+                <form method="POST" action="/admin/notifications/{{ n.id }}/toggle-important" style="display:inline">
+                    <button type="submit" class="btn btn-sm {% if n.is_important %}btn-outline{% else %}btn-warning{% endif %}"
+                            title="{% if n.is_important %}取消重要{% else %}标记重要{% endif %}">
+                        {% if n.is_important %}☆ 取消重要{% else %}⭐ 标记重要{% endif %}
+                    </button>
+                </form>
+                <!-- 切换启用 -->
+                <form method="POST" action="/admin/notifications/{{ n.id }}/toggle-active" style="display:inline">
+                    <button type="submit" class="btn btn-sm {% if n.is_active %}btn-outline{% else %}btn-success{% endif %}"
+                            title="{% if n.is_active %}停用通知{% else %}启用通知{% endif %}">
+                        {% if n.is_active %}⏸ 停用{% else %}▶ 启用{% endif %}
+                    </button>
+                </form>
+                <!-- 删除 -->
+                <form method="POST" action="/admin/notifications/{{ n.id }}/delete" style="display:inline"
+                      onsubmit="return confirm('确定要删除通知 «{{ n.title }}» 吗？此操作不可撤销。')">
+                    <button type="submit" class="btn btn-sm btn-danger">🗑 删除</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="card empty-state">暂无通知，使用上方表单创建第一条通知。</div>
+    {% endif %}
+</div>
+{% endblock %}

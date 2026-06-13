@@ -15,6 +15,7 @@ from . import wikidot_db
 from . import html_db
 from . import bbcode_db
 from . import site_settings
+from . import notification_manager
 from .routes import md
 from .routes import wikidot
 from .routes import admin
@@ -78,12 +79,14 @@ async def home():
     """首页"""
     subsite_links = await site_settings.list_subsite_links()
     featured = await site_settings.list_featured_articles()
+    important_notifications = await notification_manager.get_important_notifications()
     return render_template(
         "home.html",
         title="跨越晨昏 - 首页",
         subtitle="欢迎来到我的个人网站",
         subsite_links=subsite_links,
         featured_articles=featured,
+        important_notifications=important_notifications,
     )
 
 # 将 home_route 包含进应用

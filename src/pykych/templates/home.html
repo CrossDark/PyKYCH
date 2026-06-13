@@ -6,6 +6,30 @@
     <p class="subtitle">{{ subtitle }}</p>
 </div>
 
+<!-- 重要通知 -->
+{% if important_notifications %}
+<div style="max-width: var(--max-width); margin: 0 auto 2rem; padding: 0 1.5rem;">
+    <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+        {% for n in important_notifications %}
+        <div class="card" style="
+            border-left: 3px solid var(--accent);
+            padding: 0.85rem 1.15rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+        ">
+            <span style="font-size: 1.1rem; flex-shrink: 0;">📢</span>
+            <div style="flex: 1; min-width: 0;">
+                <strong style="font-size: 0.92rem;">{{ n.title }}</strong>
+                <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; word-break: break-word;">{{ n.content }}</p>
+                <span style="font-size: 0.72rem; color: var(--text-muted);">{{ n.created_at[:10] }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- 子站点链接 -->
 {% if subsite_links %}
 <div style="text-align: center; margin-bottom: 2rem;">

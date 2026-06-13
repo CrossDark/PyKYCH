@@ -253,6 +253,22 @@ CREATE TABLE IF NOT EXISTS featured_articles (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+NOTIFICATIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS notifications (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    title        VARCHAR(255) NOT NULL,
+    content      TEXT NOT NULL,
+    is_important TINYINT(1) NOT NULL DEFAULT 0,
+    is_active    TINYINT(1) NOT NULL DEFAULT 1,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_important (is_important),
+    INDEX idx_active (is_active),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -394,6 +410,9 @@ async def init_tables() -> None:
 
             # 主页推荐文章表
             await cur.execute(FEATURED_ARTICLES_TABLE_SQL)
+
+            # 通知表
+            await cur.execute(NOTIFICATIONS_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()
