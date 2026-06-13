@@ -255,6 +255,137 @@
     {% endif %}
 </div>
 
+<!-- 子站点链接管理（仅站长） -->
+{% if current_user.role == 'owner' %}
+<div class="admin-section">
+    <h2>🔗 子站点链接</h2>
+
+    <details style="margin-bottom:1rem;">
+        <summary style="cursor:pointer;font-weight:500;color:var(--accent);padding:0.4rem 0;">+ 添加子站点链接</summary>
+        <form method="POST" action="/admin/subsite/add" style="
+            display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;
+            padding:0.75rem;background:var(--code-bg);border-radius:var(--radius);margin-top:0.5rem;
+        ">
+            <input name="name" placeholder="站点名称" class="form-input" style="width:auto;flex:1;min-width:100px;" required>
+            <input name="url" placeholder="URL (https://...)" class="form-input" style="width:auto;flex:2;min-width:180px;" required>
+            <input name="description" placeholder="简介(可选)" class="form-input" style="width:auto;flex:1;min-width:120px;">
+            <input name="sort_order" placeholder="排序" class="form-input" style="width:60px;" value="0">
+            <button type="submit" class="btn btn-primary btn-sm">添加</button>
+        </form>
+    </details>
+
+    {% if subsite_links %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>名称</th>
+                <th>URL</th>
+                <th>简介</th>
+                <th>排序</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for link in subsite_links %}
+            <tr>
+                <td><strong>{{ link.name }}</strong></td>
+                <td><a href="{{ link.url }}" target="_blank" rel="noopener" style="font-size:0.85rem;word-break:break-all;">{{ link.url[:50] }}{% if link.url|length > 50 %}...{% endif %}</a></td>
+                <td style="font-size:0.85rem;color:var(--text-secondary);">{{ link.description[:30] }}</td>
+                <td>{{ link.sort_order }}</td>
+                <td>
+                    <div class="actions">
+                        <details>
+                            <summary class="btn btn-outline btn-sm" style="list-style:none;cursor:pointer;">✏️</summary>
+                            <form method="POST" action="/admin/subsite/{{ link.id }}/edit" style="
+                                display:inline-flex;gap:0.3rem;align-items:center;margin-left:0.3rem;
+                                flex-wrap:wrap;
+                            ">
+                                <input name="name" value="{{ link.name | e }}" class="form-input" style="width:90px;padding:0.2rem 0.3rem;font-size:0.78rem;" required>
+                                <input name="url" value="{{ link.url | e }}" class="form-input" style="width:160px;padding:0.2rem 0.3rem;font-size:0.78rem;" required>
+                                <input name="description" value="{{ link.description | e }}" class="form-input" style="width:100px;padding:0.2rem 0.3rem;font-size:0.78rem;">
+                                <input name="sort_order" value="{{ link.sort_order }}" class="form-input" style="width:50px;padding:0.2rem 0.3rem;font-size:0.78rem;">
+                                <button type="submit" class="btn btn-primary btn-sm">💾</button>
+                            </form>
+                        </details>
+                        <form method="POST" action="/admin/subsite/{{ link.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('确定要删除子站点 «{{ link.name }}» 吗？')">
+                            <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="card empty-state">暂无子站点链接</div>
+    {% endif %}
+</div>
+
+<!-- 主页推荐文章管理（仅站长） -->
+<div class="admin-section">
+    <h2>⭐ 主页推荐</h2>
+
+    <details style="margin-bottom:1rem;">
+        <summary style="cursor:pointer;font-weight:500;color:var(--accent);padding:0.4rem 0;">+ 添加推荐文章</summary>
+        <form method="POST" action="/admin/featured/add" style="
+            display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;
+            padding:0.75rem;background:var(--code-bg);border-radius:var(--radius);margin-top:0.5rem;
+        ">
+            <select name="article_type" class="form-input" style="width:auto;" required>
+                <option value="md">Markdown</option>
+                <option value="wikidot">Wikidot</option>
+                <option value="html">HTML</option>
+                <option value="bbcode">BBCode</option>
+            </select>
+            <input name="article_slug" placeholder="文章 Slug" class="form-input" style="width:auto;flex:1;min-width:150px;" required>
+            <button type="submit" class="btn btn-primary btn-sm">添加</button>
+        </form>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:0.25rem;">输入文章类型和 Slug（如 md 类型下 slug 为 lihil-intro）</p>
+    </details>
+
+    {% if featured_articles %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>标题</th>
+                <th>类型</th>
+                <th>Slug</th>
+                <th>排序</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for fa in featured_articles %}
+            <tr>
+                <td><strong>{{ fa.title }}</strong></td>
+                <td><span class="article-type-badge">{{ fa.article_type }}</span></td>
+                <td><code>{{ fa.article_slug }}</code></td>
+                <td>{{ fa.sort_order }}</td>
+                <td>
+                    <div class="actions">
+                        <form method="POST" action="/admin/featured/{{ fa.id }}/move/up" style="display:inline">
+                            <button type="submit" class="btn btn-outline btn-sm" title="上移">⬆️</button>
+                        </form>
+                        <form method="POST" action="/admin/featured/{{ fa.id }}/move/down" style="display:inline">
+                            <button type="submit" class="btn btn-outline btn-sm" title="下移">⬇️</button>
+                        </form>
+                        <form method="POST" action="/admin/featured/{{ fa.id }}/remove" style="display:inline"
+                              onsubmit="return confirm('确定要移除推荐 «{{ fa.title }}» 吗？')">
+                            <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="card empty-state">暂无推荐文章</div>
+    {% endif %}
+</div>
+{% endif %}
+
 <!-- 用户管理 -->
 <div class="admin-section">
     <h2>

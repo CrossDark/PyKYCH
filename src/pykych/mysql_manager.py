@@ -227,6 +227,32 @@ CREATE TABLE IF NOT EXISTS comments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+SUBSITE_LINKS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS subsite_links (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL,
+    url         VARCHAR(1024) NOT NULL,
+    description VARCHAR(512) DEFAULT '',
+    sort_order  INT NOT NULL DEFAULT 0,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_sort (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+FEATURED_ARTICLES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS featured_articles (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    article_type ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_slug VARCHAR(255) NOT NULL,
+    sort_order   INT NOT NULL DEFAULT 0,
+    created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_featured (article_type, article_slug),
+    INDEX idx_sort (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -362,6 +388,12 @@ async def init_tables() -> None:
 
             # 评论表
             await cur.execute(COMMENTS_TABLE_SQL)
+
+            # 子站点链接表
+            await cur.execute(SUBSITE_LINKS_TABLE_SQL)
+
+            # 主页推荐文章表
+            await cur.execute(FEATURED_ARTICLES_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

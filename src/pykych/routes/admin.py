@@ -15,6 +15,7 @@ from .. import wikidot_db
 from .. import html_db
 from .. import auth as auth_mod
 from .. import tag_manager
+from .. import site_settings
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -82,10 +83,13 @@ async def dashboard(request: Request):
         html_r = await html_db.get_html_pages_by_author(uid, page=1, per_page=100) if uid else {"pages": [], "total": 0}
 
     users = await auth_mod.list_users() if auth_mod.is_owner(user) else []
+    subsite_links = await site_settings.list_subsite_links() if auth_mod.is_owner(user) else []
+    featured_articles = await site_settings.list_featured_articles() if auth_mod.is_owner(user) else []
     return render("admin_dashboard.html", title="文章管理 - PyKYCH",
         current_user=user, md_articles=md_r["articles"], wk_pages=wk_r["pages"],
         html_pages=html_r["pages"],
         md_total=md_r["total"], wk_total=wk_r["total"], html_total=html_r["total"], users=users,
+        subsite_links=subsite_links, featured_articles=featured_articles,
         permission_error=None)
 
 # ===== Markdown CRUD =====
@@ -406,6 +410,88 @@ async def change_role(username: str, request: Request):
     new_role = form.get("role", "user").strip()
     if new_role in ("user", "admin", "owner"):
         await auth_mod.update_user_role(username, new_role)
+    return redirect("/admin")
+
+# ===== 子站点链接管理（仅站长） =====
+
+@admin_route.sub("/subsite/add").post
+async def add_subsite(request: Request):
+    """站长添加子站点链接。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    form = await request.form()
+    name = form.get("name", "").strip()
+    url = form.get("url", "").strip()
+    description = form.get("description", "").strip()
+    sort_order = form.get("sort_order", "0").strip()
+    if name and url:
+        try:
+            order = int(sort_order) if sort_order else 0
+        except ValueError:
+            order = 0
+        await site_settings.create_subsite_link(name, url, description, order)
+    return redirect("/admin")
+
+
+@admin_route.sub("/subsite/{link_id}/edit").post
+async def edit_subsite(link_id: int, request: Request):
+    """站长编辑子站点链接。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    form = await request.form()
+    name = form.get("name", "").strip()
+    url = form.get("url", "").strip()
+    description = form.get("description", "").strip()
+    sort_order = form.get("sort_order", "0").strip()
+    if name and url:
+        try:
+            order = int(sort_order) if sort_order else 0
+        except ValueError:
+            order = 0
+        await site_settings.update_subsite_link(link_id, name, url, description, order)
+    return redirect("/admin")
+
+
+@admin_route.sub("/subsite/{link_id}/delete").post
+async def delete_subsite(link_id: int, request: Request):
+    """站长删除子站点链接。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    await site_settings.delete_subsite_link(link_id)
+    return redirect("/admin")
+
+
+# ===== 主页推荐文章管理（仅站长） =====
+
+@admin_route.sub("/featured/add").post
+async def add_featured(request: Request):
+    """站长添加推荐文章。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    form = await request.form()
+    article_type = form.get("article_type", "").strip()
+    article_slug = form.get("article_slug", "").strip()
+    if article_type and article_slug:
+        await site_settings.add_featured_article(article_type, article_slug)
+    return redirect("/admin")
+
+
+@admin_route.sub("/featured/{featured_id}/remove").post
+async def remove_featured(featured_id: int, request: Request):
+    """站长移除推荐文章。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    await site_settings.remove_featured_article(featured_id)
+    return redirect("/admin")
+
+
+@admin_route.sub("/featured/{featured_id}/move/{direction}").post
+async def move_featured(featured_id: int, direction: str, request: Request):
+    """站长上移/下移推荐文章。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    if direction in ("up", "down"):
+        await site_settings.move_featured_article(featured_id, direction)
     return redirect("/admin")
 
 # ── 校验 ──

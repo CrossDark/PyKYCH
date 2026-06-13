@@ -14,6 +14,7 @@ from . import db
 from . import wikidot_db
 from . import html_db
 from . import bbcode_db
+from . import site_settings
 from .routes import md
 from .routes import wikidot
 from .routes import admin
@@ -74,30 +75,14 @@ home_route = Route("/")
 @home_route.get
 async def home():
     """首页"""
+    subsite_links = await site_settings.list_subsite_links()
+    featured = await site_settings.list_featured_articles()
     return render_template(
         "home.html",
         title="跨越晨昏 - 首页",
         subtitle="欢迎来到我的个人网站",
-        articles=[
-            {
-                "title": "使用 LiHiL 构建高性能 Web 应用",
-                "date": "2026-06-10",
-                "summary": "LiHiL 是一个 2 倍速的 Python ASGI Web 框架，本文将介绍如何使用它快速构建高性能 Web 应用。",
-                "slug": "lihil-intro",
-            },
-            {
-                "title": "Python 异步编程入门指南",
-                "date": "2026-06-05",
-                "summary": "异步编程是现代 Web 开发的核心技能。本文从基础概念讲起，带你逐步掌握 Python asyncio。",
-                "slug": "python-async-guide",
-            },
-            {
-                "title": "为什么选择 Python 做 Web 开发",
-                "date": "2026-05-28",
-                "summary": "Python 拥有丰富的生态系统和简洁的语法，是 Web 开发的绝佳选择。本文分享我的实践经验。",
-                "slug": "why-python-web",
-            },
-        ],
+        subsite_links=subsite_links,
+        featured_articles=featured,
     )
 
 # 将 home_route 包含进应用

@@ -6,33 +6,110 @@
     <p class="subtitle">{{ subtitle }}</p>
 </div>
 
+<!-- 子站点链接 -->
+{% if subsite_links %}
+<div style="text-align: center; margin-bottom: 2rem;">
+    <h2 style="font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 0.75rem;">🔗 子站点</h2>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem;">
+        {% for link in subsite_links %}
+        <a href="{{ link.url }}" target="_blank" rel="noopener" class="card" style="
+            display: inline-flex; flex-direction: column; align-items: center;
+            padding: 0.75rem 1.25rem; text-decoration: none; color: var(--text);
+            min-width: 120px; transition: all 0.2s;
+        " onmouseover="this.style.borderColor='var(--accent)'"
+           onmouseout="this.style.borderColor='var(--border)'">
+            <span style="font-weight: 600; font-size: 0.95rem;">{{ link.name }}</span>
+            {% if link.description %}
+            <span style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem;">{{ link.description }}</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- 快捷入口 -->
-<div style="text-align: center; margin-bottom: 0.5rem;">
+<div style="text-align: center; margin-bottom: 0.5rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem;">
     <a href="/md" style="
         display: inline-block;
-        padding: 0.5rem 1.5rem;
+        padding: 0.5rem 1.25rem;
         background: var(--accent);
         color: #fff;
         border-radius: 2rem;
         text-decoration: none;
         font-weight: 500;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         transition: background 0.2s;
     " onmouseover="this.style.background='var(--accent-hover)'"
        onmouseout="this.style.background='var(--accent)'">
-        📝 Markdown 文章
+        📝 Markdown
+    </a>
+    <a href="/wikidot" style="
+        display: inline-block;
+        padding: 0.5rem 1.25rem;
+        background: var(--code-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 2rem;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+        📚 Wikidot
+    </a>
+    <a href="/bbcode" style="
+        display: inline-block;
+        padding: 0.5rem 1.25rem;
+        background: var(--code-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 2rem;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+        💬 BBCode
+    </a>
+    <a href="/html" style="
+        display: inline-block;
+        padding: 0.5rem 1.25rem;
+        background: var(--code-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 2rem;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    " onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+       onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+        🌐 HTML
     </a>
 </div>
 
 <h2 style="margin-top: 1.5rem; margin-bottom: 0.75rem;">📖 推荐阅读</h2>
 <div class="article-list">
-    {% for article in articles %}
-    <a href="/article/{{ article.slug }}" class="article-card card">
-        <h3>{{ article.title }}</h3>
-        <div class="date">{{ article.date }}</div>
-        <p class="summary">{{ article.summary }}</p>
+    {% if featured_articles %}
+    {% for fa in featured_articles %}
+    <a href="{{ fa.url }}" class="article-card card">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="article-type-badge">{{ fa.article_type }}</span>
+            <h3>{{ fa.title }}</h3>
+        </div>
         <span class="read-more">阅读全文 →</span>
     </a>
     {% endfor %}
+    {% else %}
+    <div class="card" style="text-align: center; padding: 2rem;">
+        <p style="color: var(--text-muted);">暂无推荐文章，站长可在后台管理中添加。</p>
+        <p style="font-size: 0.85rem; margin-top: 0.5rem;">
+            前往 <a href="/md">📝 Markdown</a> · <a href="/wikidot">📚 Wikidot</a> · <a href="/bbcode">💬 BBCode</a> · <a href="/html">🌐 HTML</a> 浏览文章
+        </p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
