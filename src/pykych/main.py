@@ -1,4 +1,4 @@
-from lihil import Lihil, Route
+from lihil import Lihil, Route, Request
 from starlette.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
@@ -258,6 +258,29 @@ app.include(admin.admin_route)
 
 # ===== 认证路由 (登录/登出) =====
 app.include(auth.auth_route)
+
+# ===== 当前用户 API =====
+from .auth import get_current_user
+
+api_route = Route("/api")
+
+@api_route.sub("/me").get
+async def api_me(request: Request):
+    """获取当前登录用户信息（用于前端导航栏头像）。"""
+    user = await get_current_user(request)
+    if user is None:
+        return {"user": None}
+    profile = await user_profile.get_user_profile(user["username"])
+    return {
+        "user": {
+            "username": user["username"],
+            "nickname": user.get("nickname", user["username"]),
+            "role": user.get("role", "user"),
+            "avatar": profile.get("avatar", user_profile.DEFAULT_AVATAR) if profile else user_profile.DEFAULT_AVATAR,
+        }
+    }
+
+app.include(api_route)
 
 # ===== 搜索路由 =====
 app.include(search.search_route)

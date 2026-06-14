@@ -643,6 +643,127 @@
             margin-top: 0.5rem;
         }
 
+        /* ===== User Avatar & Dropdown ===== */
+        .user-avatar-wrap {
+            position: relative;
+            display: none;  /* 默认隐藏，JS 检测后显示 */
+        }
+        .user-avatar-wrap.visible {
+            display: block;
+        }
+
+        .user-avatar-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.15rem;
+            border-radius: 2rem;
+            transition: background 0.2s;
+        }
+        .user-avatar-btn:hover {
+            background: var(--code-bg);
+        }
+
+        .user-avatar-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--border);
+            transition: border-color 0.2s;
+        }
+        .user-avatar-btn:hover .user-avatar-img {
+            border-color: var(--accent);
+        }
+
+        .user-avatar-fallback {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border: 2px solid var(--border);
+        }
+
+        .user-avatar-arrow {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+        .user-avatar-wrap.open .user-avatar-arrow {
+            transform: rotate(180deg);
+        }
+
+        .user-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+            min-width: 160px;
+            z-index: 150;
+            overflow: hidden;
+        }
+        .user-avatar-wrap.open .user-dropdown {
+            display: block;
+        }
+
+        .user-dropdown a,
+        .user-dropdown button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 0.65rem 1rem;
+            font-size: 0.9rem;
+            color: var(--text);
+            text-decoration: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s;
+        }
+        .user-dropdown a:hover,
+        .user-dropdown button:hover {
+            background: var(--code-bg);
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .user-dropdown .user-dropdown-name {
+            padding: 0.65rem 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+        }
+        .user-dropdown .user-dropdown-role {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding: 0.1rem 0.5rem;
+            border-radius: 1rem;
+            background: var(--code-bg);
+            margin-left: 0.3rem;
+        }
+
+        /* 登录链接（未登录时显示） */
+        .nav-login-link {
+            display: none;
+        }
+        .nav-login-link.visible {
+            display: inline;
+        }
+
         /* ===== Responsive ===== */
         @media (max-width: 640px) {
             .header-inner {
@@ -675,12 +796,26 @@
                 <span class="logo-icon">跨</span>
             </a>
             <nav>
-                <a href="/admin" style="color: var(--accent);">管理</a>
                 <a href="/search" title="搜索" aria-label="搜索">🔍</a>
                 <button class="theme-toggle" onclick="toggleTheme()" title="切换黑暗/明亮模式" aria-label="切换主题">
                     <span class="theme-icon" id="themeIcon">🌙</span>
                 </button>
                 <button class="sidebar-toggle" onclick="toggleSidebar()" title="标签" aria-label="打开标签侧栏">🏷️</button>
+                <!-- 未登录时显示的登录链接 -->
+                <a href="/auth/login" class="nav-login-link" id="navLoginLink">登录</a>
+                <!-- 用户头像区域 -->
+                <div class="user-avatar-wrap" id="userAvatarWrap">
+                    <button class="user-avatar-btn" onclick="toggleUserDropdown(event)" title="用户菜单" aria-label="用户菜单">
+                        <span id="userAvatarContent"></span>
+                        <span class="user-avatar-arrow">▼</span>
+                    </button>
+                    <div class="user-dropdown" id="userDropdown">
+                        <div class="user-dropdown-name" id="userDropdownName"></div>
+                        <a href="/admin/profile">👤 个人资料</a>
+                        <a href="/admin" style="color: var(--accent);">⚙️ 管理后台</a>
+                        <a href="/auth/logout">🚪 退出登录</a>
+                    </div>
+                </div>
             </nav>
         </div>
     </header>
@@ -787,6 +922,72 @@
                 container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">加载失败</p>';
             }
         }
+
+        // ── 用户头像 & 下拉菜单 ──
+        function toggleUserDropdown(event) {
+            event.stopPropagation();
+            const wrap = document.getElementById('userAvatarWrap');
+            wrap.classList.toggle('open');
+        }
+
+        // 点击页面其他地方关闭下拉菜单
+        document.addEventListener('click', function(event) {
+            const wrap = document.getElementById('userAvatarWrap');
+            if (wrap && wrap.classList.contains('open')) {
+                if (!wrap.contains(event.target)) {
+                    wrap.classList.remove('open');
+                }
+            }
+        });
+
+        async function initUserAvatar() {
+            try {
+                const resp = await fetch('/api/me');
+                const data = await resp.json();
+                const wrap = document.getElementById('userAvatarWrap');
+                const loginLink = document.getElementById('navLoginLink');
+                const avatarContent = document.getElementById('userAvatarContent');
+                const dropdownName = document.getElementById('userDropdownName');
+
+                if (data.user) {
+                    // 已登录：显示头像
+                    const u = data.user;
+                    wrap.classList.add('visible');
+                    if (loginLink) loginLink.classList.remove('visible');
+
+                    // 设置头像内容
+                    const initial = (u.nickname || u.username).charAt(0).toUpperCase();
+                    if (u.avatar && u.avatar !== '/static/img/default-avatar.png') {
+                        avatarContent.innerHTML = `<img src="${u.avatar}" alt="${u.nickname}" class="user-avatar-img" onerror="this.style.display='none';var fb=document.getElementById('avatarFallback');if(fb)fb.style.display='flex';">`;
+                        // 预置 fallback（隐藏状态，图片加载失败时显示）
+                        const fb = document.createElement('span');
+                        fb.id = 'avatarFallback';
+                        fb.className = 'user-avatar-fallback';
+                        fb.textContent = initial;
+                        fb.style.display = 'none';
+                        avatarContent.appendChild(fb);
+                    } else {
+                        // 使用昵称首字作为头像
+                        avatarContent.innerHTML = `<span class="user-avatar-fallback">${initial}</span>`;
+                    }
+
+                    // 设置下拉菜单名称
+                    const roleLabel = u.role === 'owner' ? '站长' : (u.role === 'admin' ? '管理员' : '用户');
+                    dropdownName.innerHTML = `${u.nickname || u.username} <span class="user-dropdown-role">${roleLabel}</span>`;
+                } else {
+                    // 未登录：显示登录链接
+                    if (loginLink) loginLink.classList.add('visible');
+                }
+            } catch (e) {
+                // 网络错误时显示登录链接
+                const loginLink = document.getElementById('navLoginLink');
+                if (loginLink) loginLink.classList.add('visible');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initUserAvatar();
+        });
     </script>
 </body>
 </html>
