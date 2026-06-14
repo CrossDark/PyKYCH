@@ -140,8 +140,9 @@ async def md_edit_form(slug: str, request: Request):
     if err: return err
     article = await db.get_article_by_slug(slug)
     if not article:
-        return render("admin_form.html", title="文章未找到", form_title="错误",
-            action="", article_type="md", article=None, error=f"文章 '{slug}' 不存在。")
+        return render("admin_form.html", title="新建 Markdown 文章 - PyKYCH",
+            form_title="新建 Markdown 文章", action=f"/admin/md/{slug}/edit",
+            article_type="md", article={"slug": slug}, error=None)
     if not _can_edit(article, user):
         return render("admin_form.html", title="权限不足", form_title="错误",
             action="", article_type="md", article=None, error="您没有权限编辑此文章。")
@@ -156,17 +157,32 @@ async def md_edit_form(slug: str, request: Request):
 async def md_update(slug: str, request: Request):
     user, err = await _check(request)
     if err: return err
-    article = await db.get_article_by_slug(slug)
-    if article is None:
-        return render("admin_form.html", title="文章未找到", form_title="错误",
-            action="", article_type="md", article=None, error=f"文章 '{slug}' 不存在。")
-    if not _can_edit(article, user):
-        return render("admin_form.html", title="权限不足", form_title="错误",
-            action="", article_type="md", article=None, error="您没有权限编辑此文章。")
     form = await request.form()
     title = form.get("title", "").strip()
     content = form.get("content", "")
     tags_str = form.get("tags", "").strip()
+
+    article = await db.get_article_by_slug(slug)
+    if article is None:
+        error = _validate(title, slug, content)
+        if error:
+            return render("admin_form.html", title="新建 MD - PyKYCH",
+                form_title="新建 Markdown 文章", action=f"/admin/md/{slug}/edit",
+                article_type="md", article={"title":title,"slug":slug,"content":content}, error=error)
+        try:
+            await db.create_article(slug, title, content, author_id=user.get("id"))
+            tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+            tag_names.append("md")
+            await tag_manager.set_article_tags("md", slug, tag_names)
+            return redirect("/admin")
+        except Exception as e:
+            return render("admin_form.html", title="新建 MD - PyKYCH",
+                form_title="新建 Markdown 文章", action=f"/admin/md/{slug}/edit",
+                article_type="md", article={"title":title,"slug":slug,"content":content}, error=f"创建失败: {e}")
+
+    if not _can_edit(article, user):
+        return render("admin_form.html", title="权限不足", form_title="错误",
+            action="", article_type="md", article=None, error="您没有权限编辑此文章。")
     error = _validate(title, slug, content, is_edit=True)
     if error:
         return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
@@ -232,8 +248,9 @@ async def wk_edit_form(slug: str, request: Request):
     if err: return err
     page = await wikidot_db.get_page_by_slug(slug)
     if not page:
-        return render("admin_form.html", title="页面未找到", form_title="错误",
-            action="", article_type="wikidot", article=None, error=f"页面 '{slug}' 不存在。")
+        return render("admin_form.html", title="新建 Wikidot 页面 - PyKYCH",
+            form_title="新建 Wikidot 页面", action=f"/admin/wikidot/{slug}/edit",
+            article_type="wikidot", article={"slug": slug}, error=None)
     if not _can_edit(page, user):
         return render("admin_form.html", title="权限不足", form_title="错误",
             action="", article_type="wikidot", article=None, error="您没有权限编辑此页面。")
@@ -248,17 +265,32 @@ async def wk_edit_form(slug: str, request: Request):
 async def wk_update(slug: str, request: Request):
     user, err = await _check(request)
     if err: return err
-    page = await wikidot_db.get_page_by_slug(slug)
-    if page is None:
-        return render("admin_form.html", title="页面未找到", form_title="错误",
-            action="", article_type="wikidot", article=None, error=f"页面 '{slug}' 不存在。")
-    if not _can_edit(page, user):
-        return render("admin_form.html", title="权限不足", form_title="错误",
-            action="", article_type="wikidot", article=None, error="您没有权限编辑此页面。")
     form = await request.form()
     title = form.get("title", "").strip()
     content = form.get("content", "")
     tags_str = form.get("tags", "").strip()
+
+    page = await wikidot_db.get_page_by_slug(slug)
+    if page is None:
+        error = _validate(title, slug, content)
+        if error:
+            return render("admin_form.html", title="新建 Wiki - PyKYCH",
+                form_title="新建 Wikidot 页面", action=f"/admin/wikidot/{slug}/edit",
+                article_type="wikidot", article={"title":title,"slug":slug,"content":content}, error=error)
+        try:
+            await wikidot_db.create_page(slug, title, content, author_id=user.get("id"))
+            tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+            tag_names.append("wikidot")
+            await tag_manager.set_article_tags("wikidot", slug, tag_names)
+            return redirect("/admin")
+        except Exception as e:
+            return render("admin_form.html", title="新建 Wiki - PyKYCH",
+                form_title="新建 Wikidot 页面", action=f"/admin/wikidot/{slug}/edit",
+                article_type="wikidot", article={"title":title,"slug":slug,"content":content}, error=f"创建失败: {e}")
+
+    if not _can_edit(page, user):
+        return render("admin_form.html", title="权限不足", form_title="错误",
+            action="", article_type="wikidot", article=None, error="您没有权限编辑此页面。")
     error = _validate(title, slug, content, is_edit=True)
     if error:
         return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
@@ -324,8 +356,9 @@ async def html_edit_form(slug: str, request: Request):
     if err: return err
     page = await html_db.get_html_page_by_slug(slug)
     if not page:
-        return render("admin_form.html", title="页面未找到", form_title="错误",
-            action="", article_type="html", article=None, error=f"页面 '{slug}' 不存在。")
+        return render("admin_form.html", title="新建 HTML 页面 - PyKYCH",
+            form_title="新建 HTML 页面", action=f"/admin/html/{slug}/edit",
+            article_type="html", article={"slug": slug}, error=None)
     if not _can_edit(page, user):
         return render("admin_form.html", title="权限不足", form_title="错误",
             action="", article_type="html", article=None, error="您没有权限编辑此页面。")
@@ -339,17 +372,32 @@ async def html_edit_form(slug: str, request: Request):
 async def html_update(slug: str, request: Request):
     user, err = await _check(request)
     if err: return err
-    page = await html_db.get_html_page_by_slug(slug)
-    if page is None:
-        return render("admin_form.html", title="页面未找到", form_title="错误",
-            action="", article_type="html", article=None, error=f"页面 '{slug}' 不存在。")
-    if not _can_edit(page, user):
-        return render("admin_form.html", title="权限不足", form_title="错误",
-            action="", article_type="html", article=None, error="您没有权限编辑此页面。")
     form = await request.form()
     title = form.get("title", "").strip()
     content = form.get("content", "")
     tags_str = form.get("tags", "").strip()
+
+    page = await html_db.get_html_page_by_slug(slug)
+    if page is None:
+        error = _validate(title, slug, content)
+        if error:
+            return render("admin_form.html", title="新建 HTML - PyKYCH",
+                form_title="新建 HTML 页面", action=f"/admin/html/{slug}/edit",
+                article_type="html", article={"title":title,"slug":slug,"content":content}, error=error)
+        try:
+            await html_db.create_html_page(slug, title, content, author_id=user.get("id"))
+            tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+            tag_names.append("html")
+            await tag_manager.set_article_tags("html", slug, tag_names)
+            return redirect("/admin")
+        except Exception as e:
+            return render("admin_form.html", title="新建 HTML - PyKYCH",
+                form_title="新建 HTML 页面", action=f"/admin/html/{slug}/edit",
+                article_type="html", article={"title":title,"slug":slug,"content":content}, error=f"创建失败: {e}")
+
+    if not _can_edit(page, user):
+        return render("admin_form.html", title="权限不足", form_title="错误",
+            action="", article_type="html", article=None, error="您没有权限编辑此页面。")
     error = _validate(title, slug, content, is_edit=True)
     if error:
         return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
@@ -414,8 +462,9 @@ async def bb_edit_form(slug: str, request: Request):
     if err: return err
     page = await bbcode_db.get_page_by_slug(slug)
     if not page:
-        return render("admin_form.html", title="页面未找到", form_title="错误",
-            action="", article_type="bbcode", article=None, error=f"页面 '{slug}' 不存在。")
+        return render("admin_form.html", title="新建 BBCode 文章 - PyKYCH",
+            form_title="新建 BBCode 文章", action=f"/admin/bbcode/{slug}/edit",
+            article_type="bbcode", article={"slug": slug}, error=None)
     if not _can_edit(page, user):
         return render("admin_form.html", title="权限不足", form_title="错误",
             action="", article_type="bbcode", article=None, error="您没有权限编辑此页面。")
@@ -429,17 +478,32 @@ async def bb_edit_form(slug: str, request: Request):
 async def bb_update(slug: str, request: Request):
     user, err = await _check(request)
     if err: return err
-    page = await bbcode_db.get_page_by_slug(slug)
-    if page is None:
-        return render("admin_form.html", title="页面未找到", form_title="错误",
-            action="", article_type="bbcode", article=None, error=f"页面 '{slug}' 不存在。")
-    if not _can_edit(page, user):
-        return render("admin_form.html", title="权限不足", form_title="错误",
-            action="", article_type="bbcode", article=None, error="您没有权限编辑此页面。")
     form = await request.form()
     title = form.get("title", "").strip()
     content = form.get("content", "")
     tags_str = form.get("tags", "").strip()
+
+    page = await bbcode_db.get_page_by_slug(slug)
+    if page is None:
+        error = _validate(title, slug, content)
+        if error:
+            return render("admin_form.html", title="新建 BBCode - PyKYCH",
+                form_title="新建 BBCode 文章", action=f"/admin/bbcode/{slug}/edit",
+                article_type="bbcode", article={"title":title,"slug":slug,"content":content}, error=error)
+        try:
+            await bbcode_db.create_page(slug, title, content, author_id=user.get("id"))
+            tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+            tag_names.append("bbcode")
+            await tag_manager.set_article_tags("bbcode", slug, tag_names)
+            return redirect("/admin")
+        except Exception as e:
+            return render("admin_form.html", title="新建 BBCode - PyKYCH",
+                form_title="新建 BBCode 文章", action=f"/admin/bbcode/{slug}/edit",
+                article_type="bbcode", article={"title":title,"slug":slug,"content":content}, error=f"创建失败: {e}")
+
+    if not _can_edit(page, user):
+        return render("admin_form.html", title="权限不足", form_title="错误",
+            action="", article_type="bbcode", article=None, error="您没有权限编辑此页面。")
     error = _validate(title, slug, content, is_edit=True)
     if error:
         return render("admin_form.html", title=f"编辑: {title or slug} - PyKYCH",
