@@ -926,14 +926,45 @@ async def upload_avatar_route(request: Request):
 
     form = await request.form()
     uploaded = form.get("avatar")
-    if uploaded and hasattr(uploaded, "filename"):
-        content = await uploaded.read()
-        if len(content) > 2 * 1024 * 1024:  # 2MB 限制
-            profile = await user_profile.get_user_profile(user["username"])
-            return render("admin_profile.html", title="个人资料 - PyKYCH",
-                current_user=user, profile=profile, error="头像文件不能超过 2MB。")
 
-        await user_profile.save_avatar(user["username"], content, uploaded.filename or "avatar.png")
+    # 检查是否有文件上传（UploadFile 对象 vs 普通字符串）
+    if uploaded is None:
+        profile = await user_profile.get_user_profile(user["username"])
+        return render("admin_profile.html", title="个人资料 - PyKYCH",
+            current_user=user, profile=profile, error="请选择要上传的头像文件。")
+
+    if not hasattr(uploaded, "filename"):
+        profile = await user_profile.get_user_profile(user["username"])
+        return render("admin_profile.html", title="个人资料 - PyKYCH",
+            current_user=user, profile=profile, error="文件上传失败，请重试。")
+
+    # 检查是否选择了文件（空文件名表示未选择）
+    if not uploaded.filename:
+        profile = await user_profile.get_user_profile(user["username"])
+        return render("admin_profile.html", title="个人资料 - PyKYCH",
+            current_user=user, profile=profile, error="请选择要上传的头像文件。")
+
+    content = await uploaded.read()
+
+    if len(content) == 0:
+        profile = await user_profile.get_user_profile(user["username"])
+        return render("admin_profile.html", title="个人资料 - PyKYCH",
+            current_user=user, profile=profile, error="头像文件不能为空。")
+
+    if len(content) > 2 * 1024 * 1024:  # 2MB 限制
+        profile = await user_profile.get_user_profile(user["username"])
+        return render("admin_profile.html", title="个人资料 - PyKYCH",
+            current_user=user, profile=profile, error="头像文件不能超过 2MB。")
+
+    result = await user_profile.save_avatar(
+        user["username"], content, uploaded.filename or "avatar.png"
+    )
+
+    if result is None:
+        profile = await user_profile.get_user_profile(user["username"])
+        return render("admin_profile.html", title="个人资料 - PyKYCH",
+            current_user=user, profile=profile,
+            error="头像保存失败，请检查服务器磁盘空间和权限后重试。")
 
     return redirect("/admin/profile")
 

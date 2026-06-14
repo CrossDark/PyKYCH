@@ -4,11 +4,14 @@
 
 import os
 import hashlib
+import logging
 from pathlib import Path
 from typing import Optional
 
 from .mysql_manager import get_sys_pool, row_to_dict
 from .auth import hash_password, verify_password
+
+logger = logging.getLogger(__name__)
 
 # ── 头像目录 ─────────────────────────────────────────────────
 
@@ -20,8 +23,8 @@ def _ensure_avatar_dir() -> None:
     """确保头像目录存在（惰性创建）。"""
     try:
         AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-    except (OSError, PermissionError):
-        pass
+    except (OSError, PermissionError) as e:
+        logger.warning(f"无法创建头像目录 {AVATAR_DIR}: {e}")
 
 
 # ── 用户资料 CRUD ────────────────────────────────────────────
@@ -120,8 +123,13 @@ async def change_password(
 
 async def save_avatar(username: str, file_data: bytes, filename: str) -> Optional[str]:
     """
-    保存用户头像。返回头像 URL 路径。
+    保存用户头像。返回头像 URL 路径，失败返回 None。
+    会自动清理该用户的旧头像文件。
     """
+    if not file_data:
+        logger.warning(f"用户 {username} 上传了空头像文件")
+        return None
+
     # 生成唯一文件名
     ext = os.path.splitext(filename)[1].lower()
     if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
@@ -131,22 +139,49 @@ async def save_avatar(username: str, file_data: bytes, filename: str) -> Optiona
     _ensure_avatar_dir()
     avatar_path = AVATAR_DIR / avatar_name
 
+    # 先查出旧头像路径，用于后续清理
+    old_avatar_url: Optional[str] = None
+    pool = await get_sys_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT avatar FROM users WHERE username = %s",
+                (username,),
+            )
+            row = await cur.fetchone()
+            if row and row[0]:
+                old_avatar_url = row[0]
+
+    # 写入新头像文件
     try:
         with open(avatar_path, "wb") as f:
             f.write(file_data)
-    except (OSError, PermissionError):
+    except (OSError, PermissionError) as e:
+        logger.error(f"无法写入头像文件 {avatar_path}: {e}")
         return None
 
     avatar_url = f"/static/avatars/{avatar_name}"
 
     # 更新数据库中的头像路径
-    pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
                 "UPDATE users SET avatar = %s WHERE username = %s",
                 (avatar_url, username),
             )
+
+    # 清理旧头像文件（避免磁盘堆积）
+    if old_avatar_url and old_avatar_url.startswith("/static/avatars/"):
+        old_filename = old_avatar_url[len("/static/avatars/"):]
+        # 不删除刚写入的新文件
+        if old_filename != avatar_name:
+            old_path = AVATAR_DIR / old_filename
+            if old_path.exists() and old_path.is_file():
+                try:
+                    old_path.unlink()
+                    logger.info(f"已删除旧头像: {old_filename}")
+                except (OSError, PermissionError) as e:
+                    logger.warning(f"无法删除旧头像 {old_filename}: {e}")
 
     return avatar_url
 
