@@ -11,7 +11,17 @@ from typing import Any, Callable
 # ── 插件目录 ─────────────────────────────────────────────────
 
 PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
-PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_plugins_dir() -> None:
+    """确保插件目录存在（惰性创建，避免导入时崩溃）。"""
+    try:
+        PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
+        plugins_init = PLUGINS_DIR / "__init__.py"
+        if not plugins_init.exists():
+            plugins_init.touch()
+    except (OSError, PermissionError):
+        pass  # 生产环境可能只读
 
 
 # ── 钩子系统 ─────────────────────────────────────────────────
@@ -103,6 +113,7 @@ class Hooks:
 
 def discover_plugins() -> list[str]:
     """发现 plugins/ 目录下的所有插件包。"""
+    _ensure_plugins_dir()
     if not PLUGINS_DIR.exists():
         return []
     
@@ -166,12 +177,14 @@ def unload_plugin(plugin_name: str) -> bool:
 
 def _create_example_plugin() -> None:
     """创建示例插件以演示插件系统。"""
-    example_dir = PLUGINS_DIR / "hello_world"
-    example_dir.mkdir(parents=True, exist_ok=True)
-    
-    init_file = example_dir / "__init__.py"
-    if not init_file.exists():
-        init_file.write_text('''"""
+    _ensure_plugins_dir()
+    try:
+        example_dir = PLUGINS_DIR / "hello_world"
+        example_dir.mkdir(parents=True, exist_ok=True)
+
+        init_file = example_dir / "__init__.py"
+        if not init_file.exists():
+            init_file.write_text('''"""
 示例插件：Hello World
 演示 PyKYCH 插件系统的基本用法。
 """
@@ -193,18 +206,5 @@ def teardown():
     """插件卸载时调用。"""
     print("[HelloWorld Plugin] 已卸载！")
 ''')
-    
-    # 确保有 __init__.py
-    plugins_init = PLUGINS_DIR / "__init__.py"
-    if not plugins_init.exists():
-        plugins_init.touch()
-
-
-# 初始化
-_ensure_plugins = False
-if not _ensure_plugins:
-    PLUGINS_DIR.mkdir(parents=True, exist_ok=True)
-    plugins_init = PLUGINS_DIR / "__init__.py"
-    if not plugins_init.exists():
-        plugins_init.touch()
-    _ensure_plugins = True
+    except (OSError, PermissionError):
+        pass

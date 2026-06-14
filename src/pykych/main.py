@@ -36,11 +36,17 @@ async def lifespan(app):
     for atype in ["md", "wikidot", "html", "bbcode"]:
         await article_manager.seed_db(atype)
     # 确保用户资料字段存在
-    await user_profile.ensure_profile_columns()
+    try:
+        await user_profile.ensure_profile_columns()
+    except Exception:
+        pass  # 生产环境可能无 ALTER 权限
     
     # 加载所有插件
-    plugin_manager.load_all_plugins()
-    await plugin_manager.run_hook(plugin_manager.Hooks.ON_STARTUP)
+    try:
+        plugin_manager.load_all_plugins()
+        await plugin_manager.run_hook(plugin_manager.Hooks.ON_STARTUP)
+    except Exception:
+        pass
 
     # 创建默认管理员（如不存在）
     await seed_admin("admin", "admin123", "管理员")

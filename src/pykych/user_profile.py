@@ -13,8 +13,15 @@ from .auth import hash_password, verify_password
 # ── 头像目录 ─────────────────────────────────────────────────
 
 AVATAR_DIR = Path(__file__).parent / "static" / "avatars"
-AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_AVATAR = "/static/img/default-avatar.png"
+
+
+def _ensure_avatar_dir() -> None:
+    """确保头像目录存在（惰性创建）。"""
+    try:
+        AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    except (OSError, PermissionError):
+        pass
 
 
 # ── 用户资料 CRUD ────────────────────────────────────────────
@@ -121,10 +128,14 @@ async def save_avatar(username: str, file_data: bytes, filename: str) -> Optiona
         ext = ".png"
 
     avatar_name = f"{username}_{hashlib.md5(file_data).hexdigest()[:12]}{ext}"
+    _ensure_avatar_dir()
     avatar_path = AVATAR_DIR / avatar_name
 
-    with open(avatar_path, "wb") as f:
-        f.write(file_data)
+    try:
+        with open(avatar_path, "wb") as f:
+            f.write(file_data)
+    except (OSError, PermissionError):
+        return None
 
     avatar_url = f"/static/avatars/{avatar_name}"
 

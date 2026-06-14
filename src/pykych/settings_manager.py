@@ -48,10 +48,16 @@ DEFAULT_SETTINGS = {
 
 def _ensure_settings_file() -> None:
     """确保设置文件存在，不存在则创建默认设置。"""
-    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    except (OSError, PermissionError):
+        pass
     if not SETTINGS_FILE.exists():
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            yaml.dump(DEFAULT_SETTINGS, f, allow_unicode=True, default_flow_style=False)
+        try:
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+                yaml.dump(DEFAULT_SETTINGS, f, allow_unicode=True, default_flow_style=False)
+        except (OSError, PermissionError):
+            pass  # 生产环境可能只读
 
 
 def load_settings() -> dict[str, Any]:
@@ -64,8 +70,11 @@ def load_settings() -> dict[str, Any]:
 def save_settings(settings: dict[str, Any]) -> None:
     """保存所有设置。"""
     _ensure_settings_file()
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-        yaml.dump(settings, f, allow_unicode=True, default_flow_style=False)
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            yaml.dump(settings, f, allow_unicode=True, default_flow_style=False)
+    except (OSError, PermissionError):
+        pass  # 生产环境可能只读
 
 
 def get_setting(path: str, default: Any = None) -> Any:

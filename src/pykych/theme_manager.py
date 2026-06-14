@@ -11,7 +11,14 @@ from typing import Optional, Any
 # ── 主题目录 ─────────────────────────────────────────────────
 
 THEMES_DIR = Path(__file__).parent.parent / "themes"
-THEMES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_themes_dir() -> None:
+    """确保主题目录存在（惰性创建）。"""
+    try:
+        THEMES_DIR.mkdir(parents=True, exist_ok=True)
+    except (OSError, PermissionError):
+        pass
 
 # 默认主题名
 DEFAULT_THEME = "default"
@@ -40,6 +47,7 @@ def set_active_theme(theme_name: str) -> bool:
 
 def list_themes() -> list[dict]:
     """列出所有可用主题。"""
+    _ensure_themes_dir()
     themes = []
     if not THEMES_DIR.exists():
         return themes
@@ -121,45 +129,47 @@ def create_theme(theme_name: str, config: dict = None) -> bool:
         theme_name: 主题名称
         config: 主题配置字典，包含 name, version, author, description 等
     """
-    theme_path = THEMES_DIR / theme_name
-    if theme_path.exists():
-        return False
+    _ensure_themes_dir()
+    try:
+        theme_path = THEMES_DIR / theme_name
+        if theme_path.exists():
+            return False
 
-    # 创建目录结构
-    (theme_path / "templates").mkdir(parents=True)
-    (theme_path / "static").mkdir(parents=True)
+        # 创建目录结构
+        (theme_path / "templates").mkdir(parents=True)
+        (theme_path / "static").mkdir(parents=True)
 
-    # 创建默认配置
-    default_config = {
-        "name": theme_name,
-        "version": "1.0.0",
-        "author": "",
-        "description": "",
-        "colors": {
-            "light": {
-                "bg": "#ffffff",
-                "bg_card": "#f8f9fa",
-                "text": "#1a1a2e",
-                "accent": "#3b82f6",
+        # 创建默认配置
+        default_config = {
+            "name": theme_name,
+            "version": "1.0.0",
+            "author": "",
+            "description": "",
+            "colors": {
+                "light": {
+                    "bg": "#ffffff",
+                    "bg_card": "#f8f9fa",
+                    "text": "#1a1a2e",
+                    "accent": "#3b82f6",
+                },
+                "dark": {
+                    "bg": "#000000",
+                    "bg_card": "#111111",
+                    "text": "#e5e5e5",
+                    "accent": "#60a5fa",
+                },
             },
-            "dark": {
-                "bg": "#000000",
-                "bg_card": "#111111",
-                "text": "#e5e5e5",
-                "accent": "#60a5fa",
-            },
-        },
-    }
-    if config:
-        default_config.update(config)
+        }
+        if config:
+            default_config.update(config)
 
-    config_file = theme_path / "theme.yaml"
-    with open(config_file, "w", encoding="utf-8") as f:
-        yaml.dump(default_config, f, allow_unicode=True, default_flow_style=False)
+        config_file = theme_path / "theme.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(default_config, f, allow_unicode=True, default_flow_style=False)
 
-    # 创建默认 CSS
-    css_file = theme_path / "static" / "theme.css"
-    css_file.write_text(f"""/* {theme_name} 主题自定义样式 */
+        # 创建默认 CSS
+        css_file = theme_path / "static" / "theme.css"
+        css_file.write_text(f"""/* {theme_name} 主题自定义样式 */
 /* 在此处添加主题特定的 CSS 覆盖 */
 
 :root {{
@@ -171,7 +181,9 @@ def create_theme(theme_name: str, config: dict = None) -> bool:
 }}
 """)
 
-    return True
+        return True
+    except (OSError, PermissionError):
+        return False
 
 
 def delete_theme(theme_name: str) -> bool:
@@ -192,6 +204,7 @@ def delete_theme(theme_name: str) -> bool:
 
 def _init_default_theme() -> None:
     """确保默认主题存在。"""
+    _ensure_themes_dir()
     default_path = THEMES_DIR / DEFAULT_THEME
     if not default_path.exists():
         create_theme(DEFAULT_THEME, {
@@ -202,5 +215,5 @@ def _init_default_theme() -> None:
         })
 
 
-# 初始化
+# 初始化（惰性，不在导入时强写磁盘）
 _init_default_theme()
