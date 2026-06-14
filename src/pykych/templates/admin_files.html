@@ -1,164 +1,74 @@
-{% extends "base.html" %}
-
-{% block extra_head %}
-<style>
-    .files-container { max-width: 860px; }
-    .upload-form {
-        background: var(--bg-card); border: 1px solid var(--border);
-        border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: 2rem;
-    }
-    .upload-form h3 { margin: 0 0 1rem 0; font-size: 1rem; }
-    .upload-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    .upload-row input[type="file"] { flex: 1; min-width: 200px; }
-    .file-table {
-        width: 100%; border-collapse: collapse; font-size: 0.9rem;
-        background: var(--bg-card); border: 1px solid var(--border);
-        border-radius: var(--radius); overflow: hidden;
-    }
-    .file-table th, .file-table td {
-        padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border);
-    }
-    .file-table th {
-        background: var(--code-bg); font-weight: 600; font-size: 0.8rem;
-        color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    .file-table tr:last-child td { border-bottom: none; }
-    .file-table tr:hover td { background: var(--code-bg); }
-    [data-theme="dark"] .file-table tr:hover td { background: rgba(255,255,255,0.04); }
-
-    .btn {
-        display: inline-block; padding: 0.35rem 0.8rem; border-radius: 6px;
-        font-size: 0.83rem; font-weight: 500; text-decoration: none; cursor: pointer;
-        border: 1px solid transparent; transition: all 0.2s;
-    }
-    .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.78rem; }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); text-decoration: none; color: #fff; }
-    .btn-outline { border-color: var(--border); color: var(--text-secondary); background: transparent; }
-    .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
-    .btn-danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
-    .btn-danger:hover { background: #dc2626; color: #fff; border-color: #dc2626; text-decoration: none; }
-    [data-theme="dark"] .btn-danger { background: rgba(220,38,38,0.15); color: #f87171; border-color: rgba(220,38,38,0.3); }
-    [data-theme="dark"] .btn-danger:hover { background: #dc2626; color: #fff; }
-
-    .file-name { word-break: break-all; }
-    .file-url { font-size: 0.8rem; color: var(--accent); word-break: break-all; }
-    .file-icon { font-size: 1.1rem; }
-    .thumb { max-width: 80px; max-height: 50px; border-radius: 4px; vertical-align: middle; }
-    .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); }
-    .back-link {
-        display: inline-flex; align-items: center; gap: 0.25rem;
-        color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;
-        text-decoration: none; margin-bottom: 1.5rem; transition: color 0.2s;
-    }
-    .back-link:hover { color: var(--accent); text-decoration: none; }
-    .error-msg {
-        background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
-        padding: 0.75rem 1rem; border-radius: var(--radius);
-        margin-bottom: 1.25rem; font-size: 0.9rem;
-    }
-    [data-theme="dark"] .error-msg {
-        background: rgba(220,38,38,0.12); border-color: rgba(220,38,38,0.25); color: #f87171;
-    }
-    .pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 2rem; }
-    .page-btn {
-        display: inline-block; padding: 0.4rem 1rem; border: 1px solid var(--border);
-        border-radius: var(--radius); color: var(--accent); text-decoration: none;
-        font-size: 0.9rem; font-weight: 500; transition: all 0.2s;
-    }
-    .page-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); text-decoration: none; }
-    .page-info { font-size: 0.9rem; color: var(--text-muted); }
-</style>
-{% endblock %}
+{% extends "admin_base.html" %}
 
 {% block content %}
-<a href="/admin" class="back-link">← 返回管理后台</a>
+{% if error %}
+<div class="wp-notice wp-notice-error">{{ error }}</div>
+{% endif %}
 
-<div class="page-header files-container">
-    <h1>📁 文件管理</h1>
-    <p class="subtitle">上传和管理图片、附件（共 {{ total }} 个文件）</p>
+<!-- 上传表单 -->
+<div class="wp-card">
+    <div class="wp-card-header"><h2>📤 上传文件</h2></div>
+    <div class="wp-card-body">
+        <form method="POST" action="/admin/files/upload" enctype="multipart/form-data" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+            <input type="file" name="file" required style="flex:1;min-width:200px;padding:0.4rem;border:1px solid var(--wp-border);border-radius:3px;font-size:0.9rem;font-family:inherit;background:var(--wp-card-bg);color:var(--wp-text);">
+            <button type="submit" class="wp-btn wp-btn-primary">上传</button>
+        </form>
+        <p style="font-size:0.78rem;color:var(--wp-text-muted);margin-top:0.5rem;">支持图片、文档、压缩包等，最大 50MB · 共 {{ total }} 个文件</p>
+    </div>
 </div>
 
-<div class="files-container">
-    {% if error %}
-    <div class="error-msg">{{ error }}</div>
-    {% endif %}
+<!-- 文件列表 -->
+<div class="wp-card">
+    <div class="wp-card-header"><h2>📁 文件列表</h2></div>
+    <div class="wp-card-body no-padding">
+        {% if files %}
+        <table class="wp-table">
+            <thead><tr><th style="width:50px;">预览</th><th>文件名</th><th>大小</th><th>链接</th><th class="col-date">上传时间</th><th style="width:80px;">操作</th></tr></thead>
+            <tbody>
+                {% for f in files %}
+                <tr>
+                    <td style="text-align:center;">
+                        {% if f.mime_type and f.mime_type.startswith('image/') %}
+                        <img src="/static/uploads/{{ f.filename }}" style="max-width:60px;max-height:40px;border-radius:3px;" alt="{{ f.original_name }}" loading="lazy">
+                        {% else %}<span style="font-size:1.2rem;">📄</span>{% endif %}
+                    </td>
+                    <td>
+                        <div style="font-weight:500;">{{ f.original_name }}</div>
+                        <div style="font-size:0.75rem;color:var(--wp-text-muted);">{{ f.mime_type }}</div>
+                    </td>
+                    <td>{{ f.file_size | filesizeformat }}</td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.3rem;">
+                            <a href="/static/uploads/{{ f.filename }}" target="_blank" style="font-size:0.8rem;color:var(--wp-primary);word-break:break-all;">/static/uploads/{{ f.filename[:25] }}...</a>
+                            <button class="wp-btn wp-btn-secondary wp-btn-sm" onclick="copyURL('/static/uploads/{{ f.filename }}')" title="复制链接">📋</button>
+                        </div>
+                    </td>
+                    <td class="col-date">{{ f.created_at[:10] }}</td>
+                    <td>
+                        <form method="POST" action="/admin/files/{{ f.id }}/delete" style="display:inline" onsubmit="return confirm('确定要删除 «{{ f.original_name }}» 吗？')">
+                            <button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
 
-    <!-- 上传表单 -->
-    <div class="upload-form">
-        <h3>📤 上传文件</h3>
-        <form method="POST" action="/admin/files/upload" enctype="multipart/form-data">
-            <div class="upload-row">
-                <input type="file" name="file" required
-                       style="padding:0.4rem;border:1px solid var(--border);border-radius:var(--radius);font-size:0.9rem;font-family:inherit;background:var(--bg-card);color:var(--text);">
-                <button type="submit" class="btn btn-primary">上传</button>
-            </div>
-            <p style="font-size:0.78rem;color:var(--text-muted);margin:0.5rem 0 0 0;">
-                支持图片、文档、压缩包等，最大 50MB
-            </p>
-        </form>
-    </div>
-
-    <!-- 文件列表 -->
-    {% if files %}
-    <table class="file-table">
-        <thead>
-            <tr>
-                <th style="width:50px;">预览</th>
-                <th>文件名</th>
-                <th>大小</th>
-                <th>链接</th>
-                <th>上传时间</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for f in files %}
-            <tr>
-                <td style="text-align:center;">
-                    {% if f.mime_type and f.mime_type.startswith('image/') %}
-                    <img src="/static/uploads/{{ f.filename }}" class="thumb" alt="{{ f.original_name }}" loading="lazy">
-                    {% else %}
-                    <span class="file-icon">📄</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <div class="file-name" style="font-weight:500;">{{ f.original_name }}</div>
-                    <div style="font-size:0.75rem;color:var(--text-muted);">{{ f.mime_type }}</div>
-                </td>
-                <td>{{ f.file_size | filesizeformat }}</td>
-                <td>
-                    <div class="file-url">
-                        <a href="/static/uploads/{{ f.filename }}" target="_blank" style="font-size:0.8rem;">/static/uploads/{{ f.filename[:20] }}...</a>
-                        <button class="btn btn-outline btn-sm" onclick="copyURL('/static/uploads/{{ f.filename }}')" title="复制链接" style="margin-left:0.25rem;">📋</button>
-                    </div>
-                </td>
-                <td>{{ f.created_at[:10] }}</td>
-                <td>
-                    <form method="POST" action="/admin/files/{{ f.id }}/delete" style="display:inline"
-                          onsubmit="return confirm('确定要删除 «{{ f.original_name }}» 吗？')">
-                        <button type="submit" class="btn btn-danger btn-sm">🗑</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    {% if total_pages > 1 %}
-    <div class="pagination">
-        {% if page > 1 %}
-        <a href="?page={{ page - 1 }}" class="page-btn">← 上一页</a>
+        {% if total_pages > 1 %}
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;padding:1rem;">
+            {% if page > 1 %}
+            <a href="?page={{ page - 1 }}" class="wp-btn wp-btn-secondary wp-btn-sm">← 上一页</a>
+            {% endif %}
+            <span style="font-size:0.9rem;color:var(--wp-text-muted);">{{ page }} / {{ total_pages }}</span>
+            {% if page < total_pages %}
+            <a href="?page={{ page + 1 }}" class="wp-btn wp-btn-secondary wp-btn-sm">下一页 →</a>
+            {% endif %}
+        </div>
         {% endif %}
-        <span class="page-info">{{ page }} / {{ total_pages }}</span>
-        {% if page < total_pages %}
-        <a href="?page={{ page + 1 }}" class="page-btn">下一页 →</a>
+        {% else %}
+        <div class="wp-empty">暂无文件，使用上方表单上传。</div>
         {% endif %}
     </div>
-    {% endif %}
-    {% else %}
-    <div class="card empty-state">暂无文件，使用上方表单上传。</div>
-    {% endif %}
 </div>
 
 <script>

@@ -1,182 +1,77 @@
-{% extends "base.html" %}
-
-{% block extra_head %}
-<style>
-    .form-container {
-        max-width: 780px;
-    }
-    .form-group {
-        margin-bottom: 1.25rem;
-    }
-    .form-group label {
-        display: block;
-        font-weight: 600;
-        font-size: 0.9rem;
-        margin-bottom: 0.35rem;
-        color: var(--text);
-    }
-    .form-group .hint {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        font-weight: 400;
-    }
-    .form-input {
-        width: 100%;
-        padding: 0.6rem 0.85rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        font-size: 0.95rem;
-        font-family: inherit;
-        background: var(--bg-card);
-        color: var(--text);
-        transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .form-input:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-    }
-    .form-input.mono {
-        font-family: "SF Mono", "Fira Code", monospace;
-        font-size: 0.85rem;
-    }
-    textarea.form-input {
-        min-height: 360px;
-        line-height: 1.65;
-        resize: vertical;
-    }
-    .form-actions {
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
-        margin-top: 1.5rem;
-        padding-top: 1.25rem;
-        border-top: 1px solid var(--border);
-    }
-    .btn {
-        display: inline-block;
-        padding: 0.55rem 1.25rem;
-        border-radius: var(--radius);
-        font-size: 0.92rem;
-        font-weight: 500;
-        cursor: pointer;
-        border: 1px solid transparent;
-        text-decoration: none;
-        transition: all 0.2s;
-    }
-    .btn-primary {
-        background: var(--accent);
-        color: #fff;
-    }
-    .btn-primary:hover {
-        background: var(--accent-hover);
-        color: #fff;
-    }
-    .btn-cancel {
-        background: transparent;
-        border-color: var(--border);
-        color: var(--text-secondary);
-    }
-    .btn-cancel:hover {
-        color: var(--accent);
-        border-color: var(--accent);
-        text-decoration: none;
-    }
-    .error-msg {
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #dc2626;
-        padding: 0.75rem 1rem;
-        border-radius: var(--radius);
-        margin-bottom: 1.25rem;
-        font-size: 0.9rem;
-    }
-    [data-theme="dark"] .error-msg {
-        background: rgba(220, 38, 38, 0.12);
-        border-color: rgba(220, 38, 38, 0.25);
-        color: #f87171;
-    }
-    .preview-hint {
-        font-size: 0.82rem;
-        color: var(--text-muted);
-        margin-top: 0.35rem;
-    }
-</style>
-{% endblock %}
+{% extends "admin_base.html" %}
 
 {% block content %}
-<div class="page-header form-container">
-    <h1>{{ form_title }}</h1>
-</div>
+<div class="wp-card" style="max-width:860px;">
+    <div class="wp-card-header">
+        <h2>{{ form_title }}</h2>
+        <a href="/admin" class="wp-btn wp-btn-secondary wp-btn-sm">← 返回</a>
+    </div>
+    <div class="wp-card-body">
+        {% if error %}
+        <div class="wp-notice wp-notice-error">{{ error }}</div>
+        {% endif %}
 
-<div class="form-container">
-    {% if error %}
-    <div class="error-msg">{{ error }}</div>
-    {% endif %}
+        <form method="POST" action="{{ action }}">
+            <div class="wp-form-group">
+                <label for="title">标题</label>
+                <input type="text" id="title" name="title" class="wp-form-input"
+                       value="{{ article.title if article else '' }}"
+                       placeholder="输入文章标题" required autofocus>
+            </div>
 
-    <form method="POST" action="{{ action }}">
-        <div class="form-group">
-            <label for="title">标题</label>
-            <input type="text" id="title" name="title" class="form-input"
-                   value="{{ article.title if article else '' }}"
-                   placeholder="输入文章标题" required autofocus>
-        </div>
-
-        <div class="form-group">
-            <label for="slug">
-                Slug
-                <span class="hint">— URL 标识，例如: my-article</span>
-            </label>
-            <input type="text" id="slug" name="article_slug" class="form-input mono"
-                   value="{{ article.slug if article else '' }}"
-                   placeholder="my-article-slug"
-                   {% if article and article.slug %}readonly{% endif %}
-                   required>
-            {% if article and article.slug %}
-            <p class="preview-hint">Slug 创建后不可修改</p>
-            {% endif %}
-        </div>
-
-        <div class="form-group">
-            <label for="content">
-                内容
-                {% if article_type == 'md' %}
-                <span class="hint">— Markdown 语法</span>
-                {% elif article_type == 'wikidot' %}
-                <span class="hint">— Wikidot 语法</span>
-                {% elif article_type == 'html' %}
-                <span class="hint">— 原生 HTML</span>
-                {% elif article_type == 'bbcode' %}
-                <span class="hint">— BBCode 语法</span>
+            <div class="wp-form-group">
+                <label for="slug">
+                    Slug
+                    <span class="wp-hint">— URL 标识，例如: my-article</span>
+                </label>
+                <input type="text" id="slug" name="article_slug" class="wp-form-input mono"
+                       value="{{ article.slug if article else '' }}"
+                       placeholder="my-article-slug"
+                       {% if article and article.slug %}readonly{% endif %}
+                       required>
+                {% if article and article.slug %}
+                <p class="wp-hint" style="margin-top:0.25rem;">Slug 创建后不可修改</p>
                 {% endif %}
-            </label>
-            <textarea id="content" name="content" class="form-input mono"
-                      placeholder="在此编写内容..." required>{{ article.content if article else '' }}</textarea>
-        </div>
-
-        <div class="form-group">
-            <label for="tagInput">
-                🏷️ 标签管理
-                <span class="hint">— 添加或移除文章标签，按回车添加新标签</span>
-            </label>
-            <!-- 隐藏字段存储逗号分隔的标签值 -->
-            <input type="hidden" id="tags" name="tags" value="{{ article._tag_str if article and article._tag_str else '' }}">
-            <!-- 标签展示区 -->
-            <div id="tagContainer" style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; min-height: 2rem; padding: 0.35rem 0;">
             </div>
-            <!-- 添加标签输入 -->
-            <div style="display: flex; gap: 0.4rem;">
-                <input type="text" id="tagInput" class="form-input" style="flex: 1;"
-                       placeholder="输入标签名称，按回车添加..." autocomplete="off">
-                <button type="button" id="addTagBtn" class="btn btn-primary" style="white-space: nowrap;">+ 添加</button>
-            </div>
-        </div>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">💾 保存</button>
-            <a href="/admin" class="btn btn-cancel">取消</a>
-        </div>
-    </form>
+            <div class="wp-form-group">
+                <label for="content">
+                    内容
+                    {% if article_type == 'md' %}
+                    <span class="wp-hint">— Markdown 语法</span>
+                    {% elif article_type == 'wikidot' %}
+                    <span class="wp-hint">— Wikidot 语法</span>
+                    {% elif article_type == 'html' %}
+                    <span class="wp-hint">— 原生 HTML</span>
+                    {% elif article_type == 'bbcode' %}
+                    <span class="wp-hint">— BBCode 语法</span>
+                    {% endif %}
+                </label>
+                <textarea id="content" name="content" class="wp-form-input mono"
+                          placeholder="在此编写内容..." required>{{ article.content if article else '' }}</textarea>
+            </div>
+
+            <div class="wp-form-group">
+                <label for="tagInput">
+                    🏷️ 标签管理
+                    <span class="wp-hint">— 添加或移除文章标签，按回车添加新标签</span>
+                </label>
+                <input type="hidden" id="tags" name="tags" value="{{ article._tag_str if article and article._tag_str else '' }}">
+                <div id="tagContainer" style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.5rem; min-height: 2rem; padding: 0.35rem 0;">
+                </div>
+                <div style="display: flex; gap: 0.4rem;">
+                    <input type="text" id="tagInput" class="wp-form-input" style="flex: 1;"
+                           placeholder="输入标签名称，按回车添加..." autocomplete="off">
+                    <button type="button" id="addTagBtn" class="wp-btn wp-btn-primary" style="white-space: nowrap;">+ 添加</button>
+                </div>
+            </div>
+
+            <div class="wp-form-actions">
+                <button type="submit" class="wp-btn wp-btn-primary">💾 保存</button>
+                <a href="/admin" class="wp-btn wp-btn-secondary">取消</a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
 

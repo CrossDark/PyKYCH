@@ -1,250 +1,46 @@
-{% extends "base.html" %}
-
-{% block extra_head %}
-<style>
-    .tag-mgmt-container {
-        max-width: 780px;
-    }
-    .tag-mgmt-section {
-        margin-bottom: 2rem;
-    }
-    .tag-create-form {
-        display: flex;
-        gap: 0.5rem;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    .tag-create-form input {
-        flex: 1;
-    }
-    .form-input {
-        padding: 0.55rem 0.75rem;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        font-size: 0.9rem;
-        font-family: inherit;
-        background: var(--bg-card);
-        color: var(--text);
-        transition: border-color 0.2s;
-    }
-    .form-input:focus {
-        outline: none;
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
-    }
-    .tag-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.92rem;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        overflow: hidden;
-    }
-    .tag-table th,
-    .tag-table td {
-        padding: 0.6rem 0.8rem;
-        text-align: left;
-        border-bottom: 1px solid var(--border);
-    }
-    .tag-table th {
-        background: var(--code-bg);
-        font-weight: 600;
-        font-size: 0.82rem;
-        color: var(--text-secondary);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .tag-table tr:last-child td {
-        border-bottom: none;
-    }
-    .tag-table tr:hover td {
-        background: var(--code-bg);
-    }
-    .tag-name-cell {
-        font-weight: 600;
-        color: var(--accent);
-    }
-    .tag-count-badge {
-        display: inline-block;
-        padding: 0.15rem 0.55rem;
-        border-radius: 1rem;
-        background: var(--code-bg);
-        color: var(--text-muted);
-        font-size: 0.8rem;
-    }
-    .actions {
-        display: flex;
-        gap: 0.35rem;
-    }
-    .btn {
-        display: inline-block;
-        padding: 0.35rem 0.85rem;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        font-weight: 500;
-        text-decoration: none;
-        cursor: pointer;
-        border: 1px solid transparent;
-        transition: all 0.2s;
-    }
-    .btn-sm {
-        padding: 0.25rem 0.6rem;
-        font-size: 0.78rem;
-    }
-    .btn-primary {
-        background: var(--accent);
-        color: #fff;
-    }
-    .btn-primary:hover {
-        background: var(--accent-hover);
-        text-decoration: none;
-        color: #fff;
-    }
-    .btn-outline {
-        border-color: var(--border);
-        color: var(--text-secondary);
-        background: transparent;
-    }
-    .btn-outline:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-        text-decoration: none;
-    }
-    .btn-danger {
-        background: #fef2f2;
-        color: #dc2626;
-        border-color: #fecaca;
-    }
-    .btn-danger:hover {
-        background: #dc2626;
-        color: #fff;
-        border-color: #dc2626;
-        text-decoration: none;
-    }
-    [data-theme="dark"] .btn-danger {
-        background: rgba(220, 38, 38, 0.15);
-        color: #f87171;
-        border-color: rgba(220, 38, 38, 0.3);
-    }
-    [data-theme="dark"] .btn-danger:hover {
-        background: #dc2626;
-        color: #fff;
-    }
-    [data-theme="dark"] .tag-table tr:hover td {
-        background: rgba(255, 255, 255, 0.04);
-    }
-    .error-msg {
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #dc2626;
-        padding: 0.75rem 1rem;
-        border-radius: var(--radius);
-        margin-bottom: 1.25rem;
-        font-size: 0.9rem;
-    }
-    [data-theme="dark"] .error-msg {
-        background: rgba(220, 38, 38, 0.12);
-        border-color: rgba(220, 38, 38, 0.25);
-        color: #f87171;
-    }
-    .rename-inline {
-        display: flex;
-        gap: 0.3rem;
-        align-items: center;
-    }
-    .rename-inline input {
-        padding: 0.2rem 0.4rem;
-        font-size: 0.82rem;
-        width: 110px;
-    }
-    .back-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        font-weight: 500;
-        text-decoration: none;
-        margin-bottom: 1.5rem;
-        transition: color 0.2s;
-    }
-    .back-link:hover {
-        color: var(--accent);
-        text-decoration: none;
-    }
-</style>
-{% endblock %}
+{% extends "admin_base.html" %}
 
 {% block content %}
 {% if permission_error %}
-<div class="card" style="border-color:#fecaca;background:#fef2f2;padding:1.5rem;text-align:center;margin-bottom:1.5rem;">
-    <p style="color:#dc2626;font-weight:600;">⚠️ {{ permission_error }}</p>
-</div>
+<div class="wp-notice wp-notice-error" style="text-align:center;padding:1.25rem;">{{ permission_error }}</div>
 {% endif %}
-
-<a href="/admin" class="back-link">← 返回管理后台</a>
-
-<div class="page-header tag-mgmt-container">
-    <h1>🏷️ 标签管理</h1>
-    <p class="subtitle">创建、重命名和删除标签（共 {{ tags | length }} 个）</p>
-</div>
 
 {% if error %}
-<div class="error-msg tag-mgmt-container">{{ error }}</div>
+<div class="wp-notice wp-notice-error">{{ error }}</div>
 {% endif %}
 
-<div class="tag-mgmt-container">
-    <!-- 新建标签 -->
-    <div class="tag-mgmt-section">
-        <form method="POST" action="/admin/tags/create" class="tag-create-form">
-            <input type="text" name="name" class="form-input" placeholder="输入新标签名称..." required autofocus>
-            <button type="submit" class="btn btn-primary">+ 创建标签</button>
+<div class="wp-card">
+    <div class="wp-card-header">
+        <h2>🏷️ 标签管理（共 {{ tags | length }} 个）</h2>
+        <form method="POST" action="/admin/tags/create" style="display:flex;gap:0.35rem;">
+            <input type="text" name="name" class="wp-form-input" placeholder="新标签名称..." required style="width:180px;">
+            <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">+ 创建</button>
         </form>
     </div>
-
-    <!-- 标签列表 -->
-    <div class="tag-mgmt-section">
+    <div class="wp-card-body no-padding">
         {% if tags %}
-        <table class="tag-table">
-            <thead>
-                <tr>
-                    <th>标签</th>
-                    <th>文章数</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
+        <table class="wp-table">
+            <thead><tr><th>标签</th><th>文章数</th><th class="col-actions">操作</th></tr></thead>
             <tbody>
-                {% for tag in tags %}
-                <tr>
-                    <td>
-                        <span class="tag-name-cell">#{{ tag.name }}</span>
-                    </td>
-                    <td>
-                        <span class="tag-count-badge">{{ tag.count }} 篇</span>
-                    </td>
-                    <td>
-                        <div class="actions">
-                            <!-- 重命名 -->
-                            <form method="POST" action="/admin/tags/{{ tag.id }}/rename" class="rename-inline" style="display:inline-flex;">
-                                <input type="text" name="new_name" class="form-input" value="{{ tag.name }}" required>
-                                <button type="submit" class="btn btn-outline btn-sm" title="重命名">💾</button>
-                            </form>
-                            <!-- 删除 -->
-                            <form method="POST" action="/admin/tags/{{ tag.id }}/delete" style="display:inline"
-                                  onsubmit="return confirm('确定要删除标签 #{{ tag.name }} 吗？此操作将同时移除所有文章上的该标签，不可撤销。')">
-                                <button type="submit" class="btn btn-danger btn-sm">🗑</button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
+            {% for tag in tags %}
+            <tr>
+                <td><span class="wp-badge wp-badge-primary">#{{ tag.name }}</span></td>
+                <td>{{ tag.count }} 篇</td>
+                <td class="col-actions">
+                    <form method="POST" action="/admin/tags/{{ tag.id }}/rename" style="display:inline-flex;gap:0.2rem;">
+                        <input type="text" name="new_name" class="wp-form-input" value="{{ tag.name }}" style="width:110px;padding:0.2rem 0.35rem;font-size:0.78rem;" required>
+                        <button type="submit" class="wp-btn wp-btn-secondary wp-btn-sm">💾</button>
+                    </form>
+                    <form method="POST" action="/admin/tags/{{ tag.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除标签 #{{ tag.name }} 吗？')">
+                        <button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
             </tbody>
         </table>
         {% else %}
-        <div class="card" style="text-align: center; padding: 2rem;">
-            <p style="color: var(--text-muted); margin: 0;">暂无标签，使用上方表单创建第一个标签。</p>
-        </div>
+        <div class="wp-empty">暂无标签。</div>
         {% endif %}
     </div>
 </div>
