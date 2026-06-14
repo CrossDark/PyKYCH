@@ -281,6 +281,10 @@ app.include(uploads_route)
 # ===== 头像静态文件服务 =====
 from .user_profile import AVATAR_DIR
 
+# 兼容旧头像路径
+from pathlib import Path as _Path
+_OLD_AVATAR_DIR = _Path(__file__).parent / "static" / "avatars"
+
 avatar_route = Route("/static/avatars")
 
 @avatar_route.sub("/{filename}").get
@@ -288,6 +292,10 @@ async def serve_avatar(filename: str):
     """提供头像文件的访问。"""
     file_path = AVATAR_DIR / filename
     if not file_path.exists() or not file_path.is_file():
+        # 兼容旧头像路径
+        old_path = _OLD_AVATAR_DIR / filename
+        if old_path.exists() and old_path.is_file():
+            return FileResponse(str(old_path))
         return HTMLResponse("<p>头像不存在</p>", status_code=404)
     return FileResponse(str(file_path))
 

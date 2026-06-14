@@ -10,7 +10,7 @@ from typing import Optional, Any
 
 # ── 主题目录 ─────────────────────────────────────────────────
 
-THEMES_DIR = Path(__file__).parent.parent / "themes"
+THEMES_DIR = Path(__file__).parent.parent.parent / "data" / "themes"
 
 
 def _ensure_themes_dir() -> None:

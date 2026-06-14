@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 # ── 插件目录 ─────────────────────────────────────────────────
 
-PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
+PLUGINS_DIR = Path(__file__).parent.parent.parent / "data" / "plugins"
 
 
 def _ensure_plugins_dir() -> None:

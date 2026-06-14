@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 # ── 配置文件路径 ────────────────────────────────────────────
 
-SETTINGS_DIR = Path(__file__).parent.parent.parent / "settings"
+SETTINGS_DIR = Path(__file__).parent.parent.parent / "data"
 SETTINGS_FILE = SETTINGS_DIR / "settings.yml"
 
 DEFAULT_SETTINGS = {

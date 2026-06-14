@@ -12,7 +12,7 @@ from .auth import hash_password, verify_password
 
 # ── 头像目录 ─────────────────────────────────────────────────
 
-AVATAR_DIR = Path(__file__).parent / "static" / "avatars"
+AVATAR_DIR = Path(__file__).parent.parent.parent / "data" / "avatars"
 DEFAULT_AVATAR = "/static/img/default-avatar.png"
 
 
