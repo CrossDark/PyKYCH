@@ -1,0 +1,10 @@
+/* default 主题自定义样式 */
+/* 在此处添加主题特定的 CSS 覆盖 */
+
+:root {
+    /* 浅色模式变量由 theme.yaml 定义 */
+}
+
+[data-theme="dark"] {
+    /* 深色模式变量由 theme.yaml 定义 */
+}

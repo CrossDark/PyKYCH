@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    .wp-admin-wrap { max-width: 720px; margin: 0 auto; }
+    .wp-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .wp-card h2 { font-size: 1.1rem; margin: 0 0 1rem 0; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+    .wp-form-group { margin-bottom: 1rem; }
+    .wp-form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: var(--text); }
+    .wp-form-group input, .wp-form-group textarea {
+        width: 100%; padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: 6px;
+        font-size: 0.9rem; font-family: inherit; background: var(--bg); color: var(--text);
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .wp-form-group input:focus, .wp-form-group textarea:focus {
+        outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+    }
+    .wp-form-group .hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .wp-submit-bar { display: flex; gap: 0.75rem; align-items: center; padding-top: 0.5rem; }
+    .wp-btn-primary { background: var(--accent); color: #fff; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .wp-btn-primary:hover { background: var(--accent-hover); }
+    .wp-btn-secondary { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); padding: 0.6rem 1.5rem; border-radius: 6px; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+    .wp-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .wp-back-link { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--text-muted); font-size: 0.85rem; text-decoration: none; margin-bottom: 1.5rem; }
+    .wp-back-link:hover { color: var(--accent); }
+    
+    .profile-avatar { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid var(--border); }
+    .profile-header { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .profile-info h1 { margin: 0; font-size: 1.4rem; }
+    .profile-info .role-badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; margin-top: 0.2rem; }
+    .role-owner { background: #ede9fe; color: #7c3aed; }
+    .role-admin { background: #dbeafe; color: #2563eb; }
+    .role-user { background: var(--code-bg); color: var(--text-muted); }
+    [data-theme="dark"] .role-owner { background: rgba(124,58,237,0.2); color: #a78bfa; }
+    [data-theme="dark"] .role-admin { background: rgba(37,99,235,0.2); color: #60a5fa; }
+    
+    .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+    .alert-error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .alert-success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    [data-theme="dark"] .alert-error { background: rgba(220,38,38,0.15); color: #f87171; border-color: rgba(220,38,38,0.3); }
+    [data-theme="dark"] .alert-success { background: rgba(22,163,74,0.15); color: #4ade80; border-color: rgba(22,163,74,0.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wp-admin-wrap">
+    <a href="/admin" class="wp-back-link">← 返回管理后台</a>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+    {% endif %}
+
+    <!-- 头像 & 基本信息 -->
+    <div class="profile-header">
+        <img src="{{ profile.avatar|default('/static/img/default-avatar.png') }}" alt="头像" class="profile-avatar">
+        <div class="profile-info">
+            <h1>{{ profile.nickname or profile.username }}</h1>
+            <span style="color:var(--text-muted);font-size:0.85rem;">@{{ profile.username }}</span>
+            <span class="role-badge {% if profile.role=='owner' %}role-owner{% elif profile.role=='admin' %}role-admin{% else %}role-user{% endif %}">
+                {% if profile.role == 'owner' %}🔧 站长{% elif profile.role == 'admin' %}🛡️ 管理员{% else %}👤 用户{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- 编辑资料 -->
+    <div class="wp-card">
+        <h2>✏️ 编辑资料</h2>
+        <form method="POST" action="/admin/profile/update">
+            <div class="wp-form-group">
+                <label>昵称</label>
+                <input type="text" name="nickname" value="{{ profile.nickname|default('')|e }}">
+            </div>
+            <div class="wp-form-group">
+                <label>个人简介</label>
+                <textarea name="bio" rows="3" placeholder="介绍一下自己...">{{ profile.bio|default('')|e }}</textarea>
+            </div>
+            <div class="wp-form-group">
+                <label>邮箱</label>
+                <input type="email" name="email" value="{{ profile.email|default('')|e }}" placeholder="your@email.com">
+            </div>
+            <div class="wp-form-group">
+                <label>网站</label>
+                <input type="text" name="website" value="{{ profile.website|default('')|e }}" placeholder="https://...">
+            </div>
+            <div class="wp-submit-bar">
+                <button type="submit" class="wp-btn-primary">💾 保存资料</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 更换头像 -->
+    <div class="wp-card">
+        <h2>🖼️ 更换头像</h2>
+        <form method="POST" action="/admin/profile/avatar" enctype="multipart/form-data">
+            <div class="wp-form-group">
+                <label>选择头像图片</label>
+                <input type="file" name="avatar" accept="image/png,image/jpeg,image/gif,image/webp" style="padding:0.4rem;">
+                <span class="hint">支持 PNG、JPEG、GIF、WebP，最大 2MB。</span>
+            </div>
+            <div class="wp-submit-bar">
+                <button type="submit" class="wp-btn-primary">📤 上传头像</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 修改密码 -->
+    <div class="wp-card">
+        <h2>🔒 修改密码</h2>
+        <form method="POST" action="/admin/profile/password">
+            <div class="wp-form-group">
+                <label>当前密码</label>
+                <input type="password" name="old_password" required>
+            </div>
+            <div class="wp-form-group">
+                <label>新密码</label>
+                <input type="password" name="new_password" required minlength="6">
+                <span class="hint">至少 6 个字符。</span>
+            </div>
+            <div class="wp-submit-bar">
+                <button type="submit" class="wp-btn-primary">🔑 修改密码</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 账号信息 -->
+    <div class="wp-card">
+        <h2>📅 账号信息</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.85rem;">
+            <div><strong>注册时间：</strong></div>
+            <div style="color:var(--text-muted);">{{ profile.created_at[:10] if profile.created_at else 'N/A' }}</div>
+            <div><strong>最后更新：</strong></div>
+            <div style="color:var(--text-muted);">{{ profile.updated_at[:10] if profile.updated_at else 'N/A' }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -95,11 +95,16 @@
 <div class="admin-container">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
         <h1 style="margin:0;">📋 管理后台</h1>
-        <span style="font-size:0.85rem;color:var(--text-muted);">
-            {% if current_user.role == 'owner' %}🔧 站长{% elif current_user.role == 'admin' %}🛡️ 管理员{% else %}👤 用户{% endif %}
-            {{ current_user.nickname }}
-            · <a href="/admin/files" class="btn btn-outline btn-sm">📁 文件管理</a>
-            · <a href="/auth/logout" class="btn btn-outline btn-sm">退出登录</a>
+        <span style="font-size:0.85rem;color:var(--text-muted);display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <a href="/admin/profile" class="btn btn-outline btn-sm" style="display:inline-flex;align-items:center;gap:0.25rem;">
+                <span style="width:18px;height:18px;border-radius:50%;background:var(--code-bg);display:inline-flex;align-items:center;justify-content:center;font-size:0.7rem;">👤</span>
+                {{ current_user.nickname }}
+            </a>
+            {% if current_user.role == 'owner' %}
+            <a href="/admin/settings" class="btn btn-outline btn-sm">⚙️ 站点设置</a>
+            {% endif %}
+            <a href="/admin/files" class="btn btn-outline btn-sm">📁 文件管理</a>
+            <a href="/auth/logout" class="btn btn-outline btn-sm">退出登录</a>
         </span>
     </div>
 
@@ -108,6 +113,9 @@
         <button class="tab-btn active" data-tab="articles">📝 文章管理</button>
         <button class="tab-btn" data-tab="tags">🏷️ 标签管理</button>
         <button class="tab-btn" data-tab="homepage">🏠 主页管理</button>
+        {% if current_user.role == 'owner' %}
+        <button class="tab-btn" data-tab="users">👥 用户管理</button>
+        {% endif %}
     </div>
 
     <!-- ══ 文章管理 ══ -->
@@ -331,9 +339,9 @@
         {% endif %}
     </div>
 
-    <!-- ══ 用户管理（底部，仅站长可见） ══ -->
-    {% if current_user.role == 'owner' and users %}
-    <div style="margin-top:2.5rem;padding-top:1.5rem;border-top:2px solid var(--border);">
+    <!-- ══ 用户管理（仅站长可见） ══ -->
+    {% if current_user.role == 'owner' %}
+    <div class="tab-panel" id="tab-users">
         <div class="admin-section">
             <h2>👥 用户管理</h2>
             <details style="margin-bottom:1rem;"><summary>+ 添加新用户</summary>
@@ -345,6 +353,7 @@
                     <button type="submit" class="btn btn-primary btn-sm">添加</button>
                 </form>
             </details>
+            {% if users %}
             <table class="admin-table"><thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th>创建</th><th>操作</th></tr></thead><tbody>
             {% for u in users %}<tr>
                 <td><code>{{ u.username }}</code></td><td>{{ u.nickname }}</td>
@@ -367,6 +376,8 @@
                 </div></td>
             </tr>{% endfor %}
             </tbody></table>
+            {% else %}<div class="card empty-state">暂无用户</div>
+            {% endif %}
         </div>
     </div>
     {% endif %}

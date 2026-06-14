@@ -192,12 +192,51 @@ async def clear_site_cache(site_id: int) -> None:
 
 
 def _extract_body(html: str) -> str:
-    """从 HTML 中提取 <body> 内容（去除 body 标签本身）。"""
-    # 尝试提取 <body>...</body>
+    """从 HTML 中智能提取正文内容（去除导航、页脚等附属部分）。
+    
+    优先级：
+    1. <main> 或 <article> 标签内容
+    2. 带有 content/main/article 类名的 div
+    3. <body> 内容（去除 nav/footer/header/sidebar）
+    4. 原始 HTML
+    """
+    # 策略 1：查找 <main> 或 <article> 标签
+    for tag in ("main", "article"):
+        match = re.search(
+            rf"<{tag}[^>]*>(.*?)</{tag}>", html, re.DOTALL | re.IGNORECASE
+        )
+        if match and len(match.group(1).strip()) > 50:
+            return match.group(1).strip()
+
+    # 策略 2：查找常见内容容器
+    for cls in ("content", "main-content", "article-content", "post-content", "entry-content"):
+        pattern = rf'<div[^>]*class\s*=\s*["\'][^"\']*\b{cls}\b[^"\']*["\'][^>]*>(.*?)</div>'
+        match = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
+        if match and len(match.group(1).strip()) > 50:
+            return match.group(1).strip()
+
+    # 策略 3：提取 <body> 并去除导航/页脚等
     match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
     if match:
-        return match.group(1).strip()
-    # 没有 body 标签，返回全部
+        body = match.group(1)
+        # 去除常见非内容标签
+        for tag in ("nav", "header", "footer", "aside", "script", "style"):
+            body = re.sub(
+                rf"<{tag}[\s>].*?</{tag}>", "", body, flags=re.DOTALL | re.IGNORECASE
+            )
+            body = re.sub(
+                rf"<{tag}\s*/>", "", body, flags=re.IGNORECASE
+            )
+        # 去除常见非内容类名
+        for cls in ("sidebar", "navigation", "navbar", "footer", "header", "menu", "widget"):
+            body = re.sub(
+                rf'<[^>]*class\s*=\s*["\'][^"\']*\b{cls}\b[^"\']*["\'][^>]*>.*?</[^>]+>',
+                "", body, flags=re.DOTALL | re.IGNORECASE
+            )
+        result = body.strip()
+        if len(result) > 50:
+            return result
+
     return html.strip()
 
 
@@ -209,10 +248,16 @@ def _extract_title(html: str) -> str:
     return ""
 
 
-def _rewrite_links(content: str, source_url: str) -> str:
-    """将相对路径的资源链接重写为绝对路径。"""
+def _rewrite_links(content: str, source_url: str, site_name: str = "") -> str:
+    """将相对路径的资源链接重写为绝对路径。
+    同时将内部页面链接重写为本站导入页面的路由。
+    """
     if not source_url:
         return content
+
+    from urllib.parse import urlparse
+    parsed_source = urlparse(source_url)
+    source_domain = f"{parsed_source.scheme}://{parsed_source.netloc}"
 
     def _replace_attr(match: re.Match) -> str:
         attr = match.group(1)
@@ -220,17 +265,38 @@ def _rewrite_links(content: str, source_url: str) -> str:
         prefix = match.group(0)[: match.start(2) - match.start(0)]
         suffix = match.group(0)[match.end(2) - match.start(0) :]
 
-        # 跳过已经是绝对 URL、data URI、锚点、mailto 等的
-        if url.startswith(("http://", "https://", "data:", "#", "mailto:", "javascript:")):
+        # 跳过 data URI、锚点、mailto、javascript 等
+        if url.startswith(("data:", "#", "mailto:", "javascript:")):
             return match.group(0)
 
-        # 将相对 URL 转为绝对 URL
+        # 已经是绝对 URL 的情况
+        if url.startswith(("http://", "https://")):
+            # 如果是同站链接且 site_name 已知，转为本站路由
+            if site_name and url.startswith(source_domain) and attr in ("href",):
+                parsed = urlparse(url)
+                path = parsed.path.strip("/")
+                if path:
+                    return f'{attr}="/html/{site_name}/{path}"'
+                else:
+                    return f'{attr}="/html/{site_name}"'
+            return match.group(0)
+
+        # 对于 href 相对路径，转向本站导入页面
+        if attr == "href" and site_name:
+            clean_url = url.split("?")[0].split("#")[0]
+            path = clean_url.strip("/")
+            if path:
+                return f'{attr}="/html/{site_name}/{path}"'
+            else:
+                return f'{attr}="/html/{site_name}"'
+
+        # 资源文件（图片等）使用绝对 URL
         absolute = urljoin(source_url, url)
         return prefix + absolute + suffix
 
     # 重写 src 和 href 属性
     content = re.sub(
-        r'(src|href)\s*=\s*["\']([^"\']+)["\']',
+        r'(src|href|srcset)\s*=\s*["\']([^"\']+)["\']',
         _replace_attr,
         content,
         flags=re.IGNORECASE,
@@ -268,7 +334,7 @@ async def fetch_and_cache_site(site_id: int) -> dict:
         return {"status": "error", "message": f"无法访问 {source_url}"}
 
     title, body = result
-    body = _rewrite_links(body, source_url)
+    body = _rewrite_links(body, source_url, site["name"])
 
     # 保存首页（path=""）
     await save_page(site_id, "", title, body)
@@ -300,6 +366,6 @@ async def fetch_specific_page(site_id: int, path: str) -> dict:
         return {"status": "error", "message": f"无法访问 {url}"}
 
     title, body = result
-    body = _rewrite_links(body, site["source_url"])
+    body = _rewrite_links(body, site["source_url"], site["name"])
     await save_page(site_id, path, title, body)
     return {"status": "ok", "message": f"成功缓存 {url}", "title": title}

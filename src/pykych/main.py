@@ -7,15 +7,15 @@ from jinja2 import Environment, FileSystemLoader
 
 from .routes import labels
 
-# ... existing imports ...
 from .mysql_manager import init_tables, close_pools, seed_admin
 
-from . import db
-from . import wikidot_db
-from . import html_db
-from . import bbcode_db
+from . import article_manager
 from . import site_settings
 from . import notification_manager
+from . import settings_manager
+from . import user_profile
+from . import plugin_manager
+from . import theme_manager
 from .routes import md
 from .routes import wikidot
 from .routes import admin
@@ -32,15 +32,21 @@ from .routes import search
 async def lifespan(app):
     """启动时建表并写入种子数据，关闭时释放连接池。"""
     await init_tables()
-    await db.seed_db()
-    await wikidot_db.seed_db()
-    await html_db.seed_db()
-    await bbcode_db.seed_db()
+    # 使用统一文章管理器初始化种子数据
+    for atype in ["md", "wikidot", "html", "bbcode"]:
+        await article_manager.seed_db(atype)
+    # 确保用户资料字段存在
+    await user_profile.ensure_profile_columns()
+    
+    # 加载所有插件
+    plugin_manager.load_all_plugins()
+    await plugin_manager.run_hook(plugin_manager.Hooks.ON_STARTUP)
 
     # 创建默认管理员（如不存在）
     await seed_admin("admin", "admin123", "管理员")
 
     yield
+    await plugin_manager.run_hook(plugin_manager.Hooks.ON_SHUTDOWN)
     await close_pools()
 
 # ── 模板引擎 ──
@@ -80,10 +86,12 @@ async def home():
     subsite_links = await site_settings.list_subsite_links()
     featured = await site_settings.list_featured_articles()
     important_notifications = await notification_manager.get_important_notifications()
+    site_title = settings_manager.get_site_title()
+    site_subtitle = settings_manager.get_site_subtitle()
     return render_template(
         "home.html",
-        title="跨越晨昏",
-        subtitle="欢迎来到我的个人网站",
+        title=site_title,
+        subtitle=site_subtitle,
         subsite_links=subsite_links,
         featured_articles=featured,
         important_notifications=important_notifications,
@@ -263,3 +271,26 @@ async def serve_upload(filename: str):
     return FileResponse(str(file_path))
 
 app.include(uploads_route)
+
+# ===== 头像静态文件服务 =====
+from .user_profile import AVATAR_DIR
+
+avatar_route = Route("/static/avatars")
+
+@avatar_route.sub("/{filename}").get
+async def serve_avatar(filename: str):
+    """提供头像文件的访问。"""
+    file_path = AVATAR_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        return HTMLResponse("<p>头像不存在</p>", status_code=404)
+    return FileResponse(str(file_path))
+
+app.include(avatar_route)
+
+# ===== 主题 CSS 路由 =====
+@app.sub("/theme.css").get
+async def theme_css():
+    """提供当前主题的自定义 CSS。"""
+    from starlette.responses import Response
+    css = theme_manager.get_theme_css()
+    return Response(css, media_type="text/css")

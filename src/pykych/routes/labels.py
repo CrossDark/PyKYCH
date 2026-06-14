@@ -29,7 +29,7 @@ labels_route = Route("/labels")
 
 @labels_route.get
 async def label_list():
-    """标签列表页 — 展示所有标签及其文章数量。"""
+    """标签列表页 — 展示所有标签及其文章数量（包含0篇的标签）。"""
     tags = await tm.get_all_tags()
 
     # 统计每个标签的文章数量
@@ -46,11 +46,10 @@ async def label_list():
                 count = (await cur.fetchone())[0]
                 tag_counts[tag["id"]] = count
 
-    # 过滤掉没有文章的标签并附上计数
+    # 显示所有标签（包括没有文章的标签）
     tags_with_count = [
         {**t, "count": tag_counts.get(t["id"], 0)}
         for t in tags
-        if tag_counts.get(t["id"], 0) > 0
     ]
 
     return render(
