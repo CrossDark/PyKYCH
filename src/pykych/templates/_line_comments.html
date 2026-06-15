@@ -3,7 +3,22 @@
     <div class="line-comments-panel" id="line-comments-panel">
         <div class="line-comments-header">
             <span>💬 行评论</span>
-            <span class="line-comments-toggle" title="隐藏行评论">×</span>
+            <div class="line-comments-header-actions">
+                <span class="line-comments-help" id="line-comments-help-btn" title="使用帮助">?</span>
+                <span class="line-comments-toggle" title="隐藏行评论">×</span>
+            </div>
+        </div>
+        <!-- 使用指导提示 -->
+        <div class="line-comments-guide" id="line-comments-guide" style="display: none;">
+            <div class="line-comments-guide-content">
+                <p><strong>📖 行评论使用说明</strong></p>
+                <ul>
+                    <li>点击左侧行号（如 <code>L1</code>）为该行添加短评</li>
+                    <li>每条评论最多 <strong>20 字</strong>，可多次评论同一行</li>
+                    <li>行评论面板仅在<strong>宽屏（≥1024px）</strong>下显示</li>
+                    <li>点击 <strong>×</strong> 可折叠/展开评论列表</li>
+                </ul>
+            </div>
         </div>
         <div class="line-comments-list" id="line-comments-list"></div>
     </div>
@@ -55,6 +70,75 @@
         font-weight: 600;
         font-size: 0.85rem;
         background: var(--code-bg);
+    }
+
+    .line-comments-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .line-comments-help {
+        cursor: pointer;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        background: var(--border);
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        transition: all 0.2s;
+        user-select: none;
+    }
+    .line-comments-help:hover,
+    .line-comments-help.active {
+        background: var(--accent);
+        color: #fff;
+    }
+
+    .line-comments-guide {
+        border-bottom: 1px solid var(--border);
+        background: var(--code-bg);
+        animation: guideSlideDown 0.2s ease;
+    }
+
+    @keyframes guideSlideDown {
+        from { opacity: 0; max-height: 0; }
+        to { opacity: 1; max-height: 200px; }
+    }
+
+    .line-comments-guide-content {
+        padding: 0.6rem 0.75rem;
+        font-size: 0.72rem;
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+
+    .line-comments-guide-content p {
+        margin: 0 0 0.3rem 0;
+        font-size: 0.78rem;
+    }
+
+    .line-comments-guide-content ul {
+        margin: 0;
+        padding-left: 1.1rem;
+        list-style: disc;
+    }
+
+    .line-comments-guide-content li {
+        margin-bottom: 0.15rem;
+    }
+
+    .line-comments-guide-content code {
+        background: var(--border);
+        padding: 0.08em 0.35em;
+        border-radius: 3px;
+        font-size: 0.85em;
+        font-family: "SF Mono", "Fira Code", monospace;
     }
 
     .line-comments-toggle {
@@ -323,10 +407,12 @@
         }
 
         let html = '';
+        let hasComments = false;
         for (let i = 1; i <= totalLines; i++) {
             const count = lineCounts[i] || 0;
             const comments = lineData[i] || [];
             const latest = comments.length > 0 ? comments[comments.length - 1].content : '';
+            if (count > 0) hasComments = true;
 
             html += `<div class="line-comment-row" data-line="${i}" title="${latest ? latest : '点击添加行评论'}">`;
             html += `<span class="line-comment-line-num">L${i}</span>`;
@@ -336,6 +422,12 @@
             }
             html += `</div>`;
         }
+
+        // 如果没有任何评论，在列表底部显示提示
+        if (!hasComments) {
+            html += '<div style="padding: 0.4rem 0.75rem; color: var(--text-muted); font-size: 0.7rem; text-align: center; border-top: 1px solid var(--border);">💡 点击行号添加短评</div>';
+        }
+
         listEl.innerHTML = html;
 
         // 绑定点击事件
@@ -463,6 +555,18 @@
     // 事件绑定（关闭按钮和外部点击）
     popupClose.addEventListener('click', closePopup);
 
+    // 帮助按钮：切换使用指导显示
+    const helpBtn = document.getElementById('line-comments-help-btn');
+    const guideEl = document.getElementById('line-comments-guide');
+    if (helpBtn && guideEl) {
+        helpBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isVisible = guideEl.style.display !== 'none';
+            guideEl.style.display = isVisible ? 'none' : 'block';
+            helpBtn.classList.toggle('active', !isVisible);
+        });
+    }
+
     // 点击外部关闭
     document.addEventListener('click', function(e) {
         if (popup.style.display !== 'none' &&
@@ -470,12 +574,32 @@
             !e.target.closest('.line-comment-row')) {
             closePopup();
         }
+        // 点击外部关闭使用指导
+        if (guideEl && guideEl.style.display !== 'none' &&
+            !guideEl.contains(e.target) &&
+            e.target !== helpBtn &&
+            !helpBtn.contains(e.target)) {
+            guideEl.style.display = 'none';
+            helpBtn.classList.remove('active');
+        }
     });
 
     // 切换面板显示
     toggleBtn.addEventListener('click', function() {
-        listEl.style.display = listEl.style.display === 'none' ? '' : 'none';
-        this.textContent = listEl.style.display === 'none' ? '+' : '×';
+        const isHidden = listEl.style.display === 'none';
+        listEl.style.display = isHidden ? '' : 'none';
+        // 同时隐藏/显示使用指导
+        if (guideEl) {
+            guideEl.style.display = isHidden ? guideEl.dataset.wasVisible || 'none' : 'none';
+            if (isHidden) {
+                guideEl.dataset.wasVisible = '';
+            } else {
+                guideEl.dataset.wasVisible = guideEl.style.display;
+                guideEl.style.display = 'none';
+            }
+        }
+        this.textContent = isHidden ? '×' : '+';
+        this.title = isHidden ? '隐藏行评论' : '显示行评论';
     });
 
     // 初始化
