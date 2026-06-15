@@ -282,6 +282,126 @@ async def api_me(request: Request):
 
 app.include(api_route)
 
+# ===== 行评论 API =====
+from . import line_comment_manager
+
+line_comments_api = Route("/api/line-comments")
+
+@line_comments_api.sub("/{article_type}/{article_slug}").get
+async def api_get_line_comments(article_type: str, article_slug: str):
+    """获取文章的所有行评论（按行分组）。"""
+    comments = await line_comment_manager.get_line_comments(article_type, article_slug)
+    counts = await line_comment_manager.get_line_comment_counts(article_type, article_slug)
+    return {"comments": comments, "counts": counts}
+
+
+@line_comments_api.sub("/{article_type}/{article_slug}").post
+async def api_add_line_comment(request: Request, article_type: str, article_slug: str):
+    """添加一条行评论。"""
+    user = await get_current_user(request)
+    if user is None:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "请先登录"}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "请求格式错误"}, status_code=400)
+
+    line_number = body.get("line_number")
+    content = body.get("content", "").strip()
+
+    if line_number is None or not content:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "缺少参数"}, status_code=400)
+
+    try:
+        comment = await line_comment_manager.add_line_comment(
+            article_type=article_type,
+            article_slug=article_slug,
+            line_number=line_number,
+            author_name=user["username"],
+            content=content,
+        )
+        return {"comment": comment}
+    except ValueError as e:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@line_comments_api.sub("/{article_type}/{article_slug}/{line_number}").get
+async def api_get_line_comments_by_line(
+    article_type: str, article_slug: str, line_number: int
+):
+    """获取某一行所有评论。"""
+    comments = await line_comment_manager.get_line_comments_by_line(
+        article_type, article_slug, line_number
+    )
+    return {"comments": comments}
+
+
+app.include(line_comments_api)
+
+# ===== 评分 API =====
+from . import rating_manager
+
+ratings_api = Route("/api/ratings")
+
+@ratings_api.sub("/{article_type}/{article_slug}").get
+async def api_get_rating(request: Request, article_type: str, article_slug: str):
+    """获取文章评分汇总及当前用户评分。"""
+    summary = await rating_manager.get_article_rating(article_type, article_slug)
+    user = await get_current_user(request)
+    user_score = None
+    if user:
+        ur = await rating_manager.get_user_rating(article_type, article_slug, user["username"])
+        user_score = ur["score"] if ur else None
+    return {
+        "average_score": summary["average_score"],
+        "total_voters": summary["total_voters"],
+        "user_score": user_score,
+    }
+
+
+@ratings_api.sub("/{article_type}/{article_slug}").post
+async def api_set_rating(request: Request, article_type: str, article_slug: str):
+    """提交或更新评分。"""
+    user = await get_current_user(request)
+    if user is None:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "请先登录"}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "请求格式错误"}, status_code=400)
+
+    score = body.get("score")
+    if score is None:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "缺少评分"}, status_code=400)
+
+    try:
+        result = await rating_manager.set_rating(
+            article_type=article_type,
+            article_slug=article_slug,
+            author_name=user["username"],
+            score=float(score),
+        )
+        ur = await rating_manager.get_user_rating(article_type, article_slug, user["username"])
+        return {
+            "average_score": result["average_score"],
+            "total_voters": result["total_voters"],
+            "user_score": ur["score"] if ur else None,
+        }
+    except Exception as e:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+app.include(ratings_api)
+
 # ===== 搜索路由 =====
 app.include(search.search_route)
 

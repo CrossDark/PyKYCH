@@ -1,0 +1,99 @@
+<!-- 评分区域 — 在评论区之前显示 -->
+<section class="rating-section" data-article-type="{{ article_type }}" data-article-slug="{{ article_slug }}" style="margin: 2rem 0; padding: 1.25rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-weight: 600; font-size: 1rem;">⭐ 评分</span>
+            <span class="rating-avg" style="font-size: 1.1rem; font-weight: 700; color: var(--accent);">
+                {% if rating %}{{ "%.1f"|format(rating.average_score) }}{% else %}0.0{% endif %}
+            </span>
+            <span class="rating-count" style="color: var(--text-muted); font-size: 0.85rem;">
+                （{% if rating %}{{ rating.total_voters }}{% else %}0{% endif %} 人评分）
+            </span>
+        </div>
+        <div class="rating-slider-container" style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">-1</span>
+            <input type="range" class="rating-slider" min="-1" max="1" step="0.1" value="0"
+                style="width: 160px; accent-color: var(--accent); cursor: pointer;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">+1</span>
+            <span class="rating-current-value" style="font-weight: 600; font-size: 0.95rem; min-width: 2rem; text-align: center;">0.0</span>
+        </div>
+    </div>
+    <div class="rating-message" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted); text-align: center; display: none;"></div>
+</section>
+
+<script>
+(function() {
+    const section = document.currentScript.parentElement.querySelector('.rating-section');
+    if (!section) return;
+
+    const articleType = section.dataset.articleType;
+    const articleSlug = section.dataset.articleSlug;
+    const slider = section.querySelector('.rating-slider');
+    const avgEl = section.querySelector('.rating-avg');
+    const countEl = section.querySelector('.rating-count');
+    const valueEl = section.querySelector('.rating-current-value');
+    const msgEl = section.querySelector('.rating-message');
+
+    // 从服务器加载当前评分状态
+    async function loadRating() {
+        try {
+            const resp = await fetch(`/api/ratings/${articleType}/${articleSlug}`);
+            const data = await resp.json();
+            avgEl.textContent = data.average_score.toFixed(1);
+            countEl.textContent = `（${data.total_voters} 人评分）`;
+            if (data.user_score !== null && data.user_score !== undefined) {
+                slider.value = data.user_score;
+                valueEl.textContent = data.user_score.toFixed(1);
+            }
+        } catch (e) {
+            console.error('加载评分失败:', e);
+        }
+    }
+
+    // 滑块变化时更新显示值
+    slider.addEventListener('input', function() {
+        valueEl.textContent = parseFloat(this.value).toFixed(1);
+    });
+
+    // 滑块松开时提交评分
+    slider.addEventListener('change', async function() {
+        const score = parseFloat(this.value);
+        msgEl.style.display = 'block';
+        msgEl.textContent = '提交中...';
+        msgEl.style.color = 'var(--text-muted)';
+
+        try {
+            const resp = await fetch(`/api/ratings/${articleType}/${articleSlug}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ score: score })
+            });
+            if (resp.status === 401) {
+                msgEl.textContent = '请先登录后再评分';
+                msgEl.style.color = '#f59e0b';
+                // 恢复原值
+                loadRating();
+                return;
+            }
+            const data = await resp.json();
+            if (data.error) {
+                msgEl.textContent = data.error;
+                msgEl.style.color = '#ef4444';
+                return;
+            }
+            avgEl.textContent = data.average_score.toFixed(1);
+            countEl.textContent = `（${data.total_voters} 人评分）`;
+            slider.value = data.user_score;
+            valueEl.textContent = data.user_score.toFixed(1);
+            msgEl.textContent = '评分成功！';
+            msgEl.style.color = '#10b981';
+            setTimeout(() => { msgEl.style.display = 'none'; }, 2000);
+        } catch (e) {
+            msgEl.textContent = '网络错误，请重试';
+            msgEl.style.color = '#ef4444';
+        }
+    });
+
+    loadRating();
+})();
+</script>

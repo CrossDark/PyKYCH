@@ -10,6 +10,8 @@ from jinja2 import Environment, FileSystemLoader
 from .. import html_db as db
 from .. import tag_manager
 from .. import comment_manager
+from .. import line_comment_manager
+from .. import rating_manager
 from .. import external_html
 
 # ── 模板引擎 ────────────────────────────────────────────────
@@ -68,12 +70,20 @@ async def html_page_detail(slug: str):
     page["tags"] = await tag_manager.get_tags_for_article("html", slug)
     # 加载评论
     comments = await comment_manager.get_comments("html", slug)
+    # 加载行评论
+    line_comments = await line_comment_manager.get_line_comments("html", slug)
+    line_comment_counts = await line_comment_manager.get_line_comment_counts("html", slug)
+    # 加载评分
+    rating = await rating_manager.get_article_rating("html", slug)
     return render(
         "html_detail.html",
         title=f"{page['title']} - PyKYCH",
         page=page,
         html_content=page["content"],
         comments=comments,
+        line_comments=line_comments,
+        line_comment_counts=line_comment_counts,
+        rating=rating,
     )
 
 

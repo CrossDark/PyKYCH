@@ -25,6 +25,14 @@
 
 <a href="/html" class="back-link">← 返回 HTML 列表</a>
 
+<!-- ── 评分区 ── -->
+{% set article_type = "html" %}
+{% set article_slug = page.slug %}
+{% include "_rating_section.html" %}
+
+<!-- ── 行评论系统 ── -->
+{% include "_line_comments.html" %}
+
 <!-- ── 评论区 ── -->
 <section class="comments-section" style="margin-top: 2.5rem;">
     <h3 style="font-size: 1.3rem; margin-bottom: 1.25rem;">

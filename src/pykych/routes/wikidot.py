@@ -11,6 +11,8 @@ from .. import wikidot_db as db
 from ..wikidot_parser import parse_wikidot
 from .. import tag_manager
 from .. import comment_manager
+from .. import line_comment_manager
+from .. import rating_manager
 
 # ── 模板 ────────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -64,6 +66,11 @@ async def page_detail(slug: str):
     page["tags"] = await tag_manager.get_tags_for_article("wikidot", slug)
     # 加载评论
     comments = await comment_manager.get_comments("wikidot", slug)
+    # 加载行评论
+    line_comments = await line_comment_manager.get_line_comments("wikidot", slug)
+    line_comment_counts = await line_comment_manager.get_line_comment_counts("wikidot", slug)
+    # 加载评分
+    rating = await rating_manager.get_article_rating("wikidot", slug)
     html_body = parse_wikidot(page["content"])
     return render(
         "wikidot_detail.html",
@@ -71,4 +78,7 @@ async def page_detail(slug: str):
         page=page,
         html_content=html_body,
         comments=comments,
+        line_comments=line_comments,
+        line_comment_counts=line_comment_counts,
+        rating=rating,
     )

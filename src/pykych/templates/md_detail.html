@@ -204,6 +204,14 @@
 
 <a href="/md" class="back-link">← 返回文章列表</a>
 
+<!-- ── 评分区 ── -->
+{% set article_type = "md" %}
+{% set article_slug = article.slug %}
+{% include "_rating_section.html" %}
+
+<!-- ── 行评论系统 ── -->
+{% include "_line_comments.html" %}
+
 <!-- ── 评论区 ── -->
 <section class="comments-section" style="margin-top: 2.5rem;">
     <h3 style="font-size: 1.3rem; margin-bottom: 1.25rem;">

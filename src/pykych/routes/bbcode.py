@@ -11,6 +11,8 @@ from .. import bbcode_db as db
 from ..bbcode_parser import parse_bbcode
 from .. import tag_manager
 from .. import comment_manager
+from .. import line_comment_manager
+from .. import rating_manager
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -62,6 +64,11 @@ async def page_detail(slug: str):
     page["tags"] = await tag_manager.get_tags_for_article("bbcode", slug)
     # 加载评论
     comments = await comment_manager.get_comments("bbcode", slug)
+    # 加载行评论
+    line_comments = await line_comment_manager.get_line_comments("bbcode", slug)
+    line_comment_counts = await line_comment_manager.get_line_comment_counts("bbcode", slug)
+    # 加载评分
+    rating = await rating_manager.get_article_rating("bbcode", slug)
     html_body = parse_bbcode(page["content"])
     return render(
         "bbcode_detail.html",
@@ -69,4 +76,7 @@ async def page_detail(slug: str):
         page=page,
         html_content=html_body,
         comments=comments,
+        line_comments=line_comments,
+        line_comment_counts=line_comment_counts,
+        rating=rating,
     )

@@ -11,6 +11,8 @@ from jinja2 import Environment, FileSystemLoader
 from .. import db
 from .. import tag_manager
 from .. import comment_manager
+from .. import line_comment_manager
+from .. import rating_manager
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -87,6 +89,11 @@ async def md_article_detail(slug: str):
     article["tags"] = await tag_manager.get_tags_for_article("md", slug)
     # 加载评论
     comments = await comment_manager.get_comments("md", slug)
+    # 加载行评论
+    line_comments = await line_comment_manager.get_line_comments("md", slug)
+    line_comment_counts = await line_comment_manager.get_line_comment_counts("md", slug)
+    # 加载评分
+    rating = await rating_manager.get_article_rating("md", slug)
     html_body = render_markdown(article["content"])
     return render(
         "md_detail.html",
@@ -94,4 +101,7 @@ async def md_article_detail(slug: str):
         article=article,
         html_content=html_body,
         comments=comments,
+        line_comments=line_comments,
+        line_comment_counts=line_comment_counts,
+        rating=rating,
     )

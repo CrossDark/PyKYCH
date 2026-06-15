@@ -317,6 +317,36 @@ CREATE TABLE IF NOT EXISTS static_files (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+LINE_COMMENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS line_comments (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    article_type  ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_slug  VARCHAR(255) NOT NULL,
+    line_number   INT NOT NULL,
+    author_name   VARCHAR(128) NOT NULL DEFAULT '匿名',
+    content       VARCHAR(20) NOT NULL,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_article_line (article_type, article_slug, line_number),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+RATINGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS ratings (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    article_type  ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_slug  VARCHAR(255) NOT NULL,
+    author_name   VARCHAR(128) NOT NULL,
+    score         DECIMAL(4,2) NOT NULL,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_user_article (article_type, article_slug, author_name),
+    INDEX idx_article (article_type, article_slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -468,6 +498,12 @@ async def init_tables() -> None:
 
             # 静态文件表
             await cur.execute(STATIC_FILES_TABLE_SQL)
+
+            # 行评论表
+            await cur.execute(LINE_COMMENTS_TABLE_SQL)
+
+            # 评分表
+            await cur.execute(RATINGS_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

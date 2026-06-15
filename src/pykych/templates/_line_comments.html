@@ -1,0 +1,460 @@
+<!-- 行评论系统 -->
+<div class="line-comments-container" data-article-type="{{ article_type }}" data-article-slug="{{ article_slug }}">
+    <div class="line-comments-panel" id="line-comments-panel">
+        <div class="line-comments-header">
+            <span>💬 行评论</span>
+            <span class="line-comments-toggle" title="隐藏行评论">×</span>
+        </div>
+        <div class="line-comments-list" id="line-comments-list"></div>
+    </div>
+    <div class="line-comment-popup" id="line-comment-popup" style="display: none;">
+        <div class="line-comment-popup-header">
+            <span class="line-comment-popup-title"></span>
+            <button class="line-comment-popup-close">&times;</button>
+        </div>
+        <div class="line-comment-popup-comments"></div>
+        <div class="line-comment-popup-form">
+            <input type="text" class="line-comment-input" maxlength="20" placeholder="输入短评（最多20字）...">
+            <button class="line-comment-submit">发送</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ── 行评论系统样式（仅宽屏显示） ── */
+.line-comments-container {
+    display: none;
+}
+
+@media (min-width: 1024px) {
+    .line-comments-container {
+        display: block;
+        position: fixed;
+        right: max(calc((100vw - var(--max-width, 720px)) / 2 - 220px), 8px);
+        top: 120px;
+        width: 180px;
+        max-height: calc(100vh - 160px);
+        z-index: 50;
+    }
+
+    .line-comments-panel {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+        font-size: 0.82rem;
+    }
+
+    .line-comments-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+        font-size: 0.85rem;
+        background: var(--code-bg);
+    }
+
+    .line-comments-toggle {
+        cursor: pointer;
+        font-size: 1.1rem;
+        color: var(--text-muted);
+        padding: 0 0.25rem;
+        line-height: 1;
+    }
+    .line-comments-toggle:hover {
+        color: var(--text);
+    }
+
+    .line-comments-list {
+        max-height: calc(100vh - 280px);
+        overflow-y: auto;
+        padding: 0.35rem 0;
+    }
+
+    .line-comment-row {
+        display: flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        gap: 0.4rem;
+        cursor: pointer;
+        transition: background 0.15s;
+        border-bottom: 1px solid transparent;
+    }
+    .line-comment-row:hover {
+        background: var(--code-bg);
+    }
+
+    .line-comment-line-num {
+        color: var(--text-muted);
+        font-size: 0.7rem;
+        min-width: 1.5rem;
+        text-align: right;
+        font-family: "SF Mono", "Fira Code", monospace;
+    }
+
+    .line-comment-text {
+        flex: 1;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.78rem;
+    }
+
+    .line-comment-count {
+        background: var(--accent);
+        color: #fff;
+        border-radius: 10px;
+        padding: 0.05rem 0.4rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        min-width: 1.2rem;
+        text-align: center;
+    }
+
+    .line-comment-add {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        padding: 0.25rem 0.75rem;
+        cursor: pointer;
+        text-align: center;
+        border-top: 1px solid var(--border);
+        transition: background 0.15s;
+    }
+    .line-comment-add:hover {
+        background: var(--code-bg);
+        color: var(--accent);
+    }
+
+    /* ── 行评论弹出框 ── */
+    .line-comment-popup {
+        position: fixed;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        width: 260px;
+        max-height: 320px;
+        z-index: 300;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .line-comment-popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+        font-size: 0.85rem;
+        background: var(--code-bg);
+    }
+
+    .line-comment-popup-close {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        cursor: pointer;
+        color: var(--text-muted);
+        padding: 0;
+        line-height: 1;
+    }
+
+    .line-comment-popup-comments {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.5rem 0.75rem;
+        max-height: 180px;
+    }
+
+    .line-comment-popup-item {
+        padding: 0.35rem 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.8rem;
+    }
+    .line-comment-popup-item:last-child {
+        border-bottom: none;
+    }
+    .line-comment-popup-author {
+        font-weight: 600;
+        color: var(--accent);
+        font-size: 0.75rem;
+    }
+    .line-comment-popup-content {
+        color: var(--text);
+        margin-top: 0.15rem;
+    }
+
+    .line-comment-popup-form {
+        display: flex;
+        gap: 0.4rem;
+        padding: 0.5rem 0.75rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .line-comment-input {
+        flex: 1;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-family: inherit;
+        background: var(--bg);
+        color: var(--text);
+        outline: none;
+    }
+    .line-comment-input:focus {
+        border-color: var(--accent);
+    }
+
+    .line-comment-submit {
+        padding: 0.35rem 0.6rem;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .line-comment-submit:hover {
+        background: var(--accent-hover);
+    }
+
+    /* 暗色模式弹出框 */
+    [data-theme="dark"] .line-comment-popup {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+}
+</style>
+
+<script>
+(function() {
+    const container = document.currentScript.parentElement.querySelector('.line-comments-container');
+    if (!container) return;
+
+    const articleType = container.dataset.articleType;
+    const articleSlug = container.dataset.articleSlug;
+    const panel = container.querySelector('#line-comments-panel');
+    const listEl = container.querySelector('#line-comments-list');
+    const popup = container.querySelector('#line-comment-popup');
+    const popupTitle = popup.querySelector('.line-comment-popup-title');
+    const popupComments = popup.querySelector('.line-comment-popup-comments');
+    const popupInput = popup.querySelector('.line-comment-input');
+    const popupSubmit = popup.querySelector('.line-comment-submit');
+    const popupClose = popup.querySelector('.line-comment-popup-close');
+    const toggleBtn = container.querySelector('.line-comments-toggle');
+
+    let currentLine = null;
+    let lineCounts = {};
+    let lineData = {}; // {lineNum: [comments]}
+    let totalLines = 0;
+
+    // 统计内容行数
+    function countLines() {
+        const contentBody = document.querySelector('.content-body');
+        if (!contentBody) return 0;
+
+        // 获取所有块级元素
+        const blocks = contentBody.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, blockquote, div, table');
+        let lineNum = 0;
+
+        blocks.forEach(block => {
+            // 跳过嵌套在 pre 内的元素
+            if (block.closest('pre') && block.tagName !== 'PRE') return;
+            // 跳过嵌套在 li 内的 p 等（只计 li 本身）
+            if (block.tagName !== 'LI' && block.closest('li') && block.closest('li') !== block) return;
+            // 跳过表格内的元素（只计 table）
+            if (block.tagName !== 'TABLE' && block.closest('table')) return;
+
+            lineNum++;
+            block.setAttribute('data-line', lineNum);
+        });
+
+        return lineNum;
+    }
+
+    // 加载行评论数据
+    async function loadLineComments() {
+        try {
+            const resp = await fetch(`/api/line-comments/${articleType}/${articleSlug}`);
+            const data = await resp.json();
+
+            lineCounts = data.counts || {};
+            const comments = data.comments || [];
+
+            // 按行号分组
+            lineData = {};
+            comments.forEach(c => {
+                const ln = c.line_number;
+                if (!lineData[ln]) lineData[ln] = [];
+                lineData[ln].push(c);
+            });
+
+            renderLineList();
+        } catch (e) {
+            console.error('加载行评论失败:', e);
+        }
+    }
+
+    // 渲染行评论列表面板
+    function renderLineList() {
+        totalLines = countLines();
+        if (totalLines === 0) {
+            listEl.innerHTML = '<div style="padding: 0.5rem 0.75rem; color: var(--text-muted); font-size: 0.78rem;">暂无内容行</div>';
+            return;
+        }
+
+        let html = '';
+        for (let i = 1; i <= totalLines; i++) {
+            const count = lineCounts[i] || 0;
+            const comments = lineData[i] || [];
+            const latest = comments.length > 0 ? comments[comments.length - 1].content : '';
+
+            html += `<div class="line-comment-row" data-line="${i}" title="${latest ? latest : '点击添加行评论'}">`;
+            html += `<span class="line-comment-line-num">L${i}</span>`;
+            html += `<span class="line-comment-text">${latest || '—'}</span>`;
+            if (count > 1) {
+                html += `<span class="line-comment-count">${count}</span>`;
+            }
+            html += `</div>`;
+        }
+        listEl.innerHTML = html;
+
+        // 绑定点击事件
+        listEl.querySelectorAll('.line-comment-row').forEach(row => {
+            row.addEventListener('click', function(e) {
+                const lineNum = parseInt(this.dataset.line);
+                openPopup(lineNum, this);
+            });
+        });
+    }
+
+    // 打开行评论弹出框
+    function openPopup(lineNum, anchorEl) {
+        currentLine = lineNum;
+        popupTitle.textContent = `第 ${lineNum} 行评论`;
+
+        const comments = lineData[lineNum] || [];
+        let chtml = '';
+        if (comments.length === 0) {
+            chtml = '<div style="color: var(--text-muted); font-size: 0.78rem; padding: 0.5rem 0;">暂无评论</div>';
+        } else {
+            comments.forEach(c => {
+                chtml += `<div class="line-comment-popup-item">`;
+                chtml += `<div class="line-comment-popup-author">${escapeHtml(c.author_name)} · ${(c.created_at||'').slice(0,16)}</div>`;
+                chtml += `<div class="line-comment-popup-content">${escapeHtml(c.content)}</div>`;
+                chtml += `</div>`;
+            });
+        }
+        popupComments.innerHTML = chtml;
+        popupInput.value = '';
+
+        // 定位弹出框
+        const rect = anchorEl.getBoundingClientRect();
+        let left = rect.left - 270;
+        let top = rect.top;
+
+        if (left < 10) left = rect.right + 10;
+        if (top + 320 > window.innerHeight) top = window.innerHeight - 330;
+        if (top < 10) top = 10;
+
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+        popup.style.display = 'flex';
+
+        setTimeout(() => popupInput.focus(), 100);
+    }
+
+    function closePopup() {
+        popup.style.display = 'none';
+        currentLine = null;
+    }
+
+    // 提交行评论
+    async function submitLineComment() {
+        const content = popupInput.value.trim();
+        if (!content || currentLine === null) return;
+
+        try {
+            const resp = await fetch(`/api/line-comments/${articleType}/${articleSlug}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ line_number: currentLine, content: content })
+            });
+
+            if (resp.status === 401) {
+                alert('请先登录后再添加行评论');
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            // 更新本地数据
+            if (!lineData[currentLine]) lineData[currentLine] = [];
+            lineData[currentLine].push(data.comment);
+            lineCounts[currentLine] = (lineCounts[currentLine] || 0) + 1;
+
+            popupInput.value = '';
+
+            // 刷新弹出框内容
+            const comments = lineData[currentLine] || [];
+            let chtml = '';
+            comments.forEach(c => {
+                chtml += `<div class="line-comment-popup-item">`;
+                chtml += `<div class="line-comment-popup-author">${escapeHtml(c.author_name)} · ${(c.created_at||'').slice(0,16)}</div>`;
+                chtml += `<div class="line-comment-popup-content">${escapeHtml(c.content)}</div>`;
+                chtml += `</div>`;
+            });
+            popupComments.innerHTML = chtml;
+            popupComments.scrollTop = popupComments.scrollHeight;
+
+            // 更新面板
+            renderLineList();
+        } catch (e) {
+            alert('网络错误，请重试');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 事件绑定
+    popupSubmit.addEventListener('click', submitLineComment);
+    popupInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitLineComment();
+        if (e.key === 'Escape') closePopup();
+    });
+    popupClose.addEventListener('click', closePopup);
+
+    // 点击外部关闭
+    document.addEventListener('click', function(e) {
+        if (popup.style.display !== 'none' &&
+            !popup.contains(e.target) &&
+            !e.target.closest('.line-comment-row')) {
+            closePopup();
+        }
+    });
+
+    // 切换面板显示
+    toggleBtn.addEventListener('click', function() {
+        listEl.style.display = listEl.style.display === 'none' ? '' : 'none';
+        this.textContent = listEl.style.display === 'none' ? '+' : '×';
+    });
+
+    // 初始化
+    setTimeout(loadLineComments, 200);
+})();
+</script>
