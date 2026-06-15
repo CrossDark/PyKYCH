@@ -180,6 +180,71 @@
             font-weight: 700; font-size: 0.7rem;
         }
 
+        /* ===== Admin User Dropdown ===== */
+        .wp-user-menu-wrap {
+            position: relative;
+        }
+        .wp-user-menu-btn {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            background: none; border: none; cursor: pointer;
+            font-size: 0.82rem; color: var(--wp-text-secondary);
+            padding: 0.15rem 0.3rem; border-radius: 4px;
+            font-family: inherit; transition: background 0.15s;
+        }
+        .wp-user-menu-btn:hover {
+            background: var(--wp-table-stripe);
+            color: var(--wp-text);
+        }
+        .wp-user-menu-arrow {
+            font-size: 0.5rem;
+            transition: transform 0.2s;
+        }
+        .wp-user-menu-wrap.open .wp-user-menu-arrow {
+            transform: rotate(180deg);
+        }
+        .wp-user-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 6px);
+            background: var(--wp-card-bg);
+            border: 1px solid var(--wp-border-light);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 150px;
+            z-index: 1050;
+            overflow: hidden;
+        }
+        .wp-user-menu-wrap.open .wp-user-dropdown {
+            display: block;
+        }
+        .wp-user-dropdown .wp-user-dropdown-header {
+            padding: 0.55rem 0.85rem;
+            font-size: 0.82rem; font-weight: 600;
+            color: var(--wp-text);
+            border-bottom: 1px solid var(--wp-border-light);
+        }
+        .wp-user-dropdown .wp-user-dropdown-role {
+            font-size: 0.68rem; color: var(--wp-text-muted);
+            font-weight: 400;
+        }
+        .wp-user-dropdown a {
+            display: flex; align-items: center; gap: 0.4rem;
+            padding: 0.5rem 0.85rem; font-size: 0.82rem;
+            color: var(--wp-text-secondary); text-decoration: none;
+            transition: background 0.15s;
+        }
+        .wp-user-dropdown a:hover {
+            background: var(--wp-table-stripe);
+            color: var(--wp-text);
+        }
+        .wp-user-dropdown a.wp-dropdown-accent {
+            color: var(--wp-primary);
+        }
+        .wp-user-dropdown a.wp-dropdown-accent:hover {
+            color: var(--wp-primary-hover);
+        }
+
         .wp-content {
             padding: 1.5rem 2rem 3rem;
             max-width: 1200px;
@@ -449,15 +514,29 @@
             <h1>{{ title | default('管理后台') }}</h1>
             <div class="wp-header-actions">
                 {% if current_user %}
-                <span class="wp-user-badge">
-                    {% if current_user.avatar and current_user.avatar != '/static/img/default-avatar.png' %}
-                    <img src="{{ current_user.avatar }}" class="wp-avatar-mini" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex';">
-                    <span class="wp-avatar-fallback" style="display:none;">{{ (current_user.nickname or current_user.username)[:1].upper() }}</span>
-                    {% else %}
-                    <span class="wp-avatar-fallback">{{ (current_user.nickname or current_user.username)[:1].upper() }}</span>
-                    {% endif %}
-                    {{ current_user.nickname or current_user.username }}
-                </span>
+                <div class="wp-user-menu-wrap" id="wpUserMenuWrap">
+                    <button class="wp-user-menu-btn" onclick="toggleWPUserMenu(event)" aria-label="用户菜单">
+                        {% if current_user.avatar and current_user.avatar != '/static/img/default-avatar.png' %}
+                        <img src="{{ current_user.avatar }}" class="wp-avatar-mini" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex';">
+                        <span class="wp-avatar-fallback" style="display:none;">{{ (current_user.nickname or current_user.username)[:1].upper() }}</span>
+                        {% else %}
+                        <span class="wp-avatar-fallback">{{ (current_user.nickname or current_user.username)[:1].upper() }}</span>
+                        {% endif %}
+                        <span>{{ current_user.nickname or current_user.username }}</span>
+                        <span class="wp-user-menu-arrow">▼</span>
+                    </button>
+                    <div class="wp-user-dropdown">
+                        <div class="wp-user-dropdown-header">
+                            {{ current_user.nickname or current_user.username }}
+                            <span class="wp-user-dropdown-role">
+                                {% if current_user.role == 'owner' %}站长{% elif current_user.role == 'admin' %}管理员{% else %}用户{% endif %}
+                            </span>
+                        </div>
+                        <a href="/admin/profile">👤 个人资料</a>
+                        <a href="/">🏠 访问网站</a>
+                        <a href="/auth/logout">🚪 退出登录</a>
+                    </div>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -485,6 +564,23 @@
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
         }
+
+        // ── 用户菜单下拉 ──
+        function toggleWPUserMenu(event) {
+            event.stopPropagation();
+            const wrap = document.getElementById('wpUserMenuWrap');
+            wrap.classList.toggle('open');
+        }
+
+        // 点击页面其他地方关闭下拉菜单
+        document.addEventListener('click', function(event) {
+            const wrap = document.getElementById('wpUserMenuWrap');
+            if (wrap && wrap.classList.contains('open')) {
+                if (!wrap.contains(event.target)) {
+                    wrap.classList.remove('open');
+                }
+            }
+        });
     </script>
     {% block extra_scripts %}{% endblock %}
 </body>

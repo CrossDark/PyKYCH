@@ -1,6 +1,6 @@
 """
 插件系统 — 支持通过钩子（hooks）扩展网站功能。
-插件放在 src/plugins/ 目录下，每个插件是一个 Python 包。
+插件放在 data/plugins/ 目录下，每个插件是一个 Python 包。
 """
 
 import importlib

@@ -1,6 +1,6 @@
 """
 主题系统 — 支持自定义主题，覆盖模板和静态资源。
-主题放在 src/themes/ 目录下，每个主题是一个包含 theme.yaml 和 templates/ 的目录。
+主题放在 data/themes/ 目录下，每个主题是一个包含 theme.yaml 和 templates/ 的目录。
 """
 
 import yaml
