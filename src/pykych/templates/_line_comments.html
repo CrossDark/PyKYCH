@@ -315,6 +315,102 @@
         box-shadow: 0 8px 24px rgba(0,0,0,0.5);
     }
 }
+
+/* ── 内容行号（中屏及以上在文章左侧显示行号） ── */
+@media (min-width: 768px) {
+    .content-body {
+        padding-left: 2.8rem;
+        position: relative;
+    }
+
+    .content-body [data-line] {
+        position: relative;
+        cursor: pointer;
+        transition: background 0.15s;
+        border-radius: 4px;
+        margin-left: -0.2rem;
+        padding-left: 0.2rem;
+    }
+
+    .content-body [data-line]:hover {
+        background: rgba(128, 128, 128, 0.06);
+    }
+
+    /* 行号数字 */
+    .content-body [data-line]::before {
+        content: attr(data-line);
+        position: absolute;
+        left: -2.6rem;
+        top: 0.15em;
+        width: 2.2rem;
+        padding-right: 0.4rem;
+        text-align: right;
+        font-size: 0.68rem;
+        font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+        color: var(--text-muted);
+        opacity: 0.35;
+        transition: opacity 0.2s, color 0.2s;
+        user-select: none;
+        pointer-events: none;
+        line-height: 1.5;
+    }
+
+    .content-body [data-line]:hover::before {
+        opacity: 1;
+        color: var(--accent);
+    }
+
+    /* 有评论的行 — 行号更明显 */
+    .content-body [data-line].has-line-comments::before {
+        opacity: 0.75;
+        color: var(--accent);
+        font-weight: 600;
+    }
+
+    /* 有评论的行 — 左侧小圆点标记 */
+    .content-body [data-line].has-line-comments::after {
+        content: '';
+        position: absolute;
+        left: -0.45rem;
+        top: 0.55em;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--accent);
+        opacity: 0.7;
+        pointer-events: none;
+    }
+
+    /* 当前激活行 */
+    .content-body [data-line].line-active {
+        background: var(--code-bg);
+    }
+
+    .content-body [data-line].line-active::before {
+        opacity: 1;
+        color: var(--accent);
+        font-weight: 700;
+    }
+
+    /* pre 块特殊处理 — 溢出滚动会裁剪 ::before，改为内嵌 */
+    .content-body pre[data-line] {
+        overflow: visible;
+    }
+
+    .content-body pre[data-line]::before {
+        top: 0.6rem;
+    }
+
+    /* 表格特殊处理 */
+    .content-body table[data-line]::before {
+        top: 0.6rem;
+    }
+
+    /* 引用块特殊处理 — 已有左边框 */
+    .content-body blockquote[data-line] {
+        margin-left: 0;
+    }
+}
 </style>
 
 <script>
@@ -339,6 +435,7 @@
     let lineData = {}; // {lineNum: [comments]}
     let totalLines = 0;
     let isLoggedIn = false;
+    let activeContentBlock = null;
 
     // 检查登录状态
     async function checkLoginState() {
@@ -437,12 +534,48 @@
                 openPopup(lineNum, this);
             });
         });
+
+        // 更新内容块上的评论标记
+        updateContentBlockMarkers();
+    }
+
+    // 更新内容块标记：高亮有评论的行
+    function updateContentBlockMarkers() {
+        const contentBody = document.querySelector('.content-body');
+        if (!contentBody) return;
+
+        const blocks = contentBody.querySelectorAll('[data-line]');
+        blocks.forEach(block => {
+            const ln = parseInt(block.getAttribute('data-line'));
+            const count = lineCounts[ln] || 0;
+            if (count > 0) {
+                block.classList.add('has-line-comments');
+            } else {
+                block.classList.remove('has-line-comments');
+            }
+        });
     }
 
     // 打开行评论弹出框
     function openPopup(lineNum, anchorEl) {
+        // 移除上一个内容块高亮
+        if (activeContentBlock) {
+            activeContentBlock.classList.remove('line-active');
+        }
+
         currentLine = lineNum;
         popupTitle.textContent = `第 ${lineNum} 行评论`;
+
+        // 高亮对应的内容块
+        const contentBlock = getContentBlock(lineNum);
+        if (contentBlock) {
+            contentBlock.classList.add('line-active');
+            activeContentBlock = contentBlock;
+            // 如果 anchorEl 不在右侧面板（即直接从内容块点击），滚动到该块
+            if (anchorEl && anchorEl.closest('.content-body')) {
+                contentBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
 
         const comments = lineData[lineNum] || [];
         let chtml = '';
@@ -494,7 +627,19 @@
 
     function closePopup() {
         popup.style.display = 'none';
+        // 移除内容块高亮
+        if (activeContentBlock) {
+            activeContentBlock.classList.remove('line-active');
+            activeContentBlock = null;
+        }
         currentLine = null;
+    }
+
+    // 根据行号找到对应的内容块元素
+    function getContentBlock(lineNum) {
+        const contentBody = document.querySelector('.content-body');
+        if (!contentBody) return null;
+        return contentBody.querySelector(`[data-line="${lineNum}"]`);
     }
 
     // 提交行评论
@@ -539,8 +684,9 @@
             popupComments.innerHTML = chtml;
             popupComments.scrollTop = popupComments.scrollHeight;
 
-            // 更新面板
+            // 更新面板和内容块标记
             renderLineList();
+            updateContentBlockMarkers();
         } catch (e) {
             alert('网络错误，请重试');
         }
@@ -600,6 +746,19 @@
         }
         this.textContent = isHidden ? '×' : '+';
         this.title = isHidden ? '隐藏行评论' : '显示行评论';
+    });
+
+    // 点击内容块打开行评论弹出框
+    document.addEventListener('click', function(e) {
+        // 检查是否点击了内容块
+        const contentBlock = e.target.closest('.content-body [data-line]');
+        if (contentBlock && !e.target.closest('.line-comments-container')) {
+            const lineNum = parseInt(contentBlock.getAttribute('data-line'));
+            if (lineNum) {
+                e.stopPropagation();
+                openPopup(lineNum, contentBlock);
+            }
+        }
     });
 
     // 初始化
