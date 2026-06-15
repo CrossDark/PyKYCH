@@ -8,11 +8,14 @@ from markdown import Markdown
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
+from lihil import Request
+
 from .. import db
 from .. import tag_manager
 from .. import comment_manager
 from .. import line_comment_manager
 from .. import rating_manager
+from ..auth import get_current_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -73,7 +76,7 @@ async def md_article_list(page: int = 1):
 
 
 @md_route.sub("/{slug}").get
-async def md_article_detail(slug: str):
+async def md_article_detail(request: Request, slug: str):
     """Markdown 文章详情页。"""
     article = await db.get_article_by_slug(slug)
     if not article:
@@ -94,6 +97,8 @@ async def md_article_detail(slug: str):
     line_comment_counts = await line_comment_manager.get_line_comment_counts("md", slug)
     # 加载评分
     rating = await rating_manager.get_article_rating("md", slug)
+    # 获取当前用户
+    current_user = await get_current_user(request)
     html_body = render_markdown(article["content"])
     return render(
         "md_detail.html",
@@ -104,4 +109,5 @@ async def md_article_detail(slug: str):
         line_comments=line_comments,
         line_comment_counts=line_comment_counts,
         rating=rating,
+        current_user=current_user,
     )

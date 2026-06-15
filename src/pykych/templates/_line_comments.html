@@ -254,6 +254,18 @@
     let lineCounts = {};
     let lineData = {}; // {lineNum: [comments]}
     let totalLines = 0;
+    let isLoggedIn = false;
+
+    // 检查登录状态
+    async function checkLoginState() {
+        try {
+            const resp = await fetch('/api/me');
+            const data = await resp.json();
+            isLoggedIn = !!(data && data.user);
+        } catch (e) {
+            isLoggedIn = false;
+        }
+    }
 
     // 统计内容行数
     function countLines() {
@@ -353,7 +365,26 @@
             });
         }
         popupComments.innerHTML = chtml;
-        popupInput.value = '';
+
+        // 根据登录状态显示不同表单
+        const formEl = popup.querySelector('.line-comment-popup-form');
+        if (!isLoggedIn) {
+            formEl.innerHTML = `<div style="width:100%;text-align:center;padding:0.4rem 0;font-size:0.8rem;color:var(--text-muted);">
+                <a href="/auth/login?next=${encodeURIComponent(window.location.pathname)}" style="color:var(--accent);font-weight:500;">登录</a> 后添加行评论
+            </div>`;
+        } else {
+            formEl.innerHTML = `
+                <input type="text" class="line-comment-input" maxlength="20" placeholder="输入短评（最多20字）...">
+                <button class="line-comment-submit">发送</button>`;
+            // 重新绑定事件
+            const newInput = formEl.querySelector('.line-comment-input');
+            const newSubmit = formEl.querySelector('.line-comment-submit');
+            newSubmit.addEventListener('click', submitLineComment);
+            newInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') submitLineComment();
+                if (e.key === 'Escape') closePopup();
+            });
+        }
 
         // 定位弹出框
         const rect = anchorEl.getBoundingClientRect();
@@ -367,8 +398,6 @@
         popup.style.left = left + 'px';
         popup.style.top = top + 'px';
         popup.style.display = 'flex';
-
-        setTimeout(() => popupInput.focus(), 100);
     }
 
     function closePopup() {
@@ -389,7 +418,7 @@
             });
 
             if (resp.status === 401) {
-                alert('请先登录后再添加行评论');
+                window.location.href = '/auth/login?next=' + encodeURIComponent(window.location.pathname);
                 return;
             }
 
@@ -431,12 +460,7 @@
         return div.innerHTML;
     }
 
-    // 事件绑定
-    popupSubmit.addEventListener('click', submitLineComment);
-    popupInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') submitLineComment();
-        if (e.key === 'Escape') closePopup();
-    });
+    // 事件绑定（关闭按钮和外部点击）
     popupClose.addEventListener('click', closePopup);
 
     // 点击外部关闭
@@ -455,6 +479,6 @@
     });
 
     // 初始化
-    setTimeout(loadLineComments, 200);
+    checkLoginState().then(() => loadLineComments());
 })();
 </script>

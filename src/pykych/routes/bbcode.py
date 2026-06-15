@@ -7,12 +7,15 @@ from starlette.responses import HTMLResponse
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
+from lihil import Request
+
 from .. import bbcode_db as db
 from ..bbcode_parser import parse_bbcode
 from .. import tag_manager
 from .. import comment_manager
 from .. import line_comment_manager
 from .. import rating_manager
+from ..auth import get_current_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -49,7 +52,7 @@ async def page_list(page: int = 1):
 
 
 @bbcode_route.sub("/{slug}").get
-async def page_detail(slug: str):
+async def page_detail(request: Request, slug: str):
     """BBCode 页面详情。"""
     page = await db.get_page_by_slug(slug)
     if not page:
@@ -69,6 +72,8 @@ async def page_detail(slug: str):
     line_comment_counts = await line_comment_manager.get_line_comment_counts("bbcode", slug)
     # 加载评分
     rating = await rating_manager.get_article_rating("bbcode", slug)
+    # 获取当前用户
+    current_user = await get_current_user(request)
     html_body = parse_bbcode(page["content"])
     return render(
         "bbcode_detail.html",
@@ -79,4 +84,5 @@ async def page_detail(slug: str):
         line_comments=line_comments,
         line_comment_counts=line_comment_counts,
         rating=rating,
+        current_user=current_user,
     )
