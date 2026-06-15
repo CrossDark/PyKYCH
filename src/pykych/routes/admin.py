@@ -708,6 +708,16 @@ async def delete_file_route(file_id: int, request: Request):
 
 # ===== 用户管理（仅站长） =====
 
+@admin_route.sub("/users").get
+async def manage_users(request: Request):
+    """用户管理页面 — 仅站长可访问。"""
+    user, err = await _require_owner(request)
+    if err: return err
+    users = await auth_mod.list_users()
+    return render("admin_users.html", title="用户管理 - PyKYCH",
+        current_user=user, users=users, error=None)
+
+
 @admin_route.sub("/users/add").post
 async def add_user(request: Request):
     """站长添加新用户。"""
@@ -720,18 +730,18 @@ async def add_user(request: Request):
     role = form.get("role", "user").strip()
 
     if not username or not password:
-        return redirect("/admin")
+        return redirect("/admin/users")
     if role not in ("user", "admin", "owner"):
         role = "user"
 
     try:
         existing = await auth_mod.get_user_by_username(username)
         if existing:
-            return redirect("/admin")
+            return redirect("/admin/users")
         await auth_mod.create_user(username, password, nickname, role=role)
     except Exception:
         pass
-    return redirect("/admin")
+    return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/delete").post
 async def delete_user(username: str, request: Request):
@@ -739,9 +749,9 @@ async def delete_user(username: str, request: Request):
     owner_user, err = await _require_owner(request)
     if err: return err
     if username == owner_user["username"]:
-        return redirect("/admin")
+        return redirect("/admin/users")
     await auth_mod.delete_user(username)
-    return redirect("/admin")
+    return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/reset-password").post
 async def reset_password(username: str, request: Request):
@@ -752,7 +762,7 @@ async def reset_password(username: str, request: Request):
     new_password = form.get("new_password", "")
     if new_password:
         await auth_mod.update_user_password(username, new_password)
-    return redirect("/admin")
+    return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/role").post
 async def change_role(username: str, request: Request):
@@ -760,12 +770,12 @@ async def change_role(username: str, request: Request):
     owner_user, err = await _require_owner(request)
     if err: return err
     if username == owner_user["username"]:
-        return redirect("/admin")  # 不允许修改自己的角色
+        return redirect("/admin/users")  # 不允许修改自己的角色
     form = await request.form()
     new_role = form.get("role", "user").strip()
     if new_role in ("user", "admin", "owner"):
         await auth_mod.update_user_role(username, new_role)
-    return redirect("/admin")
+    return redirect("/admin/users")
 
 # ===== 子站点链接管理（仅站长） =====
 

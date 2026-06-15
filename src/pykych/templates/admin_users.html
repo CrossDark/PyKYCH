@@ -1,0 +1,55 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+{% if permission_error %}
+<div class="wp-notice wp-notice-error" style="text-align:center;padding:1.25rem;">{{ permission_error }}</div>
+{% endif %}
+
+{% if error %}
+<div class="wp-notice wp-notice-error">{{ error }}</div>
+{% endif %}
+
+<div class="wp-card">
+    <div class="wp-card-header">
+        <h2>👥 用户管理（共 {{ users | length }} 人）</h2>
+        <button class="wp-btn wp-btn-primary wp-btn-sm" onclick="document.getElementById('userCreateForm').classList.toggle('hidden')">+ 添加新用户</button>
+    </div>
+    <div class="wp-card-body">
+        <div id="userCreateForm" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
+            <form method="POST" action="/admin/users/add" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+                <input name="username" placeholder="用户名" class="wp-form-input" style="flex:1;min-width:100px;" required>
+                <input name="password" type="password" placeholder="密码" class="wp-form-input" style="flex:1;min-width:100px;" required>
+                <input name="nickname" placeholder="昵称" class="wp-form-input" style="flex:1;min-width:100px;">
+                <select name="role" class="wp-form-input" style="width:auto;"><option value="user">用户</option><option value="admin">管理员</option><option value="owner">站长</option></select>
+                <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">添加</button>
+            </form>
+        </div>
+        {% if users %}
+        <table class="wp-table"><thead><tr><th>用户名</th><th>昵称</th><th>角色</th><th class="col-date">创建</th><th class="col-actions">操作</th></tr></thead><tbody>
+        {% for u in users %}<tr>
+            <td class="col-slug">{{ u.username }}</td>
+            <td>{{ u.nickname }}</td>
+            <td>{% if u.role=='owner' %}<span class="wp-badge wp-badge-danger">🔧 站长</span>{% elif u.role=='admin' %}<span class="wp-badge wp-badge-primary">🛡️ 管理员</span>{% else %}<span class="wp-badge">👤 用户</span>{% endif %}</td>
+            <td class="col-date">{{ u.created_at[:10] }}</td>
+            <td class="col-actions">
+                <form method="POST" action="/admin/users/{{ u.username }}/role" style="display:inline-flex;gap:0.2rem;">
+                    <select name="role" class="wp-form-input" style="padding:0.15rem 0.2rem;font-size:0.72rem;width:auto;"><option value="user" {% if u.role=='user' %}selected{% endif %}>用户</option><option value="admin" {% if u.role=='admin' %}selected{% endif %}>管理员</option><option value="owner" {% if u.role=='owner' %}selected{% endif %}>站长</option></select>
+                    <button type="submit" class="wp-btn wp-btn-secondary wp-btn-sm">💾</button>
+                </form>
+                <button class="wp-btn wp-btn-secondary wp-btn-sm" onclick="var f=this.nextElementSibling;f.classList.toggle('hidden')">🔑</button>
+                <form method="POST" action="/admin/users/{{ u.username }}/reset-password" style="display:inline-flex;gap:0.2rem;" class="hidden">
+                    <input name="new_password" type="password" placeholder="新密码" class="wp-form-input" style="width:90px;padding:0.15rem 0.3rem;font-size:0.72rem;" required>
+                    <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">确定</button>
+                </form>
+                {% if u.username != current_user.username %}
+                <form method="POST" action="/admin/users/{{ u.username }}/delete" style="display:inline" onsubmit="return confirm('确定删除用户 «{{ u.username }}» 吗？')"><button class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
+                {% endif %}
+            </td>
+        </tr>{% endfor %}
+        </tbody></table>
+        {% else %}<div class="wp-empty">暂无用户</div>{% endif %}
+    </div>
+</div>
+
+<style>.hidden { display: none !important; }</style>
+{% endblock %}
