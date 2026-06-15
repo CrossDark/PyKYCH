@@ -27,6 +27,56 @@ def _ensure_avatar_dir() -> None:
         logger.warning(f"无法创建头像目录 {AVATAR_DIR}: {e}")
 
 
+# ── 图片格式检测（基于文件头魔数） ──────────────────────────
+
+# 魔数签名: (前缀字节, 扩展名)
+_MAGIC_SIGNATURES: list[tuple[bytes, str]] = [
+    (b"\x89PNG\r\n\x1a\n", ".png"),
+    (b"\xff\xd8\xff", ".jpg"),       # JPEG 通用
+    (b"GIF87a", ".gif"),
+    (b"GIF89a", ".gif"),
+    (b"RIFF", ".webp"),              # WebP (需要额外检查 WEBPVP8)
+    (b"<svg", ".svg"),               # SVG (文本)
+    (b"\x00\x00\x01\x00", ".ico"),   # ICO
+    (b"<?xml", ".svg"),              # SVG (XML)
+    (b"BM", ".bmp"),                 # BMP
+]
+
+
+def _detect_image_ext(data: bytes, filename: str = "") -> str:
+    """
+    通过文件头魔数检测图片真实格式。
+    检测失败时回退到文件扩展名，再失败返回 ".png"。
+    """
+    # 1. WebP 特殊处理：RIFF + WEBPVP8
+    if data[:4] == b"RIFF" and len(data) >= 12 and data[8:16] == b"WEBPVP8 ":
+        return ".webp"
+    if data[:4] == b"RIFF" and len(data) >= 12 and data[8:15] == b"WEBPVP8":
+        return ".webp"
+
+    # 2. SVG 文本检测
+    text_head = data[:256].lstrip()  # 跳过 BOM/空白
+    if text_head[:4] == b"<svg" or text_head[:5] == b"<?xml":
+        return ".svg"
+
+    # 3. 通用魔数匹配
+    for magic, ext in _MAGIC_SIGNATURES:
+        if data[:len(magic)] == magic:
+            return ext
+
+    # 4. 回退到文件扩展名
+    if filename:
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".jfif"}:
+            # 统一 .jpeg/.jfif → .jpg
+            if ext in (".jpeg", ".jfif"):
+                return ".jpg"
+            return ext
+
+    # 5. 最终回退
+    return ".png"
+
+
 # ── 用户资料 CRUD ────────────────────────────────────────────
 
 
@@ -125,15 +175,14 @@ async def save_avatar(username: str, file_data: bytes, filename: str) -> Optiona
     """
     保存用户头像。返回头像 URL 路径，失败返回 None。
     会自动清理该用户的旧头像文件。
+    通过文件头魔数检测真实格式，不依赖文件扩展名。
     """
     if not file_data:
         logger.warning(f"用户 {username} 上传了空头像文件")
         return None
 
-    # 生成唯一文件名
-    ext = os.path.splitext(filename)[1].lower()
-    if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
-        ext = ".png"
+    # 通过文件头魔数检测真实图片格式
+    ext = _detect_image_ext(file_data, filename)
 
     avatar_name = f"{username}_{hashlib.md5(file_data).hexdigest()[:12]}{ext}"
     _ensure_avatar_dir()

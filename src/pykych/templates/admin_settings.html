@@ -2,7 +2,14 @@
 
 {% block content %}
 <div style="max-width:800px;">
-    <form method="POST" action="/admin/settings/update">
+    {% if error %}
+    <div class="wp-notice wp-notice-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="wp-notice wp-notice-success">{{ success }}</div>
+    {% endif %}
+
+    <form method="POST" action="/admin/settings/update" enctype="multipart/form-data">
     <div class="wp-card">
         <div class="wp-card-header"><h2>🏠 站点信息</h2></div>
         <div class="wp-card-body">
@@ -20,12 +27,37 @@
             </div>
             <div class="wp-form-row">
                 <div class="wp-form-group">
-                    <label>Logo 路径</label>
-                    <input type="text" name="site_logo_path" class="wp-form-input" value="{{ settings.site.logo_path|default('/static/img/logo.png')|e }}">
-                </div>
-                <div class="wp-form-group">
                     <label>ICP 备案号</label>
                     <input type="text" name="site_icp" class="wp-form-input" value="{{ settings.site.icp_number|default('')|e }}">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logo 和 Favicon 上传 -->
+    <div class="wp-card">
+        <div class="wp-card-header"><h2>🖼️ 站点图标</h2></div>
+        <div class="wp-card-body">
+            <div class="wp-form-row">
+                <div class="wp-form-group">
+                    <label>站点 Logo <span class="wp-hint">— 支持 PNG、JPEG、JPG、GIF、WebP、SVG、ICO</span></label>
+                    {% if settings.site.logo_path and settings.site.logo_path != '/static/img/logo.png' %}
+                    <div style="margin-bottom:0.5rem;">
+                        <img src="{{ settings.site.logo_path }}" alt="Logo 预览" style="max-height:48px;border:1px solid var(--wp-border-light);border-radius:4px;padding:2px;">
+                    </div>
+                    {% endif %}
+                    <input type="file" name="logo_file" accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.ico,image/png,image/jpeg,image/gif,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon" class="wp-form-input" style="padding:0.4rem;">
+                    <input type="hidden" name="site_logo_path" value="{{ settings.site.logo_path|default('/static/img/logo.png')|e }}">
+                </div>
+                <div class="wp-form-group">
+                    <label>Favicon <span class="wp-hint">— 浏览器标签页图标，支持 ICO、PNG、SVG</span></label>
+                    {% if settings.site.favicon_path and settings.site.favicon_path != '/static/img/favicon.ico' %}
+                    <div style="margin-bottom:0.5rem;">
+                        <img src="{{ settings.site.favicon_path }}" alt="Favicon 预览" style="max-height:32px;border:1px solid var(--wp-border-light);border-radius:4px;padding:2px;">
+                    </div>
+                    {% endif %}
+                    <input type="file" name="favicon_file" accept=".ico,.png,.svg,.jpg,.jpeg,image/x-icon,image/vnd.microsoft.icon,image/png,image/svg+xml,image/jpeg" class="wp-form-input" style="padding:0.4rem;">
+                    <input type="hidden" name="favicon_path" value="{{ settings.site.favicon_path|default('/static/img/favicon.ico')|e }}">
                 </div>
             </div>
         </div>

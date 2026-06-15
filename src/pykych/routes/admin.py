@@ -836,18 +836,42 @@ async def manage_site_settings(request: Request):
 
 @admin_route.sub("/settings/update").post
 async def update_site_settings(request: Request):
-    """更新站点设置。"""
+    """更新站点设置（含 Logo/Favicon 上传）。"""
     user, err = await _check(request)
     if err: return err
     if not auth_mod.is_owner(user):
         return redirect("/admin")
 
     form = await request.form()
+
+    # ── Logo 上传 ──
+    logo_file = form.get("logo_file")
+    if logo_file is not None and hasattr(logo_file, "filename") and logo_file.filename:
+        content = await logo_file.read()
+        if content and len(content) <= 2 * 1024 * 1024:
+            logo_url = await _save_site_asset("logo", content, logo_file.filename)
+            if logo_url:
+                settings_manager.set_setting("site.logo_path", logo_url)
+
+    # ── Favicon 上传 ──
+    favicon_file = form.get("favicon_file")
+    if favicon_file is not None and hasattr(favicon_file, "filename") and favicon_file.filename:
+        content = await favicon_file.read()
+        if content and len(content) <= 512 * 1024:  # 512KB for favicon
+            favicon_url = await _save_site_asset("favicon", content, favicon_file.filename)
+            if favicon_url:
+                settings_manager.set_setting("site.favicon_path", favicon_url)
+
+    # ── 如果没上传新文件，保留旧路径 ──
+    if not (logo_file is not None and hasattr(logo_file, "filename") and logo_file.filename):
+        settings_manager.set_setting("site.logo_path", form.get("site_logo_path", "").strip())
+    if not (favicon_file is not None and hasattr(favicon_file, "filename") and favicon_file.filename):
+        settings_manager.set_setting("site.favicon_path", form.get("favicon_path", "").strip())
+
     # 站点信息
     settings_manager.set_setting("site.title", form.get("site_title", "").strip())
     settings_manager.set_setting("site.subtitle", form.get("site_subtitle", "").strip())
     settings_manager.set_setting("site.description", form.get("site_description", "").strip())
-    settings_manager.set_setting("site.logo_path", form.get("site_logo_path", "").strip())
     settings_manager.set_setting("site.icp_number", form.get("site_icp", "").strip())
 
     # 外观
@@ -866,6 +890,34 @@ async def update_site_settings(request: Request):
     settings_manager.set_setting("social.email", form.get("email", "").strip())
 
     return redirect("/admin/settings")
+
+
+async def _save_site_asset(name: str, data: bytes, filename: str) -> str | None:
+    """保存站点资源文件（logo、favicon）到 static/img/ 目录。返回 URL。"""
+    import os, hashlib
+    from pathlib import Path
+
+    STATIC_IMG = Path(__file__).parent.parent / "static" / "img"
+    STATIC_IMG.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(filename)[1].lower()
+    # 允许的扩展名
+    ALLOWED = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"}
+    if ext not in ALLOWED:
+        ext = ".png"  # 回退
+
+    unique = hashlib.md5(data).hexdigest()[:12]
+    safe_name = f"{name}_{unique}{ext}"
+    save_path = STATIC_IMG / safe_name
+
+    try:
+        with open(save_path, "wb") as f:
+            f.write(data)
+        return f"/static/img/{safe_name}"
+    except (OSError, PermissionError) as e:
+        from .. import logger
+        logger.error(f"保存站点资源失败 {save_path}: {e}")
+        return None
 
 
 # ===== 用户资料路由 =====
