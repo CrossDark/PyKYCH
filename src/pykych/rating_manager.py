@@ -41,7 +41,13 @@ async def get_user_rating(
                 (article_type, article_slug, author_name),
             )
             row = await cur.fetchone()
-            return row_to_dict(row, cur) if row else None
+            if row:
+                result = row_to_dict(row, cur)
+                # 确保 score 是 float（MySQL DECIMAL 可能返回 Decimal 类型）
+                if "score" in result and result["score"] is not None:
+                    result["score"] = float(result["score"])
+                return result
+            return None
 
 
 async def set_rating(
@@ -66,3 +72,26 @@ async def set_rating(
 
     # 返回更新后的汇总
     return await get_article_rating(article_type, article_slug)
+
+
+async def get_all_ratings(article_type: str, article_slug: str) -> list[dict]:
+    """获取文章的所有用户评分详情（按时间倒序）。"""
+    pool = await get_sys_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT author_name, score, created_at "
+                "FROM ratings "
+                "WHERE article_type = %s AND article_slug = %s "
+                "ORDER BY created_at DESC",
+                (article_type, article_slug),
+            )
+            rows = await cur.fetchall()
+            results = []
+            for row in rows:
+                results.append({
+                    "author_name": row[0],
+                    "score": float(row[1]),
+                    "created_at": str(row[2]) if row[2] else "",
+                })
+            return results

@@ -364,6 +364,13 @@ async def api_get_rating(request: Request, article_type: str, article_slug: str)
     }
 
 
+@ratings_api.sub("/{article_type}/{article_slug}/details").get
+async def api_get_rating_details(request: Request, article_type: str, article_slug: str):
+    """获取文章的所有用户评分详情。"""
+    details = await rating_manager.get_all_ratings(article_type, article_slug)
+    return {"ratings": details}
+
+
 @ratings_api.sub("/{article_type}/{article_slug}").post
 async def api_set_rating(request: Request, article_type: str, article_slug: str):
     """提交或更新评分。"""
