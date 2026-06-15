@@ -264,14 +264,8 @@ async def _article_update(article_type: str, slug: str, request: Request):
             article={"title": title, "slug": slug, "content": content},
             error=error)
 
-    result = await article_manager.update_article(article_type, slug, title, content)
-    if result is None:
-        return render("admin_form.html", title="编辑失败",
-            form_title=cfg["form_title_edit"],
-            action=f"/admin/{article_type}/{slug}/edit",
-            article_type=article_type,
-            article={"title": title, "slug": slug, "content": content},
-            error=f"文章 '{slug}' 不存在。")
+    # 更新文章内容（标题/内容未变化时 rowcount 可能为 0，但文章已在上方确认存在）
+    await article_manager.update_article(article_type, slug, title, content)
 
     # 更新标签
     tag_names = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
