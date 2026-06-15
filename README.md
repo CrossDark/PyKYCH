@@ -277,6 +277,81 @@ description: 自定义主题
 
 MIT License © 2026 跨越晨昏
 
+## Docker 部署
+
+保持现有部署方式不变，额外提供 Docker 容器化部署方案。
+
+### 前置要求
+
+- [Docker](https://docs.docker.com/get-docker/) >= 20.10
+- [Docker Compose](https://docs.docker.com/compose/install/) >= 2.0
+
+### 1. 克隆项目
+
+```bash
+git clone <repo-url>
+cd PyKYCH
+```
+
+### 2. 配置环境变量（可选）
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env` 修改 MySQL 密码：
+
+```env
+MYSQL_ROOT_PASSWORD=your_root_password
+MYSQL_PASSWORD=your_app_password
+```
+
+### 3. 启动服务
+
+```bash
+docker compose up -d
+```
+
+首次启动会自动：
+- 拉取并构建应用镜像
+- 启动 MySQL 8.0 容器（端口映射到 `3307` 避免冲突）
+- 等待 MySQL 健康检查通过后启动应用
+- 自动创建数据库和表
+- 创建默认管理员账号
+
+### 4. 访问
+
+- 网站首页: http://localhost:8000
+- 管理后台: http://localhost:8000/admin
+- 默认账号: `admin` / `admin123`
+
+### 5. 常用命令
+
+```bash
+# 查看日志
+docker compose logs -f app
+
+# 停止服务
+docker compose down
+
+# 停止并删除数据卷（⚠️ 会清除数据库和上传文件）
+docker compose down -v
+
+# 重新构建镜像
+docker compose build --no-cache
+
+# 更新后重启
+docker compose up -d --build
+```
+
+### 6. 自定义配置
+
+**使用外部数据库：** 修改 `.env` 或 `docker-compose.yml` 中的数据库连接变量，并移除 `mysql` 服务。
+
+**挂载自定义 db.yaml：** 在 `docker-compose.yml` 中取消注释 `settings/db.yaml` 的挂载配置，然后创建 `settings/db.yaml` 文件。挂载后环境变量配置将被忽略。
+
+**持久化数据：** 应用数据（头像、插件、主题、站点设置）通过 `app_data` 卷持久化。MySQL 数据通过 `mysql_data` 卷持久化。即使容器被删除，数据也不会丢失。
+
 ## 生产部署 (Ubuntu 24.04 + Nginx)
 
 ### 1. 服务器环境准备

@@ -1,0 +1,55 @@
+# ── Docker 忽略文件 ───────────────────────────────────────
+
+# Python
+__pycache__/
+*.py[codz]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 文档
+README.md
+TODO.md
+LICENSE
+
+# Docker 自身
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 运行时数据（通过 volume 挂载）
+data/avatars/*
+data/plugins/*
+!data/plugins/__init__.py
+
+# 敏感配置文件（防止本地凭据泄露到镜像中）
+settings/db.yaml
+.env
+
+# 测试
+tests/
+*.test.py
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

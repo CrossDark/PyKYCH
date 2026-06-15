@@ -1,0 +1,58 @@
+# ── PyKYCH Docker 部署 ────────────────────────────────────
+# 使用: docker compose up -d
+
+services:
+  # ── MySQL 数据库 ──────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: pykych-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: pykych
+      MYSQL_USER: pykych
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pykych}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"  # 映射到 3307 避免与本机 MySQL 冲突
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+
+  # ── PyKYCH 应用 ──────────────────────────────────────────
+  app:
+    build: .
+    container_name: pykych-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: pykych
+      DB_PASSWORD: ${MYSQL_PASSWORD:-pykych}
+      DB_NAME: pykych
+      DB_POOL_MIN: 2
+      DB_POOL_MAX: 10
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化运行时数据（头像、插件、主题、站点设置）
+      - app_data:/app/data
+      # 如需使用自定义 db.yaml，取消下方注释并创建 settings/db.yaml
+      # - ./settings/db.yaml:/app/settings/db.yaml:ro
+
+volumes:
+  mysql_data:
+    driver: local
+  app_data:
+    driver: local
