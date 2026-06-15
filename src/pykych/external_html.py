@@ -369,3 +369,181 @@ async def fetch_specific_page(site_id: int, path: str) -> dict:
     body = _rewrite_links(body, site["source_url"], site["name"])
     await save_page(site_id, path, title, body)
     return {"status": "ok", "message": f"成功缓存 {url}", "title": title}
+
+
+# ── 全面导入（爬虫） ──────────────────────────────────────
+
+# 非 HTML 资源的文件扩展名（爬虫应跳过这些链接）
+_SKIP_EXTENSIONS = {
+    ".css", ".js", ".json", ".xml", ".rss", ".atom",
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".bmp",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar",
+    ".mp3", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    ".map", ".txt", ".csv", ".tsv",
+}
+
+
+def _is_html_link(url: str) -> bool:
+    """判断链接是否指向 HTML 页面（而非资源文件）。"""
+    # 去掉查询参数和锚点
+    path = url.split("?")[0].split("#")[0]
+    # 如果路径以已知非 HTML 扩展名结尾，跳过
+    lower = path.lower()
+    for ext in _SKIP_EXTENSIONS:
+        if lower.endswith(ext):
+            return False
+    # 如果没有扩展名或扩展名看起来像 HTML 相关，视为 HTML
+    last_segment = path.rstrip("/").rsplit("/", 1)[-1] if path.rstrip("/") else ""
+    if "." not in last_segment:
+        return True
+    ext = "." + last_segment.rsplit(".", 1)[-1].lower()
+    return ext not in _SKIP_EXTENSIONS
+
+
+def _extract_internal_links(html: str, source_domain: str) -> list[str]:
+    """从 HTML 正文中提取所有内部 href 链接（指向同域名下的 HTML 页面）。
+    
+    Args:
+        html: 页面 HTML 内容
+        source_domain: 源站点域名（含 scheme，如 https://example.com）
+    
+    Returns:
+        去重后的路径列表（相对路径格式，不含域名）
+    """
+    parsed_domain = urlparse(source_domain)
+    domain_netloc = parsed_domain.netloc
+
+    links: set[str] = set()
+
+    # 匹配 href 属性
+    href_pattern = re.compile(
+        r"""href\s*=\s*["']([^"']+)["']""",
+        re.IGNORECASE,
+    )
+
+    for match in href_pattern.finditer(html):
+        url = match.group(1).strip()
+
+        # 跳过特殊协议
+        if url.startswith(("data:", "mailto:", "javascript:", "tel:", "ftp:", "#")):
+            continue
+        # 跳过纯锚点
+        if not url or url.startswith("#"):
+            continue
+
+        # 处理绝对 URL
+        if url.startswith(("http://", "https://")):
+            parsed = urlparse(url)
+            if parsed.netloc != domain_netloc:
+                continue  # 外部链接，跳过
+            # 同域链接，提取路径
+            path = parsed.path.strip("/")
+            if not _is_html_link(path):
+                continue
+            if path:
+                links.add(path)
+            else:
+                links.add("")  # 首页
+        else:
+            # 相对 URL
+            clean = url.split("?")[0].split("#")[0].strip("/")
+            if not _is_html_link(clean):
+                continue
+            links.add(clean if clean else "")
+
+    return list(links)
+
+
+async def crawl_and_cache_site(site_id: int, max_pages: int = 500) -> dict:
+    """全面导入：爬取外部站点的所有内部 HTML 页面并缓存，同时重构内部链接。
+    
+    使用 BFS 策略从首页开始递归发现并抓取所有同域 HTML 页面。
+    每个页面中的内部链接会被重写为本站 /html/{site_name}/... 路由。
+    
+    Args:
+        site_id: 外部站点 ID
+        max_pages: 最大抓取页数（防止无限爬取），默认 500
+    
+    Returns:
+        {"status": "ok"/"error", "message": str, "pages": int, "errors": list}
+    """
+    site = await get_external_site(site_id)
+    if not site or not site["is_active"]:
+        return {"status": "error", "message": "站点不存在或已停用"}
+
+    source_url = site["source_url"]
+    site_name = site["name"]
+    parsed_source = urlparse(source_url)
+    source_domain = f"{parsed_source.scheme}://{parsed_source.netloc}"
+
+    # 清除旧缓存，准备全新导入
+    await clear_site_cache(site_id)
+
+    # BFS 爬取队列：(path, url)
+    # path 是本站缓存路径，url 是源站完整 URL
+    visited_urls: set[str] = set()
+    visited_paths: set[str] = set()
+    to_visit: list[tuple[str, str]] = [("", source_url)]  # 首页
+    cached_count = 0
+    errors: list[str] = []
+
+    while to_visit and cached_count < max_pages:
+        path, url = to_visit.pop(0)
+
+        # 去重检查
+        normalized_url = url.rstrip("/")
+        if normalized_url in visited_urls:
+            continue
+        visited_urls.add(normalized_url)
+        if path in visited_paths:
+            # 同一路径已被其他 URL 覆盖，跳过
+            continue
+        visited_paths.add(path)
+
+        # 抓取页面
+        result = await fetch_page(url)
+        if result is None:
+            errors.append(f"无法访问: {url}")
+            continue
+
+        title, body = result
+
+        # 在重写链接之前提取内部链接（使用原始 body）
+        internal_links = _extract_internal_links(body, source_domain)
+
+        # 重写链接为本站路由
+        body = _rewrite_links(body, source_url, site_name)
+
+        # 保存页面
+        await save_page(site_id, path, title, body)
+        cached_count += 1
+
+        # 将新发现的内部链接加入待爬取队列
+        for link_path in internal_links:
+            # 构建完整 URL
+            if link_path == "":
+                link_url = source_url
+            elif link_path.startswith("http"):
+                link_url = link_path
+            else:
+                link_url = urljoin(source_url, "/" + link_path)
+
+            normalized = link_url.rstrip("/")
+            if normalized not in visited_urls and normalized not in {u.rstrip("/") for _, u in to_visit}:
+                to_visit.append((link_path, link_url))
+
+    # 自动标签
+    auto_tags = site.get("auto_tags", "")
+    if auto_tags:
+        tag_names = [t.strip() for t in auto_tags.split(",") if t.strip()]
+        for tag_name in tag_names:
+            await tag_manager.add_tag_to_article("html", f"ext:{site_name}", tag_name)
+
+    return {
+        "status": "ok",
+        "message": f"成功导入 {cached_count} 个页面" + (f"，{len(errors)} 个失败" if errors else ""),
+        "pages": cached_count,
+        "errors": errors,
+    }

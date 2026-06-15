@@ -7,6 +7,21 @@
 {% if success %}
 <div class="wp-notice wp-notice-success">{{ success }}</div>
 {% endif %}
+{% if crawl_result %}
+<div class="wp-notice wp-notice-info" style="margin-bottom:1rem;">
+  <strong>📥 导入结果：</strong>{{ crawl_result.message }}
+  {% if crawl_result.errors %}
+  <details style="margin-top:0.5rem;">
+    <summary style="cursor:pointer;font-size:0.82rem;">失败详情（{{ crawl_result.errors | length }} 个）</summary>
+    <ul style="margin-top:0.3rem;font-size:0.8rem;max-height:200px;overflow-y:auto;">
+      {% for e in crawl_result.errors %}
+      <li>{{ e }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- 添加站点 -->
 <div class="wp-card">
@@ -47,11 +62,15 @@
                     <td>{{ s.page_count }}</td>
                     <td><span style="font-size:0.8rem;color:var(--wp-text-muted);">{{ s.auto_tags }}</span></td>
                     <td class="col-date">{{ s.created_at[:10] if s.created_at else '' }}</td>
-                    <td class="col-actions">
-                        <a href="/html/{{ s.name }}" class="wp-btn wp-btn-outline wp-btn-sm" target="_blank">👁</a>
-                        <form method="POST" action="/admin/external/{{ s.id }}/fetch" style="display:inline"><button type="submit" class="wp-btn wp-btn-success wp-btn-sm">🔄</button></form>
-                        <form method="POST" action="/admin/external/{{ s.id }}/toggle" style="display:inline"><button type="submit" class="wp-btn wp-btn-sm {% if s.is_active %}wp-btn-secondary{% else %}wp-btn-success{% endif %}">{% if s.is_active %}⏸{% else %}▶{% endif %}</button></form>
-                        <form method="POST" action="/admin/external/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
+                    <td class="col-actions" style="white-space:nowrap;">
+                        <a href="/html/{{ s.name }}" class="wp-btn wp-btn-outline wp-btn-sm" target="_blank" title="预览">👁</a>
+                        <form method="POST" action="/admin/external/{{ s.id }}/crawl" style="display:inline" onsubmit="return confirm('全面导入将爬取该站点所有 HTML 页面（最多 500 页），可能需要较长时间。确定继续？')">
+                            <input type="hidden" name="max_pages" value="500">
+                            <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm" title="全面导入">📥</button>
+                        </form>
+                        <form method="POST" action="/admin/external/{{ s.id }}/fetch" style="display:inline"><button type="submit" class="wp-btn wp-btn-success wp-btn-sm" title="刷新首页">🔄</button></form>
+                        <form method="POST" action="/admin/external/{{ s.id }}/toggle" style="display:inline"><button type="submit" class="wp-btn wp-btn-sm {% if s.is_active %}wp-btn-secondary{% else %}wp-btn-success{% endif %}" title="{% if s.is_active %}停用{% else %}启用{% endif %}">{% if s.is_active %}⏸{% else %}▶{% endif %}</button></form>
+                        <form method="POST" action="/admin/external/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm" title="删除">🗑</button></form>
                     </td>
                 </tr>
                 {% endfor %}

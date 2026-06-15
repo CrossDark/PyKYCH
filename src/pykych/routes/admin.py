@@ -567,12 +567,47 @@ async def edit_external_site(site_id: int, request: Request):
 
 @admin_route.sub("/external/{site_id}/fetch").post
 async def fetch_external_site(site_id: int, request: Request):
-    """手动刷新外部站点缓存。"""
+    """手动刷新外部站点首页缓存。"""
     user, err = await _check(request)
     if err: return err
     if not auth_mod.is_admin(user):
         return redirect("/admin")
     result = await external_html.fetch_and_cache_site(site_id)
+    return redirect("/admin/external")
+
+@admin_route.sub("/external/{site_id}/crawl").post
+async def crawl_external_site(site_id: int, request: Request):
+    """全面导入：爬取外部站点所有 HTML 页面并缓存。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    max_pages_str = form.get("max_pages", "500").strip()
+    try:
+        max_pages = int(max_pages_str)
+    except ValueError:
+        max_pages = 500
+    result = await external_html.crawl_and_cache_site(site_id, max_pages=max_pages)
+    sites = await external_html.list_external_sites()
+    return render("admin_external.html", title="外部站点管理 - PyKYCH",
+        current_user=user, sites=sites,
+        success=result.get("message", ""),
+        crawl_result=result,
+        error=None)
+
+@admin_route.sub("/external/{site_id}/toggle").post
+async def toggle_external_site(site_id: int, request: Request):
+    """切换外部站点启用/停用状态。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    site = await external_html.get_external_site(site_id)
+    if site:
+        await external_html.update_external_site(
+            site_id, is_active=not site.get("is_active", True)
+        )
     return redirect("/admin/external")
 
 @admin_route.sub("/external/{site_id}/clear-cache").post
