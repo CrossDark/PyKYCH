@@ -17,6 +17,8 @@
 **交互功能**
 - 🔍 **全文搜索** — 跨四种文章类型的全文内容检索
 - 💬 **评论区** — 所有文章底部统一的评论系统
+- 📝 **行评论** — 针对文章每一行的短评系统（≤20字），宽屏侧栏 + 文章左侧行号标注
+- ⭐ **评分系统** — [-1, 1] 区间浮点评分，实时汇总展示
 - 🏷️ **标签系统** — 文章标签管理，侧栏导航，标签聚合页
 - 🔔 **通知系统** — 后台发布重要通知，首页醒目展示
 - 🌙 **黑暗模式** — 纯白/纯黑双主题，跟随系统偏好，无闪烁切换
@@ -73,6 +75,8 @@ PyKYCH/
 │       ├── notification_manager.py  # 通知管理
 │       ├── external_html.py     # 外部站点抓取缓存
 │       ├── file_manager.py      # 静态文件管理
+│       ├── line_comment_manager.py  # 行评论管理
+│       ├── rating_manager.py    # 评分管理
 │       ├── mysql_manager.py     # 连接池 & 表初始化
 │       ├── routes/
 │       │   ├── auth.py          # /auth (登录/登出)
@@ -103,6 +107,8 @@ PyKYCH/
 | `tags` | 标签 |
 | `article_tags` | 文章-标签关联 |
 | `comments` | 评论 |
+| `line_comments` | 行评论（每行短评，≤20字） |
+| `ratings` | 文章评分（[-1, 1] 浮点） |
 | `subsite_links` | 子站点链接 |
 | `featured_articles` | 主页推荐文章 |
 | `notifications` | 通知 |

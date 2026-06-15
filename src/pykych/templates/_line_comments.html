@@ -644,7 +644,10 @@
 
     // 提交行评论
     async function submitLineComment() {
-        const content = popupInput.value.trim();
+        // 每次从 DOM 重新查询，因为 openPopup 会重建表单元素
+        const inputEl = popup.querySelector('.line-comment-input');
+        if (!inputEl) return;
+        const content = inputEl.value.trim();
         if (!content || currentLine === null) return;
 
         try {
@@ -670,7 +673,7 @@
             lineData[currentLine].push(data.comment);
             lineCounts[currentLine] = (lineCounts[currentLine] || 0) + 1;
 
-            popupInput.value = '';
+            inputEl.value = '';
 
             // 刷新弹出框内容
             const comments = lineData[currentLine] || [];
