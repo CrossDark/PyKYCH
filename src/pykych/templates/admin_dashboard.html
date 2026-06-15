@@ -37,18 +37,7 @@
     </div>
 </div>
 
-<!-- Tab 导航 -->
-<div class="wp-tabs">
-    <button class="wp-tab-btn active" data-tab="articles">📝 文章管理</button>
-    <button class="wp-tab-btn" data-tab="tags">🏷️ 标签管理</button>
-    <button class="wp-tab-btn" data-tab="homepage">🏠 主页管理</button>
-    {% if current_user and current_user.role == 'owner' %}
-    <button class="wp-tab-btn" data-tab="users">👥 用户管理</button>
-    {% endif %}
-</div>
-
 <!-- ══ 文章管理 ══ -->
-<div class="wp-tab-panel active" id="tab-articles">
     <!-- Markdown -->
     <div class="wp-card">
         <div class="wp-card-header">
@@ -140,112 +129,8 @@
             </tbody></table>{% else %}<div class="wp-empty">暂无 BBCode 文章</div>{% endif %}
         </div>
     </div>
-</div>
 
-<!-- ══ 标签管理 ══ -->
-<div class="wp-tab-panel" id="tab-tags">
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>🏷️ 标签列表</h2>
-            <form method="POST" action="/admin/tags/create" style="display:flex;gap:0.35rem;">
-                <input type="text" name="name" class="wp-form-input" placeholder="新标签名称..." required style="width:180px;">
-                <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">+ 创建</button>
-            </form>
-        </div>
-        <div class="wp-card-body no-padding">
-            {% if tags %}
-            <table class="wp-table"><thead><tr><th>标签</th><th>文章数</th><th>操作</th></tr></thead><tbody>
-            {% for tag in tags %}<tr>
-                <td><span class="wp-badge wp-badge-primary">#{{ tag.name }}</span></td>
-                <td>{{ tag.count }} 篇</td>
-                <td>
-                    <form method="POST" action="/admin/tags/{{ tag.id }}/rename" style="display:inline-flex;gap:0.25rem;">
-                        <input type="text" name="new_name" class="wp-form-input" value="{{ tag.name }}" style="width:110px;padding:0.2rem 0.4rem;font-size:0.78rem;" required>
-                        <button type="submit" class="wp-btn wp-btn-secondary wp-btn-sm" title="重命名">💾</button>
-                    </form>
-                    <form method="POST" action="/admin/tags/{{ tag.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除标签 #{{ tag.name }} 吗？')"><button class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
-                </td>
-            </tr>{% endfor %}
-            </tbody></table>
-            {% else %}<div class="wp-empty">暂无标签</div>{% endif %}
-        </div>
-    </div>
-</div>
-
-<!-- ══ 主页管理 ══ -->
-<div class="wp-tab-panel" id="tab-homepage">
-    <!-- 通知管理 -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>🔔 通知管理</h2>
-            <button class="wp-btn wp-btn-primary wp-btn-sm" onclick="document.getElementById('notifCreateForm').classList.toggle('hidden')">+ 发布新通知</button>
-        </div>
-        <div class="wp-card-body">
-            <div id="notifCreateForm" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
-                <form method="POST" action="/admin/notifications/create" style="display:flex;flex-direction:column;gap:0.5rem;">
-                    <input type="text" name="title" class="wp-form-input" placeholder="通知标题" required>
-                    <textarea name="content" class="wp-form-input" placeholder="通知内容..." rows="3" required style="min-height:80px;"></textarea>
-                    <div style="display:flex;gap:0.5rem;align-items:center;">
-                        <label style="font-size:0.85rem;display:flex;align-items:center;gap:0.25rem;cursor:pointer;"><input type="checkbox" name="is_important" value="1"> ⭐ 重要（首页显示）</label>
-                        <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">📢 发布</button>
-                    </div>
-                </form>
-            </div>
-            {% if notifications %}
-            {% for n in notifications %}
-            <div style="background:var(--wp-table-stripe);border:1px solid var(--wp-border-light);border-radius:4px;padding:0.75rem 1rem;margin-bottom:0.5rem;{% if not n.is_active %}opacity:0.5;{% endif %}">
-                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.3rem;">
-                    <strong style="font-size:0.88rem;">{{ n.title }}</strong>
-                    <span style="font-size:0.75rem;color:var(--wp-text-muted);display:flex;gap:0.3rem;align-items:center;">
-                        {% if n.is_important %}<span class="wp-badge wp-badge-danger">⭐</span>{% endif %}
-                        {% if not n.is_active %}<span class="wp-badge">停用</span>{% endif %}
-                        {{ n.created_at[:10] }}
-                    </span>
-                </div>
-                <div style="font-size:0.82rem;color:var(--wp-text-secondary);margin:0.3rem 0;white-space:pre-wrap;">{{ n.content }}</div>
-                <div style="display:flex;gap:0.25rem;">
-                    <form method="POST" action="/admin/notifications/{{ n.id }}/toggle-important" style="display:inline"><button class="wp-btn wp-btn-sm {% if n.is_important %}wp-btn-secondary{% else %}wp-btn-primary{% endif %}">{% if n.is_important %}☆{% else %}⭐{% endif %}</button></form>
-                    <form method="POST" action="/admin/notifications/{{ n.id }}/toggle-active" style="display:inline"><button class="wp-btn wp-btn-sm {% if n.is_active %}wp-btn-secondary{% else %}wp-btn-success{% endif %}">{% if n.is_active %}⏸{% else %}▶{% endif %}</button></form>
-                    <form method="POST" action="/admin/notifications/{{ n.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除？')"><button class="wp-btn wp-btn-sm wp-btn-danger">🗑</button></form>
-                </div>
-            </div>{% endfor %}
-            {% else %}<div class="wp-empty">暂无通知</div>{% endif %}
-        </div>
-    </div>
-
-    {% if current_user.role == 'owner' %}
-    <!-- 外部站点 -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>🌐 外部站点</h2>
-            <button class="wp-btn wp-btn-primary wp-btn-sm" onclick="document.getElementById('extCreateForm').classList.toggle('hidden')">+ 添加</button>
-        </div>
-        <div class="wp-card-body">
-            <div id="extCreateForm" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
-                <form method="POST" action="/admin/external/add" style="display:flex;flex-wrap:wrap;gap:0.4rem;">
-                    <input name="name" class="wp-form-input" placeholder="站点标识" style="flex:1;min-width:100px;" required>
-                    <input name="source_url" class="wp-form-input" placeholder="https://..." style="flex:2;min-width:180px;" required>
-                    <input name="auto_tags" class="wp-form-input" placeholder="自动标签" style="flex:1;min-width:100px;">
-                    <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">添加</button>
-                </form>
-            </div>
-            {% if ext_sites %}
-            {% for s in ext_sites %}
-            <div style="background:var(--wp-table-stripe);border:1px solid var(--wp-border-light);border-radius:4px;padding:0.75rem 1rem;margin-bottom:0.5rem;{% if not s.is_active %}opacity:0.5;{% endif %}">
-                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.3rem;">
-                    <strong>{{ s.name }}</strong>
-                    <span style="font-size:0.78rem;color:var(--wp-text-muted);">{{ s.page_count }} 页 · {{ s.source_url[:40] }}</span>
-                </div>
-                <div style="display:flex;gap:0.25rem;margin-top:0.3rem;">
-                    <a href="/html/{{ s.name }}" class="wp-btn wp-btn-outline wp-btn-sm" target="_blank">👁</a>
-                    <form method="POST" action="/admin/external/{{ s.id }}/fetch" style="display:inline"><button class="wp-btn wp-btn-sm wp-btn-success">🔄</button></form>
-                    <form method="POST" action="/admin/external/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除？')"><button class="wp-btn wp-btn-sm wp-btn-danger">🗑</button></form>
-                </div>
-            </div>{% endfor %}
-            {% else %}<div class="wp-empty">暂无外部站点</div>{% endif %}
-        </div>
-    </div>
-
+{% if current_user.role == 'owner' %}
     <!-- 子站点链接 -->
     <div class="wp-card">
         <div class="wp-card-header">
@@ -316,11 +201,9 @@
         </div>
     </div>
     {% endif %}
-</div>
 
 <!-- ══ 用户管理（仅站长） ══ -->
 {% if current_user and current_user.role == 'owner' %}
-<div class="wp-tab-panel" id="tab-users">
     <div class="wp-card">
         <div class="wp-card-header">
             <h2>👥 用户管理</h2>
@@ -362,19 +245,7 @@
             {% else %}<div class="wp-empty">暂无用户</div>{% endif %}
         </div>
     </div>
-</div>
 {% endif %}
 
 <style>.hidden { display: none !important; }</style>
-
-<script>
-document.querySelectorAll('.wp-tab-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.wp-tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.wp-tab-panel').forEach(p => p.classList.remove('active'));
-        this.classList.add('active');
-        document.getElementById('tab-' + this.dataset.tab).classList.add('active');
-    });
-});
-</script>
 {% endblock %}

@@ -369,22 +369,6 @@
         .wp-badge-danger { background: rgba(214,54,56,0.1); color: var(--wp-danger); }
         .wp-badge-success { background: rgba(0,138,32,0.1); color: var(--wp-success); }
 
-        /* ===== 标签页 ===== */
-        .wp-tabs {
-            display: flex; gap: 0; border-bottom: 2px solid var(--wp-border-light);
-            margin-bottom: 1.25rem;
-        }
-        .wp-tab-btn {
-            padding: 0.55rem 1.1rem; font-size: 0.85rem; font-weight: 600;
-            cursor: pointer; background: none; border: none; border-bottom: 2px solid transparent;
-            margin-bottom: -2px; color: var(--wp-text-muted);
-            transition: color 0.15s, border-color 0.15s; font-family: inherit;
-        }
-        .wp-tab-btn:hover { color: var(--wp-text); }
-        .wp-tab-btn.active { color: var(--wp-primary); border-bottom-color: var(--wp-primary); }
-        .wp-tab-panel { display: none; }
-        .wp-tab-panel.active { display: block; }
-
         /* ===== 搜索框 ===== */
         .wp-search-box {
             display: flex; gap: 0.35rem; margin-bottom: 1rem;
@@ -459,7 +443,7 @@
                 <span class="nav-icon">📊</span>
                 <span class="nav-label">仪表盘</span>
             </a>
-            <a href="/admin" class="{% if active_menu == 'articles' %}active{% endif %}" data-tab="articles">
+            <a href="/admin" class="{% if active_menu == 'articles' %}active{% endif %}">
                 <span class="nav-icon">📝</span>
                 <span class="nav-label">文章管理</span>
             </a>
@@ -481,7 +465,7 @@
             </a>
             {% if current_user and current_user.role == 'owner' %}
             <div class="nav-section" style="margin-top:0.5rem;">站长功能</div>
-            <a href="/admin" class="{% if active_menu == 'users' %}active{% endif %}" data-tab="users">
+            <a href="/admin" class="{% if active_menu == 'users' %}active{% endif %}">
                 <span class="nav-icon">👥</span>
                 <span class="nav-label">用户管理</span>
             </a>
