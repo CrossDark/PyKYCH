@@ -1,15 +1,18 @@
 #!/bin/bash
 # ── PyKYCH Docker 启动脚本 ──────────────────────────────────
-# 从环境变量生成 settings/db.yaml，等待 MySQL 就绪，然后启动 uvicorn
+# 从环境变量生成 data/settings/db.yaml，等待 MySQL 就绪，然后启动 uvicorn
 
 set -e
 
-DB_YAML="/app/settings/db.yaml"
+DB_YAML="/app/data/settings/db.yaml"
 DB_HOST="${DB_HOST:-mysql}"
 DB_PORT="${DB_PORT:-3306}"
 DB_USER="${DB_USER:-pykych}"
 DB_PASSWORD="${DB_PASSWORD:-pykych}"
 DB_NAME="${DB_NAME:-pykych}"
+
+# 确保配置目录存在
+mkdir -p "$(dirname "$DB_YAML")"
 
 # 如果 db.yaml 不存在（未挂载），则从环境变量生成
 if [ ! -f "$DB_YAML" ]; then

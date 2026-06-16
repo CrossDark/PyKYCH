@@ -56,8 +56,9 @@ PyKYCH/
 │           ├── theme.yaml
 │           ├── static/theme.css
 │           └── templates/
-├── settings/
-│   └── db.yaml                  # 数据库配置 (gitignored)
+├── data/
+│   ├── settings/
+│   │   └── db.yaml          # 数据库配置 (gitignored)
 ├── src/
 │   ├── plugins/                 # 内置插件示例
 │   └── pykych/
@@ -164,10 +165,10 @@ pip install -e .
 复制配置示例并填写你的 MySQL 连接信息：
 
 ```bash
-cp db.yaml.example settings/db.yaml
+cp db.yaml.example data/settings/db.yaml
 ```
 
-编辑 `settings/db.yaml`：
+编辑 `data/settings/db.yaml`：
 
 ```yaml
 mysql:
@@ -358,7 +359,7 @@ docker compose up -d --build
 
 **使用外部数据库：** 修改 `.env` 或 `docker-compose.yml` 中的数据库连接变量，并移除 `mysql` 服务。
 
-**挂载自定义 db.yaml：** 在 `docker-compose.yml` 中取消注释 `settings/db.yaml` 的挂载配置，然后创建 `settings/db.yaml` 文件。挂载后环境变量配置将被忽略。
+**挂载自定义 db.yaml：** 在 `docker-compose.yml` 中取消注释 `data/settings/db.yaml` 的挂载配置，然后创建 `data/settings/db.yaml` 文件。挂载后环境变量配置将被忽略。
 
 **持久化数据：** 应用数据（头像、插件、主题、站点设置）通过 `app_data` 卷持久化。MySQL 数据通过 `mysql_data` 卷持久化。即使容器被删除，数据也不会丢失。
 
@@ -415,15 +416,15 @@ FLUSH PRIVILEGES;
 EXIT;
 ```
 
-### 5. 配置 settings/db.yaml
+### 5. 配置 data/settings/db.yaml
 
 ```bash
-# 如果沿用本地开发时的远程数据库，直接将本地的 settings/db.yaml 复制到服务器即可
-# scp settings/db.yaml user@your-server:/opt/pykych/settings/db.yaml
+# 如果沿用本地开发时的远程数据库，直接将本地的 data/settings/db.yaml 复制到服务器即可
+# scp data/settings/db.yaml user@your-server:/opt/pykych/data/settings/db.yaml
 
 # 如果数据库在服务器本机，则从示例创建
-sudo -u pykych cp /opt/pykych/db.yaml.example /opt/pykych/settings/db.yaml
-sudo -u pykych nano /opt/pykych/settings/db.yaml
+sudo -u pykych cp /opt/pykych/db.yaml.example /opt/pykych/data/settings/db.yaml
+sudo -u pykych nano /opt/pykych/data/settings/db.yaml
 ```
 
 示例配置：
@@ -621,7 +622,7 @@ journalctl -u pykych -n 30 --no-pager
 | 场景 | 需要额外执行的操作 |
 |------|-------------------|
 | 数据库结构有变更 | 手动执行 SQL 迁移语句 |
-| `settings/db.yaml` 有变动 | 参考 `db.yaml.example` 手动更新服务器上的配置 |
+| `data/settings/db.yaml` 有变动 | 参考 `db.yaml.example` 手动更新服务器上的配置 |
 | `data/` 目录有新增内容 | 确保服务器上 `data/` 目录可写（插件、主题、头像等） |
 | 仅修改了模板/静态资源 | 只需 `git pull`，无需重启服务（静态资源由 Nginx 直接代理） |
 | 首次部署到新服务器 | 从第 1 步开始完整部署 |

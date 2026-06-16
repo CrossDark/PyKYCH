@@ -48,8 +48,8 @@ services:
     volumes:
       # 持久化运行时数据（头像、插件、主题、站点设置）
       - app_data:/app/data
-      # 如需使用自定义 db.yaml，取消下方注释并创建 settings/db.yaml
-      # - ./settings/db.yaml:/app/settings/db.yaml:ro
+      # 如需使用自定义 db.yaml，取消下方注释并创建 data/settings/db.yaml
+      # - ./data/settings/db.yaml:/app/data/settings/db.yaml:ro
 
 volumes:
   mysql_data:

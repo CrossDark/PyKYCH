@@ -1,6 +1,6 @@
 """
 MySQL 数据库模块 — 管理 Markdown 文章的存储与查询。
-配置来自 settings/db.yaml，通过 mysql_manager 获取连接池。
+配置来自 data/settings/db.yaml，通过 mysql_manager 获取连接池。
 """
 
 from datetime import datetime, timezone

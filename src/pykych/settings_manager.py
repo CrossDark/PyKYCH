@@ -1,6 +1,6 @@
 """
 统一设置管理器 — 管理网站全局设置。
-设置存储在 settings/settings.yml（文件系统），支持后台管理。
+设置存储在 data/settings.yml（文件系统），支持后台管理。
 """
 
 import yaml
@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 # ── 配置文件路径 ────────────────────────────────────────────
 
-SETTINGS_DIR = Path(__file__).parent.parent.parent / "data"
+SETTINGS_DIR = Path(__file__).parent.parent.parent / "data" / "settings"
 SETTINGS_FILE = SETTINGS_DIR / "settings.yml"
 
 DEFAULT_SETTINGS = {

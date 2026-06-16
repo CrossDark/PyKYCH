@@ -1,5 +1,5 @@
 """
-MySQL 连接管理器 — 读取 settings/db.yaml，管理连接池。
+MySQL 连接管理器 — 读取 data/settings/db.yaml，管理连接池。
 
 用法:
     from .mysql_manager import get_md_pool, get_wk_pool, get_sys_pool
@@ -13,7 +13,7 @@ import aiomysql
 
 # ── 加载配置 ────────────────────────────────────────────────
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "settings" / "db.yaml"
+CONFIG_PATH = Path(__file__).parent.parent.parent / "data" / "settings" / "db.yaml"
 
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     _config: dict[str, Any] = yaml.safe_load(f)
