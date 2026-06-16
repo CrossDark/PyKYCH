@@ -12,13 +12,13 @@
 - 📝 **Markdown 文章** — GFM 表格、围栏代码块、目录、提示框等扩展语法
 - 📚 **Wikidot Wiki** — 自研解析器，支持折叠块、代码高亮、上下标、锚点等
 - 💬 **BBCode 文章** — 自研解析器，兼容论坛风格标记
-- 🌐 **HTML 页面** — 原生 HTML 编写，支持从外部静态站抓取缓存（智能正文提取 + 内部链接重写）
+- 🌐 **HTML 页面** — 原生 HTML 编写，支持从外部静态站抓取缓存（智能正文提取 + 内部链接重写）；支持全面导入和单页面导入
 
 **交互功能**
 - 🔍 **全文搜索** — 跨四种文章类型的全文内容检索
 - 💬 **评论区** — 所有文章底部统一的评论系统
-- 📝 **行评论** — 针对文章每一行的短评系统（≤20字），宽屏侧栏 + 文章左侧行号标注
-- ⭐ **评分系统** — [-1, 1] 区间浮点评分，实时汇总展示
+- 📝 **行评论** — 针对文章每一行的短评系统（≤20字），单条评论直接展开在正文左侧，多条显示数量徽标
+- ⭐ **评分系统** — [-1, 1] 区间浮点评分，实时汇总展示；已评分文章支持撤销评分
 - 🏷️ **标签系统** — 文章标签管理，侧栏导航，标签聚合页
 - 🔔 **通知系统** — 后台发布重要通知，首页醒目展示
 - 🌙 **黑暗模式** — 纯白/纯黑双主题，跟随系统偏好，无闪烁切换
@@ -37,7 +37,8 @@
 - 🎨 **主题系统** — 模板覆盖 + 自定义 CSS，支持多主题切换
 
 **技术特性**
-- PBKDF2-SHA256 密码哈希，Session 会话管理
+- PBKDF2-SHA256 密码哈希（NFC Unicode 规范化，支持中文/Emoji 等任意字符），Session 会话管理
+- 🔐 **安全登录** — 数学验证码防暴力破解 + WebAuthn 通行密钥（Passkey）无密码登录
 - MySQL + aiomysql 异步连接池，单库统一架构
 - Jinja2 模板引擎，响应式设计
 - YAML 文件系统设置管理 (`data/settings.yml`)
@@ -66,7 +67,8 @@ PyKYCH/
 │       ├── plugin_manager.py    # 钩子插件系统
 │       ├── theme_manager.py     # 主题系统
 │       ├── user_profile.py      # 用户资料 & 头像管理
-│       ├── auth.py              # 认证模块
+│       ├── auth.py              # 认证模块 (PBKDF2 + NFC)
+│       ├── webauthn_manager.py  # 通行密钥 (WebAuthn) 管理 & CBOR 解码
 │       ├── wikidot_parser.py    # Wikidot → HTML 解析器
 │       ├── bbcode_parser.py     # BBCode → HTML 解析器
 │       ├── tag_manager.py       # 标签管理
@@ -79,7 +81,7 @@ PyKYCH/
 │       ├── rating_manager.py    # 评分管理
 │       ├── mysql_manager.py     # 连接池 & 表初始化
 │       ├── routes/
-│       │   ├── auth.py          # /auth (登录/登出)
+│       │   ├── auth.py          # /auth (登录/登出/CAPTCHA/通行密钥)
 │       │   ├── admin.py         # /admin (管理后台)
 │       │   ├── md.py            # /md (Markdown)
 │       │   ├── wikidot.py       # /wikidot
@@ -108,7 +110,8 @@ PyKYCH/
 | `article_tags` | 文章-标签关联 |
 | `comments` | 评论 |
 | `line_comments` | 行评论（每行短评，≤20字） |
-| `ratings` | 文章评分（[-1, 1] 浮点） |
+| `ratings` | 文章评分（[-1, 1] 浮点，支持撤销） |
+| `webauthn_credentials` | 通行密钥（WebAuthn 公钥存储） |
 | `subsite_links` | 子站点链接 |
 | `featured_articles` | 主页推荐文章 |
 | `notifications` | 通知 |
@@ -123,7 +126,8 @@ PyKYCH/
 | Web 框架 | [LiHiL](https://pypi.org/project/lihil/) | 高性能异步 ASGI 框架 |
 | 模板引擎 | Jinja2 | 服务端 HTML 渲染 |
 | 数据库 | MySQL + aiomysql | 异步连接池，单库统一 |
-| 密码哈希 | hashlib PBKDF2-SHA256 | 标准库实现 |
+| 密码哈希 | hashlib PBKDF2-SHA256 | 标准库实现，NFC 规范化 |
+| 通行密钥 | WebAuthn + cryptography | 自研 CBOR 解码器，ECDSA 签名验证 |
 | HTTP 客户端 | aiohttp | 外部站点 HTML 抓取 |
 | 配置 | PyYAML | YAML 配置解析 |
 
