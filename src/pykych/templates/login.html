@@ -243,6 +243,12 @@ async function passkeyLogin() {
     const btn = document.getElementById('btn-passkey-login');
     const spinner = document.getElementById('passkey-spinner');
 
+    // 检测浏览器兼容性
+    if (!navigator.credentials || !navigator.credentials.get) {
+        showMsg('当前浏览器不支持通行密钥。请使用 Chrome / Edge / Safari，并在 localhost 或 HTTPS 下访问。', true);
+        return;
+    }
+
     setLoading(btn, spinner, true);
     document.getElementById('login-msg').style.display = 'none';
 

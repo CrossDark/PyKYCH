@@ -239,7 +239,7 @@ async def webauthn_login_complete(request: Request):
 @auth_route.sub("/webauthn/credentials").get
 async def webauthn_list_credentials(request: Request):
     """获取当前用户的通行密钥列表。"""
-    user = await auth_mod.get_current_user(request)
+    user = await auth_session.get_current_user(request)
     if not user:
         return JSONResponse({"error": "请先登录"}, status_code=401)
 
@@ -250,7 +250,7 @@ async def webauthn_list_credentials(request: Request):
 @auth_route.sub("/webauthn/credentials/{cred_id}").delete
 async def webauthn_delete_credential(cred_id: int, request: Request):
     """删除指定的通行密钥。"""
-    user = await auth_mod.get_current_user(request)
+    user = await auth_session.get_current_user(request)
     if not user:
         return JSONResponse({"error": "请先登录"}, status_code=401)
 

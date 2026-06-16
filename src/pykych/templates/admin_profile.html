@@ -161,6 +161,11 @@ async function loadPasskeys() {
 }
 
 async function registerPasskey() {
+    // 0. 检测浏览器是否支持 WebAuthn
+    if (!navigator.credentials || !navigator.credentials.create) {
+        showPasskeyMsg('当前浏览器不支持通行密钥，请使用 Chrome / Edge / Safari 并在 localhost 或 HTTPS 下访问', true);
+        return;
+    }
     try {
         // 1. 获取注册选项
         const beginResp = await fetch('/auth/webauthn/register/begin', { method: 'POST' });
