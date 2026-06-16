@@ -1133,6 +1133,23 @@ def _find_theme_root(zf: "zipfile.ZipFile") -> str | None:
     return None
 
 
+@admin_route.sub("/themes/refresh").post
+async def refresh_themes(request: Request):
+    """手动刷新主题列表（检测手动添加的主题目录）。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_owner(user):
+        return redirect("/admin")
+
+    # 确保默认主题存在
+    theme_manager.ensure_default_theme()
+    themes = theme_manager.list_themes()
+    site_cfg = settings_manager.load_settings()
+    return render("admin_settings.html", title="站点设置 - PyKYCH",
+        current_user=user, settings=site_cfg, themes=themes,
+        success=f"已检测到 {len(themes)} 个主题。")
+
+
 @admin_route.sub("/themes/{theme_name}/delete").post
 async def delete_theme_route(theme_name: str, request: Request):
     """删除指定主题。"""

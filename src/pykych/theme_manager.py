@@ -202,6 +202,11 @@ def delete_theme(theme_name: str) -> bool:
 # ── 初始化默认主题 ──────────────────────────────────────────
 
 
+def ensure_default_theme() -> None:
+    """公开接口：确保默认主题存在。"""
+    _init_default_theme()
+
+
 def _init_default_theme() -> None:
     """确保默认主题存在。"""
     _ensure_themes_dir()

@@ -96,7 +96,12 @@
             <!-- 主题管理 -->
             <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--wp-border-light);">
                 <label style="font-weight:600;font-size:0.85rem;margin-bottom:0.5rem;display:block;">📦 主题管理</label>
-
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                    <form method="POST" action="/admin/themes/refresh" style="display:inline;">
+                        <button type="submit" class="wp-btn wp-btn-secondary wp-btn-sm">🔄 扫描检测</button>
+                    </form>
+                    <span class="wp-hint" style="line-height:2;">如果手动复制了主题文件夹，点击此按钮重新检测</span>
+                </div>
                 <!-- 上传新主题 -->
                 <form method="POST" action="/admin/themes/upload" enctype="multipart/form-data" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;">
                     <div style="flex:1;min-width:200px;">
