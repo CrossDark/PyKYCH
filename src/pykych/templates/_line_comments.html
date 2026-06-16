@@ -381,6 +381,34 @@
         pointer-events: none;
     }
 
+    /* 单条评论 — 直接在正文左侧展开显示 */
+    .content-body [data-line].single-comment-expanded::after {
+        content: attr(data-single-comment);
+        left: -14.5rem;
+        top: -0.1rem;
+        width: 11.5rem;
+        height: auto;
+        border-radius: 4px;
+        background: var(--code-bg);
+        border: 1px solid var(--accent);
+        border-left: 3px solid var(--accent);
+        padding: 0.15rem 0.45rem;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+        white-space: normal;
+        word-break: break-word;
+        opacity: 0.88;
+        pointer-events: auto;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .content-body [data-line].single-comment-expanded:hover::after {
+        opacity: 1;
+        border-color: var(--accent-hover, var(--accent));
+    }
+
     /* 当前激活行 */
     .content-body [data-line].line-active {
         background: var(--code-bg);
@@ -539,7 +567,7 @@
         updateContentBlockMarkers();
     }
 
-    // 更新内容块标记：高亮有评论的行
+    // 更新内容块标记：高亮有评论的行，单条评论直接展开
     function updateContentBlockMarkers() {
         const contentBody = document.querySelector('.content-body');
         if (!contentBody) return;
@@ -548,10 +576,21 @@
         blocks.forEach(block => {
             const ln = parseInt(block.getAttribute('data-line'));
             const count = lineCounts[ln] || 0;
+            const comments = lineData[ln] || [];
+
             if (count > 0) {
                 block.classList.add('has-line-comments');
             } else {
                 block.classList.remove('has-line-comments');
+            }
+
+            // 单条评论：直接在正文左侧展开显示
+            if (count === 1 && comments.length === 1) {
+                block.classList.add('single-comment-expanded');
+                block.setAttribute('data-single-comment', comments[0].content);
+            } else {
+                block.classList.remove('single-comment-expanded');
+                block.removeAttribute('data-single-comment');
             }
         });
     }
