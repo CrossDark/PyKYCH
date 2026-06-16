@@ -272,23 +272,32 @@ def _verify_assertion_signature(
     client_data_hash = hashlib.sha256(client_data_json).digest()
     verify_data = auth_data + client_data_hash
 
-    # ES256 使用 SHA-256，签名格式为 raw (r || s)
+    # ES256 使用 SHA-256，签名可能为 raw (r||s, 64字节) 或 DER (70-73字节)
     try:
-        # ES256 签名是 r || s 的原始拼接（各 32 字节）
-        if len(signature) != 64:
-            return False
-        r = int.from_bytes(signature[:32], "big")
-        s = int.from_bytes(signature[32:], "big")
-
         from cryptography.hazmat.primitives.asymmetric.utils import (
             encode_dss_signature,
         )
-        # 转换为 DER 编码
-        der_sig = encode_dss_signature(r, s)
+
+        if len(signature) == 64:
+            # Raw 格式: r || s (各 32 字节)
+            r = int.from_bytes(signature[:32], "big")
+            s_int = int.from_bytes(signature[32:], "big")
+            der_sig = encode_dss_signature(r, s_int)
+        elif 68 <= len(signature) <= 73:
+            # DER 格式: 直接使用
+            der_sig = signature
+        else:
+            import sys
+            print(f"[WebAuthn] sig verify: unexpected sig len={len(signature)}", file=sys.stderr)
+            return False
 
         pubkey.verify(der_sig, verify_data, ec.ECDSA(hashes.SHA256()))
         return True
-    except (InvalidSignature, ValueError):
+    except InvalidSignature:
+        return False
+    except ValueError as e:
+        import sys
+        print(f"[WebAuthn] sig verify ValueError: {e}", file=sys.stderr)
         return False
 
 
@@ -565,6 +574,8 @@ async def verify_authentication(
 
     # 验证 challenge
     if client_data.get("challenge") != challenge:
+        import sys
+        print(f"[WebAuthn] challenge mismatch: client={client_data.get('challenge','')[:20]}... stored={challenge[:20]}...", file=sys.stderr)
         return None, "挑战值不匹配"
 
     # 解析 authData
@@ -573,11 +584,12 @@ async def verify_authentication(
     # 验证 rpIdHash
     expected_hash = hashlib.sha256(rp_id.encode()).digest()
     if parsed["rp_id_hash"] != expected_hash:
+        import sys
+        print(f"[WebAuthn] rpIdHash mismatch: rp_id={rp_id}", file=sys.stderr)
         return None, "rpIdHash 不匹配"
 
     # 验证用户存在和验证标志
     UP_FLAG = 0x01
-    UV_FLAG = 0x04
     if not (parsed["flags"] & UP_FLAG):
         return None, "用户未验证"
 
@@ -586,6 +598,8 @@ async def verify_authentication(
     if not _verify_assertion_signature(
         public_key_pem, client_data_json, auth_data_bytes, signature
     ):
+        import sys
+        print(f"[WebAuthn] signature verify failed: sig_len={len(signature)} pubkey_len={len(public_key_pem)}", file=sys.stderr)
         return None, "签名验证失败"
 
     # 验证签名计数器（防止重放攻击）

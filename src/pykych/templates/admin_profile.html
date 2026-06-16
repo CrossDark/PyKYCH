@@ -101,7 +101,7 @@
     <div class="wp-card">
         <div class="wp-card-header">
             <h2>🔐 通行密钥 (Passkey)</h2>
-            <button class="wp-btn wp-btn-primary wp-btn-sm" onclick="registerPasskey()">+ 注册新密钥</button>
+            <button id="btn-register-passkey" class="wp-btn wp-btn-primary wp-btn-sm" onclick="registerPasskey()">+ 注册新密钥</button>
         </div>
         <div class="wp-card-body">
             <p style="font-size:0.82rem;color:var(--wp-text-muted);margin-bottom:0.75rem;">
@@ -161,11 +161,22 @@ async function loadPasskeys() {
 }
 
 async function registerPasskey() {
+    const btn = document.getElementById('btn-register-passkey');
+    
+    // 防重复点击：如果按钮已禁用则直接返回
+    if (btn.disabled) return;
+    
     // 0. 检测浏览器是否支持 WebAuthn
     if (!navigator.credentials || !navigator.credentials.create) {
         showPasskeyMsg('当前浏览器不支持通行密钥，请使用 Chrome / Edge / Safari 并在 localhost 或 HTTPS 下访问', true);
         return;
     }
+    
+    // 禁用按钮，显示等待状态
+    btn.disabled = true;
+    btn.textContent = '⏳ 注册中...';
+    showPasskeyMsg('请完成系统弹出的安全验证...', false);
+    
     try {
         // 1. 获取注册选项
         const beginResp = await fetch('/auth/webauthn/register/begin', { method: 'POST' });
@@ -218,12 +229,16 @@ async function registerPasskey() {
     } catch (e) {
         console.error('Passkey register error:', e);
         if (e.name === 'NotAllowedError') {
-            showPasskeyMsg('注册被取消或超时', true);
+            showPasskeyMsg('注册被取消或超时，请重试', true);
         } else if (e.name === 'InvalidStateError') {
-            showPasskeyMsg('该设备可能已注册过此密钥', true);
+            showPasskeyMsg('操作正在进行中，请完成浏览器弹出的验证提示后再试', true);
         } else {
             showPasskeyMsg('注册失败: ' + (e.message || '未知错误'), true);
         }
+    } finally {
+        // 恢复按钮状态
+        btn.disabled = false;
+        btn.textContent = '+ 注册新密钥';
     }
 }
 

@@ -243,6 +243,9 @@ async function passkeyLogin() {
     const btn = document.getElementById('btn-passkey-login');
     const spinner = document.getElementById('passkey-spinner');
 
+    // 防重复点击
+    if (btn.disabled) return;
+
     // 检测浏览器兼容性
     if (!navigator.credentials || !navigator.credentials.get) {
         showMsg('当前浏览器不支持通行密钥。请使用 Chrome / Edge / Safari，并在 localhost 或 HTTPS 下访问。', true);
@@ -316,6 +319,8 @@ async function passkeyLogin() {
         console.error('Passkey login error:', e);
         if (e.name === 'NotAllowedError') {
             showMsg('通行密钥操作被取消或超时', true);
+        } else if (e.name === 'InvalidStateError') {
+            showMsg('操作正在进行中，请完成浏览器弹出的验证提示后再试', true);
         } else {
             showMsg('通行密钥登录失败: ' + (e.message || '未知错误'), true);
         }

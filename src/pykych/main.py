@@ -514,5 +514,6 @@ app.include(avatar_route)
 async def theme_css():
     """提供当前主题的自定义 CSS。"""
     from starlette.responses import Response
-    css = theme_manager.get_theme_css()
+    from .themes_sys.manager import get_theme_css
+    css = get_theme_css()
     return Response(css, media_type="text/css")
