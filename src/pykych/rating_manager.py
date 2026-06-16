@@ -74,6 +74,21 @@ async def set_rating(
     return await get_article_rating(article_type, article_slug)
 
 
+async def delete_rating(
+    article_type: str, article_slug: str, author_name: str
+) -> bool:
+    """删除用户对文章的评分。返回是否成功删除。"""
+    pool = await get_sys_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "DELETE FROM ratings "
+                "WHERE article_type = %s AND article_slug = %s AND author_name = %s",
+                (article_type, article_slug, author_name),
+            )
+            return cur.rowcount > 0
+
+
 async def get_all_ratings(article_type: str, article_slug: str) -> list[dict]:
     """获取文章的所有用户评分详情（按时间倒序）。"""
     pool = await get_sys_pool()

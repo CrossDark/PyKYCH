@@ -407,6 +407,32 @@ async def api_set_rating(request: Request, article_type: str, article_slug: str)
         from starlette.responses import JSONResponse
         return JSONResponse({"error": str(e)}, status_code=400)
 
+
+@ratings_api.sub("/{article_type}/{article_slug}").delete
+async def api_delete_rating(request: Request, article_type: str, article_slug: str):
+    """撤销评分。"""
+    user = await get_current_user(request)
+    if user is None:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "请先登录"}, status_code=401)
+
+    deleted = await rating_manager.delete_rating(
+        article_type=article_type,
+        article_slug=article_slug,
+        author_name=user["username"],
+    )
+    if not deleted:
+        from starlette.responses import JSONResponse
+        return JSONResponse({"error": "你尚未评分"}, status_code=404)
+
+    # 返回更新后的汇总
+    summary = await rating_manager.get_article_rating(article_type, article_slug)
+    return {
+        "average_score": summary["average_score"],
+        "total_voters": summary["total_voters"],
+        "user_score": None,
+    }
+
 app.include(ratings_api)
 
 # ===== 搜索路由 =====

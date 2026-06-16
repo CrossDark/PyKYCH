@@ -20,6 +20,9 @@
         <div class="rating-user-score" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
             <span style="color: var(--text-muted);">你的评分：</span>
             <span class="rating-user-value" style="font-weight: 600; color: var(--accent);">--</span>
+            <button class="rating-undo-btn" title="撤销评分" style="display: none; font-size: 0.75rem; padding: 0.15rem 0.5rem; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); color: var(--text-muted); cursor: pointer; transition: all 0.2s;"
+                onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef4444';"
+                onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)';">✕ 撤销</button>
         </div>
         <!-- 最终评分 -->
         <div style="display: flex; align-items: center; gap: 0.4rem;">
@@ -72,6 +75,7 @@
     const detailModal = section.querySelector('.rating-detail-modal');
     const detailClose = section.querySelector('.rating-detail-close');
     const detailContent = section.querySelector('.rating-detail-content');
+    const undoBtn = section.querySelector('.rating-undo-btn');
 
     // 从服务器加载当前评分状态
     async function loadRating() {
@@ -84,8 +88,12 @@
                 slider.value = data.user_score;
                 valueEl.textContent = data.user_score.toFixed(1);
                 userValueEl.textContent = data.user_score.toFixed(1);
+                undoBtn.style.display = 'inline-block';
             } else {
+                slider.value = 0;
+                valueEl.textContent = '0.0';
                 userValueEl.textContent = '--';
+                undoBtn.style.display = 'none';
             }
         } catch (e) {
             console.error('加载评分失败:', e);
@@ -189,7 +197,46 @@
             slider.value = data.user_score;
             valueEl.textContent = data.user_score.toFixed(1);
             userValueEl.textContent = data.user_score.toFixed(1);
+            undoBtn.style.display = 'inline-block';
             msgEl.textContent = '评分成功！';
+            msgEl.style.color = '#10b981';
+            setTimeout(() => { msgEl.style.display = 'none'; }, 2000);
+        } catch (e) {
+            msgEl.textContent = '网络错误，请重试';
+            msgEl.style.color = '#ef4444';
+        }
+    });
+
+    // 撤销评分按钮
+    undoBtn.addEventListener('click', async function() {
+        if (!confirm('确定要撤销你的评分吗？')) return;
+
+        msgEl.style.display = 'block';
+        msgEl.textContent = '撤销中...';
+        msgEl.style.color = 'var(--text-muted)';
+
+        try {
+            const resp = await fetch(`/api/ratings/${articleType}/${articleSlug}`, {
+                method: 'DELETE'
+            });
+            if (resp.status === 401) {
+                msgEl.textContent = '请先登录后再操作';
+                msgEl.style.color = '#f59e0b';
+                return;
+            }
+            const data = await resp.json();
+            if (data.error) {
+                msgEl.textContent = data.error;
+                msgEl.style.color = '#ef4444';
+                return;
+            }
+            avgEl.textContent = data.average_score.toFixed(1);
+            countEl.textContent = `（${data.total_voters} 人评分）`;
+            slider.value = 0;
+            valueEl.textContent = '0.0';
+            userValueEl.textContent = '--';
+            undoBtn.style.display = 'none';
+            msgEl.textContent = '评分已撤销';
             msgEl.style.color = '#10b981';
             setTimeout(() => { msgEl.style.display = 'none'; }, 2000);
         } catch (e) {
