@@ -993,6 +993,174 @@ async def _save_site_asset(name: str, data: bytes, filename: str) -> str | None:
         return None
 
 
+# ===== 主题管理路由 =====
+
+@admin_route.sub("/themes/upload").post
+async def upload_theme(request: Request):
+    """上传主题 ZIP 包。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_owner(user):
+        return redirect("/admin")
+
+    form = await request.form()
+    theme_file = form.get("theme_zip")
+
+    if not theme_file or not hasattr(theme_file, "filename") or not theme_file.filename:
+        site_cfg = settings_manager.load_settings()
+        themes = theme_manager.list_themes()
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            error="请选择要上传的主题 ZIP 文件。")
+
+    fname = theme_file.filename.lower()
+    if not fname.endswith(".zip"):
+        site_cfg = settings_manager.load_settings()
+        themes = theme_manager.list_themes()
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            error="仅支持 .zip 格式的主题包。")
+
+    content = await theme_file.read()
+    if len(content) > 10 * 1024 * 1024:  # 最大 10MB
+        site_cfg = settings_manager.load_settings()
+        themes = theme_manager.list_themes()
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            error="主题包过大，最大支持 10MB。")
+
+    import zipfile, io, tempfile, shutil
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            # 查找主题根目录（可能嵌套了一层）
+            theme_root = _find_theme_root(zf)
+            if theme_root is None:
+                site_cfg = settings_manager.load_settings()
+                themes = theme_manager.list_themes()
+                return render("admin_settings.html", title="站点设置 - PyKYCH",
+                    current_user=user, settings=site_cfg, themes=themes,
+                    error="ZIP 包中未找到 theme.yaml，请确保包含有效的主题配置文件。")
+
+            # 验证必需文件
+            has_yaml = any(n == f"{theme_root}theme.yaml" or n.startswith(f"{theme_root}theme.yaml") for n in zf.namelist())
+            has_css = any(n == f"{theme_root}static/theme.css" or n.startswith(f"{theme_root}static/theme.css") for n in zf.namelist())
+            if not has_yaml:
+                site_cfg = settings_manager.load_settings()
+                themes = theme_manager.list_themes()
+                return render("admin_settings.html", title="站点设置 - PyKYCH",
+                    current_user=user, settings=site_cfg, themes=themes,
+                    error="主题包缺少 theme.yaml 配置文件。")
+            if not has_css:
+                site_cfg = settings_manager.load_settings()
+                themes = theme_manager.list_themes()
+                return render("admin_settings.html", title="站点设置 - PyKYCH",
+                    current_user=user, settings=site_cfg, themes=themes,
+                    error="主题包缺少 static/theme.css 样式文件。")
+
+            # 提取主题到临时目录
+            with tempfile.TemporaryDirectory() as tmpdir:
+                zf.extractall(tmpdir)
+                extracted_root = Path(tmpdir) / theme_root.rstrip("/") if theme_root else Path(tmpdir)
+
+                # 读取主题名
+                yaml_path = extracted_root / "theme.yaml"
+                if not yaml_path.exists():
+                    yaml_path = Path(tmpdir) / "theme.yaml"
+
+                import yaml
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    config = yaml.safe_load(f) or {}
+
+                # 主题目录名：使用配置中的 name 或主题根目录名
+                theme_dirname = (config.get("name") or theme_root.rstrip("/")).strip().lower().replace(" ", "_")
+                # 安全检查：只允许字母数字下划线
+                import re
+                theme_dirname = re.sub(r"[^a-z0-9_]", "", theme_dirname)
+                if not theme_dirname:
+                    theme_dirname = "uploaded_theme"
+
+                target = theme_manager.THEMES_DIR / theme_dirname
+                if target.exists():
+                    shutil.rmtree(target)  # 覆盖已存在的同名主题
+
+                shutil.copytree(str(extracted_root), str(target))
+
+            # 重新加载主题列表
+            try:
+                theme_manager.list_themes()
+            except Exception:
+                pass
+
+            site_cfg = settings_manager.load_settings()
+            themes = theme_manager.list_themes()
+            return render("admin_settings.html", title="站点设置 - PyKYCH",
+                current_user=user, settings=site_cfg, themes=themes,
+                success=f"主题「{config.get('name', theme_dirname)}」已成功安装。")
+
+    except zipfile.BadZipFile:
+        site_cfg = settings_manager.load_settings()
+        themes = theme_manager.list_themes()
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            error="ZIP 文件损坏，请重新上传。")
+    except Exception as e:
+        site_cfg = settings_manager.load_settings()
+        themes = theme_manager.list_themes()
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            error=f"安装主题失败: {e}")
+
+
+def _find_theme_root(zf: "zipfile.ZipFile") -> str | None:
+    """在 ZIP 中查找主题根目录（包含 theme.yaml 的目录或根）。"""
+    # 先检查根目录是否有 theme.yaml
+    if "theme.yaml" in [n.rstrip("/") for n in zf.namelist()]:
+        return ""
+
+    # 查找嵌套的主题目录（去除顶层包装）
+    dirs = set()
+    for name in zf.namelist():
+        parts = name.split("/")
+        if len(parts) >= 2 and parts[0]:
+            dirs.add(parts[0])
+
+    for d in dirs:
+        yaml_path = f"{d}/theme.yaml"
+        if yaml_path in zf.namelist():
+            return f"{d}/"
+
+    return None
+
+
+@admin_route.sub("/themes/{theme_name}/delete").post
+async def delete_theme_route(theme_name: str, request: Request):
+    """删除指定主题。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_owner(user):
+        return redirect("/admin")
+
+    success = theme_manager.delete_theme(theme_name)
+    site_cfg = settings_manager.load_settings()
+    themes = theme_manager.list_themes()
+
+    # 如果删除了当前激活的主题，回退到 default
+    if theme_name == settings_manager.get_setting("appearance.style_theme", "default"):
+        settings_manager.set_setting("appearance.style_theme", "default")
+        theme_manager.set_active_theme("default")
+        site_cfg = settings_manager.load_settings()
+
+    if success:
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            success=f"主题「{theme_name}」已删除。")
+    else:
+        return render("admin_settings.html", title="站点设置 - PyKYCH",
+            current_user=user, settings=site_cfg, themes=themes,
+            error="无法删除该主题（可能是默认主题或当前激活的主题）。")
+
+
 # ===== 用户资料路由 =====
 
 @admin_route.sub("/profile").get
