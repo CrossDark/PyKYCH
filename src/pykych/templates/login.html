@@ -80,6 +80,90 @@
         color: var(--text-muted);
         font-size: 0.85rem;
     }
+    .captcha-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .captcha-question {
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.6rem 0.85rem;
+        font-weight: 700;
+        font-size: 1rem;
+        font-family: "SF Mono", "Fira Code", monospace;
+        white-space: nowrap;
+        user-select: none;
+    }
+    .divider {
+        display: flex;
+        align-items: center;
+        margin: 1.25rem 0;
+        color: var(--text-muted);
+        font-size: 0.82rem;
+    }
+    .divider::before,
+    .divider::after {
+        content: '';
+        flex: 1;
+        border-top: 1px solid var(--border);
+    }
+    .divider span {
+        padding: 0 0.75rem;
+    }
+    .btn-passkey {
+        width: 100%;
+        padding: 0.65rem;
+        background: var(--bg);
+        color: var(--text);
+        border: 2px solid var(--border);
+        border-radius: 6px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 0.5rem;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+    .btn-passkey:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--code-bg);
+    }
+    .btn-passkey:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .passkey-spinner {
+        display: none;
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .success-msg {
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        color: #059669;
+        padding: 0.65rem 0.9rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        font-size: 0.88rem;
+        text-align: center;
+    }
+    [data-theme="dark"] .success-msg {
+        background: rgba(5, 150, 105, 0.1);
+        border-color: rgba(5, 150, 105, 0.3);
+    }
 </style>
 {% endblock %}
 
@@ -93,7 +177,9 @@
         <div class="error-msg">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" action="/auth/login">
+        <div id="login-msg" style="display:none;"></div>
+
+        <form method="POST" action="/auth/login" id="password-form">
             <div class="form-group">
                 <label for="username">用户名</label>
                 <input type="text" id="username" name="username"
@@ -103,12 +189,133 @@
             <div class="form-group">
                 <label for="password">密码</label>
                 <input type="password" id="password" name="password"
-                       class="form-input" placeholder="输入密码"
+                       class="form-input" placeholder="输入密码（支持 Unicode）"
                        required>
             </div>
-            <button type="submit" class="btn-login">登 录</button>
+            <div class="form-group">
+                <label for="captcha">验证码 — {{ captcha_question }}</label>
+                <div class="captcha-group">
+                    <input type="text" id="captcha" name="captcha"
+                           class="form-input" placeholder="输入计算结果"
+                           required autocomplete="off" style="flex:1;">
+                </div>
+            </div>
+            <button type="submit" class="btn-login">🔑 密码登录</button>
         </form>
+
+        <div class="divider"><span>或</span></div>
+
+        <button id="btn-passkey-login" class="btn-passkey" onclick="passkeyLogin()">
+            <span id="passkey-spinner" class="passkey-spinner"></span>
+            <span id="passkey-icon">🔐</span>
+            通行密钥登录
+        </button>
     </div>
     <p class="login-footer">用户由管理员添加，不支持自行注册</p>
 </div>
+
+<script>
+// ── 通行密钥 (WebAuthn) 登录 ──
+
+function b64urlToBase64(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return s;
+}
+
+function base64ToB64url(s) {
+    return s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function showMsg(text, isError) {
+    const el = document.getElementById('login-msg');
+    el.textContent = text;
+    el.className = isError ? 'error-msg' : 'success-msg';
+    el.style.display = 'block';
+}
+
+function setLoading(btn, spinner, loading) {
+    btn.disabled = loading;
+    spinner.style.display = loading ? 'inline-block' : 'none';
+}
+
+async function passkeyLogin() {
+    const btn = document.getElementById('btn-passkey-login');
+    const spinner = document.getElementById('passkey-spinner');
+
+    setLoading(btn, spinner, true);
+    document.getElementById('login-msg').style.display = 'none';
+
+    try {
+        // 1. 获取认证选项
+        const beginResp = await fetch('/auth/webauthn/login/begin', { method: 'POST' });
+        if (!beginResp.ok) {
+            const err = await beginResp.json();
+            showMsg(err.error || '无法开始通行密钥登录', true);
+            setLoading(btn, spinner, false);
+            return;
+        }
+        const options = await beginResp.json();
+
+        // 2. 调用 WebAuthn API
+        options.publicKey.challenge = Uint8Array.from(
+            atob(b64urlToBase64(options.publicKey.challenge)),
+            c => c.charCodeAt(0)
+        );
+        if (options.publicKey.allowCredentials) {
+            options.publicKey.allowCredentials = options.publicKey.allowCredentials.map(c => ({
+                ...c,
+                id: Uint8Array.from(atob(b64urlToBase64(c.id)), c => c.charCodeAt(0))
+            }));
+        }
+
+        const credential = await navigator.credentials.get({ publicKey: options.publicKey });
+
+        // 3. 发送认证响应
+        const completeBody = {
+            id: credential.id,
+            response: {
+                clientDataJSON: base64ToB64url(
+                    btoa(String.fromCharCode(...new Uint8Array(credential.response.clientDataJSON)))
+                ),
+                authenticatorData: base64ToB64url(
+                    btoa(String.fromCharCode(...new Uint8Array(credential.response.authenticatorData)))
+                ),
+                signature: base64ToB64url(
+                    btoa(String.fromCharCode(...new Uint8Array(credential.response.signature)))
+                ),
+                userHandle: credential.response.userHandle
+                    ? base64ToB64url(btoa(String.fromCharCode(...new Uint8Array(credential.response.userHandle))))
+                    : null
+            }
+        };
+
+        const completeResp = await fetch('/auth/webauthn/login/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(completeBody)
+        });
+
+        const result = await completeResp.json();
+        if (result.status === 'ok') {
+            showMsg('登录成功，正在跳转...', false);
+            setTimeout(() => {
+                const params = new URLSearchParams(window.location.search);
+                window.location.href = params.get('next') || '/admin';
+            }, 500);
+        } else {
+            showMsg(result.error || '通行密钥验证失败', true);
+        }
+    } catch (e) {
+        console.error('Passkey login error:', e);
+        if (e.name === 'NotAllowedError') {
+            showMsg('通行密钥操作被取消或超时', true);
+        } else {
+            showMsg('通行密钥登录失败: ' + (e.message || '未知错误'), true);
+        }
+    } finally {
+        setLoading(btn, spinner, false);
+    }
+}
+</script>
 {% endblock %}

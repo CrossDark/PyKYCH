@@ -347,6 +347,21 @@ CREATE TABLE IF NOT EXISTS ratings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+WEBAUTHN_CREDENTIALS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(128) NOT NULL,
+    credential_id VARCHAR(512) NOT NULL UNIQUE,
+    public_key    TEXT NOT NULL,
+    sign_count    INT DEFAULT 0,
+    transports    VARCHAR(255) DEFAULT '',
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_username (username),
+    FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
     """安全地添加列（如果不存在则添加，忽略错误）。"""
@@ -504,6 +519,9 @@ async def init_tables() -> None:
 
             # 评分表
             await cur.execute(RATINGS_TABLE_SQL)
+
+            # 通行密钥表 (WebAuthn)
+            await cur.execute(WEBAUTHN_CREDENTIALS_TABLE_SQL)
 
     # 迁移：为已有文章添加默认标签
     await _migrate_tags()

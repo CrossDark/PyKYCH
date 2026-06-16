@@ -97,5 +97,148 @@
             </div>
         </div>
     </div>
+    <!-- 通行密钥管理 -->
+    <div class="wp-card">
+        <div class="wp-card-header">
+            <h2>🔐 通行密钥 (Passkey)</h2>
+            <button class="wp-btn wp-btn-primary wp-btn-sm" onclick="registerPasskey()">+ 注册新密钥</button>
+        </div>
+        <div class="wp-card-body">
+            <p style="font-size:0.82rem;color:var(--wp-text-muted);margin-bottom:0.75rem;">
+                使用指纹、面部识别或设备 PIN 进行无密码登录。需要在已登录状态下注册。
+            </p>
+            <div id="passkey-list">
+                <div style="text-align:center;padding:1rem;color:var(--wp-text-muted);font-size:0.85rem;">加载中...</div>
+            </div>
+            <div id="passkey-msg" style="margin-top:0.5rem;font-size:0.85rem;text-align:center;display:none;"></div>
+        </div>
+    </div>
 </div>
+
+<script>
+// ── 通行密钥管理脚本 ──
+
+function b64urlToBase64(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return s;
+}
+
+function base64ToB64url(s) {
+    return s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function showPasskeyMsg(text, isError) {
+    const el = document.getElementById('passkey-msg');
+    el.textContent = text;
+    el.style.display = 'block';
+    el.style.color = isError ? '#dc2626' : '#059669';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+async function loadPasskeys() {
+    const list = document.getElementById('passkey-list');
+    try {
+        const resp = await fetch('/auth/webauthn/credentials');
+        const data = await resp.json();
+        if (!data.credentials || data.credentials.length === 0) {
+            list.innerHTML = '<div style="text-align:center;padding:0.5rem;color:var(--wp-text-muted);font-size:0.85rem;">暂无注册的通行密钥</div>';
+            return;
+        }
+        let html = '<table class="wp-table"><thead><tr><th>创建时间</th><th>使用次数</th><th>操作</th></tr></thead><tbody>';
+        data.credentials.forEach(c => {
+            html += '<tr>';
+            html += '<td>' + (c.created_at || '').substring(0, 16) + '</td>';
+            html += '<td>' + (c.sign_count || 0) + '</td>';
+            html += '<td><button class="wp-btn wp-btn-danger wp-btn-sm" onclick="deletePasskey(' + c.id + ')">🗑 删除</button></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        list.innerHTML = html;
+    } catch (e) {
+        list.innerHTML = '<div style="text-align:center;padding:0.5rem;color:#dc2626;">加载失败</div>';
+    }
+}
+
+async function registerPasskey() {
+    try {
+        // 1. 获取注册选项
+        const beginResp = await fetch('/auth/webauthn/register/begin', { method: 'POST' });
+        if (!beginResp.ok) {
+            const err = await beginResp.json();
+            showPasskeyMsg(err.error || '无法开始注册', true);
+            return;
+        }
+        const options = await beginResp.json();
+
+        // 2. 准备 WebAuthn 参数
+        options.publicKey.challenge = Uint8Array.from(
+            atob(b64urlToBase64(options.publicKey.challenge)),
+            c => c.charCodeAt(0)
+        );
+        options.publicKey.user.id = Uint8Array.from(
+            atob(b64urlToBase64(options.publicKey.user.id)),
+            c => c.charCodeAt(0)
+        );
+
+        // 3. 调用 WebAuthn API
+        const credential = await navigator.credentials.create({ publicKey: options.publicKey });
+
+        // 4. 发送注册响应
+        const completeBody = {
+            id: credential.id,
+            response: {
+                clientDataJSON: base64ToB64url(
+                    btoa(String.fromCharCode(...new Uint8Array(credential.response.clientDataJSON)))
+                ),
+                attestationObject: base64ToB64url(
+                    btoa(String.fromCharCode(...new Uint8Array(credential.response.attestationObject)))
+                )
+            }
+        };
+
+        const completeResp = await fetch('/auth/webauthn/register/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(completeBody)
+        });
+
+        const result = await completeResp.json();
+        if (result.status === 'ok') {
+            showPasskeyMsg('通行密钥注册成功！', false);
+            loadPasskeys();
+        } else {
+            showPasskeyMsg(result.error || '注册失败', true);
+        }
+    } catch (e) {
+        console.error('Passkey register error:', e);
+        if (e.name === 'NotAllowedError') {
+            showPasskeyMsg('注册被取消或超时', true);
+        } else if (e.name === 'InvalidStateError') {
+            showPasskeyMsg('该设备可能已注册过此密钥', true);
+        } else {
+            showPasskeyMsg('注册失败: ' + (e.message || '未知错误'), true);
+        }
+    }
+}
+
+async function deletePasskey(id) {
+    if (!confirm('确定删除此通行密钥吗？')) return;
+    try {
+        const resp = await fetch('/auth/webauthn/credentials/' + id, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            showPasskeyMsg('已删除', false);
+            loadPasskeys();
+        } else {
+            showPasskeyMsg(data.error || '删除失败', true);
+        }
+    } catch (e) {
+        showPasskeyMsg('网络错误', true);
+    }
+}
+
+// 页面加载时获取通行密钥列表
+loadPasskeys();
+</script>
 {% endblock %}
