@@ -25,6 +25,7 @@ DEFAULT_SETTINGS = {
     },
     "appearance": {
         "theme": "auto",  # light, dark, auto
+        "style_theme": "default",  # 站点风格主题目录名
         "primary_color": "#3b82f6",
         "font_family": "system-ui, -apple-system, sans-serif",
     },
@@ -73,8 +74,9 @@ def save_settings(settings: dict[str, Any]) -> None:
     try:
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
             yaml.dump(settings, f, allow_unicode=True, default_flow_style=False)
-    except (OSError, PermissionError):
-        pass  # 生产环境可能只读
+    except (OSError, PermissionError) as e:
+        import sys
+        print(f"⚠️ 无法保存设置到 {SETTINGS_FILE}: {e}", file=sys.stderr)
 
 
 def get_setting(path: str, default: Any = None) -> Any:
