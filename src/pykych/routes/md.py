@@ -10,12 +10,12 @@ from jinja2 import Environment, FileSystemLoader
 
 from lihil import Request
 
-from .. import db
-from .. import tag_manager
-from .. import comment_manager
-from .. import line_comment_manager
-from .. import rating_manager
-from ..auth import get_current_user
+from ..content import articles as db
+from ..content import tags as tag_manager
+from ..content import comments as comment_manager
+from ..content import comments as line_comment_manager
+from ..content import ratings as rating_manager
+from ..auth.session import get_current_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -61,7 +61,7 @@ md_route = Route("/md")
 @md_route.get
 async def md_article_list(page: int = 1):
     """Markdown 文章列表页。"""
-    result = await db.list_articles(page=page, per_page=10)
+    result = await db.list_articles('md', page=page, per_page=10)
     # 为每篇文章加载标签
     for article in result["articles"]:
         article["tags"] = await tag_manager.get_tags_for_article("md", article["slug"])
@@ -78,7 +78,7 @@ async def md_article_list(page: int = 1):
 @md_route.sub("/{slug}").get
 async def md_article_detail(request: Request, slug: str):
     """Markdown 文章详情页。"""
-    article = await db.get_article_by_slug(slug)
+    article = await db.get_article('md', slug)
     if not article:
         return render(
             "md_detail.html",

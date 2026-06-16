@@ -7,7 +7,7 @@ from starlette.responses import HTMLResponse
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
-from .. import tag_manager as tm
+from ..content import tags as tm
 
 # ── 模板 ────────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"

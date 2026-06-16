@@ -8,7 +8,7 @@ from starlette.responses import HTMLResponse
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
-from ..mysql_manager import _get_pool
+from ..core.db import _get_pool
 
 # ── 模板 ────────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"

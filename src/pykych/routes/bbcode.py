@@ -9,13 +9,13 @@ from jinja2 import Environment, FileSystemLoader
 
 from lihil import Request
 
-from .. import bbcode_db as db
-from ..bbcode_parser import parse_bbcode
-from .. import tag_manager
-from .. import comment_manager
-from .. import line_comment_manager
-from .. import rating_manager
-from ..auth import get_current_user
+from ..content import articles as db
+from ..content.parsers.bbcode import parse_bbcode
+from ..content import tags as tag_manager
+from ..content import comments as comment_manager
+from ..content import comments as line_comment_manager
+from ..content import ratings as rating_manager
+from ..auth.session import get_current_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -38,7 +38,7 @@ bbcode_route = Route("/bbcode")
 @bbcode_route.get
 async def page_list(page: int = 1):
     """BBCode 页面列表。"""
-    result = await db.list_pages(page=page, per_page=10)
+    result = await db.list_articles('bbcode', page=page, per_page=10)
     for p in result["pages"]:
         p["tags"] = await tag_manager.get_tags_for_article("bbcode", p["slug"])
     return render(
@@ -54,7 +54,7 @@ async def page_list(page: int = 1):
 @bbcode_route.sub("/{slug}").get
 async def page_detail(request: Request, slug: str):
     """BBCode 页面详情。"""
-    page = await db.get_page_by_slug(slug)
+    page = await db.get_article('bbcode', slug)
     if not page:
         return render(
             "bbcode_detail.html",

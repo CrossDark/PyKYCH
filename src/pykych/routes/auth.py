@@ -8,8 +8,11 @@ from starlette.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 
-from .. import auth as auth_mod
-from .. import webauthn_manager as webauthn
+from ..auth import password as auth_pwd
+from ..auth import user as auth_user
+from ..auth import session as auth_session
+from ..auth import rate_limit as auth_rate
+from ..auth import webauthn
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 jinja_env = Environment(
@@ -47,13 +50,18 @@ def _generate_captcha(request) -> dict:
 
 
 def _verify_captcha(request, user_input: str) -> bool:
-    """验证数学验证码答案。"""
-    if hasattr(request, "session"):
-        expected = request.session.pop("captcha_answer", None)
-        if expected is None:
-            return False
-        return user_input.strip() == expected
-    return True  # 如果无法访问会话则跳过验证
+    """验证数学验证码答案。
+
+    修复: 当会话不可用时返回 False（而非 True），防止 CAPTCHA 被绕过。
+    """
+    if not hasattr(request, "session"):
+        return False  # 修复：无法访问会话时拒绝，而非放行
+    expected = request.session.pop("captcha_answer", None)
+    if expected is None:
+        return False
+    # 使用恒定时间比较防止时序攻击
+    import hmac
+    return hmac.compare_digest(user_input.strip(), expected)
 
 
 # ── RP 配置 ──────────────────────────────────────────────────
@@ -104,14 +112,26 @@ async def login_action(request: Request):
                       error="验证码错误，请重试。",
                       captcha_question=captcha["question"])
 
-    user = await auth_mod.get_user_with_password(username)
-    if not user or not auth_mod.verify_password(password, user["password_hash"]):
+    # 速率限制检查（防暴力破解）
+    client_ip = auth_session._get_client_ip(request)
+    allowed, rate_msg = auth_rate.check_login_rate_limit(username, client_ip)
+    if not allowed:
+        captcha = _generate_captcha(request)
+        return render("login.html", title="登录 - PyKYCH",
+                      error=rate_msg,
+                      captcha_question=captcha["question"])
+
+    user = await auth_user.get_user_with_password(username)
+    if not user or not auth_pwd.verify_password(password, user["password_hash"]):
+        # 记录登录失败（速率限制）
+        client_ip2 = auth_session._get_client_ip(request)
+        auth_rate.record_login_failure(username, client_ip2)
         captcha = _generate_captcha(request)
         return render("login.html", title="登录 - PyKYCH",
                       error="用户名或密码错误。",
                       captcha_question=captcha["question"])
 
-    auth_mod.login_user(request, username)
+    await auth_session.login_user(request, username)
 
     next_url = request.query_params.get("next", "/admin")
     return redirect(next_url)
@@ -120,7 +140,7 @@ async def login_action(request: Request):
 @auth_route.sub("/logout").get
 async def logout(request: Request):
     """登出。"""
-    auth_mod.logout_user(request)
+    auth_session.logout_user(request)
     return redirect("/")
 
 
@@ -132,7 +152,7 @@ async def logout(request: Request):
 @auth_route.sub("/webauthn/register/begin").post
 async def webauthn_register_begin(request: Request):
     """开始通行密钥注册 — 返回 creationOptions。"""
-    user = await auth_mod.get_current_user(request)
+    user = await auth_session.get_current_user(request)
     if not user:
         return JSONResponse({"error": "请先登录"}, status_code=401)
 
@@ -148,7 +168,7 @@ async def webauthn_register_begin(request: Request):
 @auth_route.sub("/webauthn/register/complete").post
 async def webauthn_register_complete(request: Request):
     """完成通行密钥注册 — 验证并存储凭据。"""
-    user = await auth_mod.get_current_user(request)
+    user = await auth_session.get_current_user(request)
     if not user:
         return JSONResponse({"error": "请先登录"}, status_code=401)
 
@@ -210,7 +230,7 @@ async def webauthn_login_complete(request: Request):
     )
 
     if username:
-        auth_mod.login_user(request, username)
+        await auth_session.login_user(request, username)
         return JSONResponse({"status": "ok", "message": message, "username": username})
     else:
         return JSONResponse({"error": message}, status_code=400)

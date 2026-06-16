@@ -6,8 +6,8 @@ from lihil import Route, Request
 from starlette.responses import RedirectResponse
 from urllib.parse import quote
 
-from .. import comment_manager
-from ..auth import get_current_user
+from ..content import comments as comment_manager
+from ..auth.session import get_current_user
 
 
 def redirect(url: str) -> RedirectResponse:

@@ -1,122 +1,18 @@
 """
-MySQL 连接管理器 — 读取 data/settings/db.yaml，管理连接池。
+数据库表结构定义与初始化迁移。
 
-用法:
-    from .mysql_manager import get_md_pool, get_wk_pool, get_sys_pool
+在应用启动时自动建表和迁移，确保数据库结构与应用代码一致。
+所有表使用 InnoDB 引擎 + utf8mb4 字符集，支持 Emoji 等 4 字节 Unicode。
 """
-
-import yaml
-from pathlib import Path
-from typing import Any
 
 import aiomysql
 
-# ── 加载配置 ────────────────────────────────────────────────
-
-CONFIG_PATH = Path(__file__).parent.parent.parent / "data" / "settings" / "db.yaml"
-
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-    _config: dict[str, Any] = yaml.safe_load(f)
-
-_mysql = _config["mysql"]
+from .db import _get_pool
 
 
-# ── 全局连接池 (惰性创建) ───────────────────────────────────
-
-_pool: aiomysql.Pool | None = None
-
-
-async def _create_pool() -> aiomysql.Pool:
-    """创建 MySQL 连接池（统一使用 pykych 数据库）。如果数据库不存在则尝试自动创建。"""
-    pool_cfg = _mysql.get("pool", {})
-    db_name = _mysql["database"]
-
-    async def _connect(db: str) -> aiomysql.Pool:
-        return await aiomysql.create_pool(
-            host=_mysql["host"],
-            port=_mysql.get("port", 3306),
-            user=_mysql["user"],
-            password=_mysql["password"],
-            db=db,
-            charset=_mysql.get("charset", "utf8mb4"),
-            minsize=pool_cfg.get("minsize", 2),
-            maxsize=pool_cfg.get("maxsize", 10),
-            pool_recycle=pool_cfg.get("pool_recycle", 3600),
-            autocommit=True,
-        )
-
-    # 尝试直接连接目标数据库
-    try:
-        return await _connect(db_name)
-    except Exception as e:
-        err_msg = str(e)
-        # 如果数据库不存在 (错误码 1049)，尝试创建
-        if "1049" not in err_msg and "Unknown database" not in err_msg:
-            raise
-
-    # 数据库不存在，尝试创建
-    try:
-        temp_conn = await aiomysql.connect(
-            host=_mysql["host"],
-            port=_mysql.get("port", 3306),
-            user=_mysql["user"],
-            password=_mysql["password"],
-            charset=_mysql.get("charset", "utf8mb4"),
-            autocommit=True,
-        )
-        try:
-            async with temp_conn.cursor() as cur:
-                await cur.execute(
-                    f"CREATE DATABASE IF NOT EXISTS `{db_name}` "
-                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-                )
-        finally:
-            temp_conn.close()
-    except Exception as e:
-        raise RuntimeError(
-            f"数据库 '{db_name}' 不存在且无法自动创建（权限不足）。\n"
-            f"请在 MySQL 中手动执行: CREATE DATABASE IF NOT EXISTS `{db_name}` "
-            "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\n"
-            f"原始错误: {e}"
-        ) from e
-
-    # 创建成功后连接目标数据库
-    return await _connect(db_name)
-
-
-async def _get_pool() -> aiomysql.Pool:
-    """获取统一数据库连接池（惰性创建）。"""
-    global _pool
-    if _pool is None:
-        _pool = await _create_pool()
-    return _pool
-
-
-async def get_md_pool() -> aiomysql.Pool:
-    """获取 Markdown 文章连接池（指向统一 pykych 数据库）。"""
-    return await _get_pool()
-
-
-async def get_wk_pool() -> aiomysql.Pool:
-    """获取 Wikidot 页面连接池（指向统一 pykych 数据库）。"""
-    return await _get_pool()
-
-
-async def get_sys_pool() -> aiomysql.Pool:
-    """获取系统管理连接池（指向统一 pykych 数据库）。"""
-    return await _get_pool()
-
-
-async def close_pools() -> None:
-    """关闭连接池（应用关闭时调用）。"""
-    global _pool
-    if _pool:
-        _pool.close()
-        await _pool.wait_closed()
-    _pool = None
-
-
-# ── 表初始化 ────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════
+# 建表 SQL
+# ═══════════════════════════════════════════════════════════════
 
 MD_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS articles (
@@ -124,9 +20,9 @@ CREATE TABLE IF NOT EXISTS articles (
     slug        VARCHAR(255) UNIQUE NOT NULL,
     title       VARCHAR(255) NOT NULL,
     content     LONGTEXT NOT NULL,
+    author_id   INT DEFAULT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     INDEX idx_slug (slug),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -138,9 +34,9 @@ CREATE TABLE IF NOT EXISTS pages (
     slug        VARCHAR(255) UNIQUE NOT NULL,
     title       VARCHAR(255) NOT NULL,
     content     LONGTEXT NOT NULL,
+    author_id   INT DEFAULT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     INDEX idx_slug (slug),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -154,7 +50,6 @@ CREATE TABLE IF NOT EXISTS users (
     nickname      VARCHAR(128) NOT NULL DEFAULT '',
     role          ENUM('user', 'admin', 'owner') NOT NULL DEFAULT 'user',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
@@ -164,7 +59,6 @@ CREATE TABLE IF NOT EXISTS tags (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     name        VARCHAR(64) UNIQUE NOT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_tag_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
@@ -172,10 +66,9 @@ CREATE TABLE IF NOT EXISTS tags (
 ARTICLE_TAGS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS article_tags (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    article_type ENUM('md', 'wikidot', 'html', 'bbcode') NOT NULL,
+    article_type ENUM('md','wikidot','html','bbcode') NOT NULL,
     article_slug VARCHAR(255) NOT NULL,
     tag_id       INT NOT NULL,
-
     UNIQUE KEY uq_article_tag (article_type, article_slug, tag_id),
     INDEX idx_article (article_type, article_slug),
     INDEX idx_tag (tag_id),
@@ -192,7 +85,6 @@ CREATE TABLE IF NOT EXISTS html_pages (
     author_id   INT DEFAULT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     INDEX idx_slug (slug),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -207,7 +99,6 @@ CREATE TABLE IF NOT EXISTS bbcode_pages (
     author_id   INT DEFAULT NULL,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     INDEX idx_slug (slug),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -221,7 +112,6 @@ CREATE TABLE IF NOT EXISTS comments (
     author_name  VARCHAR(128) NOT NULL DEFAULT '匿名',
     content      TEXT NOT NULL,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_article (article_type, article_slug),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -235,7 +125,6 @@ CREATE TABLE IF NOT EXISTS subsite_links (
     description VARCHAR(512) DEFAULT '',
     sort_order  INT NOT NULL DEFAULT 0,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_sort (sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
@@ -247,7 +136,6 @@ CREATE TABLE IF NOT EXISTS featured_articles (
     article_slug VARCHAR(255) NOT NULL,
     sort_order   INT NOT NULL DEFAULT 0,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     UNIQUE KEY uq_featured (article_type, article_slug),
     INDEX idx_sort (sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -262,7 +150,6 @@ CREATE TABLE IF NOT EXISTS notifications (
     is_active    TINYINT(1) NOT NULL DEFAULT 1,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     INDEX idx_important (is_important),
     INDEX idx_active (is_active),
     INDEX idx_created (created_at)
@@ -279,7 +166,6 @@ CREATE TABLE IF NOT EXISTS external_sites (
     is_active    TINYINT(1) NOT NULL DEFAULT 1,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     INDEX idx_name (name),
     INDEX idx_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -293,7 +179,6 @@ CREATE TABLE IF NOT EXISTS external_pages (
     title        VARCHAR(255) NOT NULL DEFAULT '',
     content      LONGTEXT NOT NULL,
     fetched_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     UNIQUE KEY uq_site_path (site_id, path),
     INDEX idx_site (site_id),
     INDEX idx_path (path(255)),
@@ -311,7 +196,6 @@ CREATE TABLE IF NOT EXISTS static_files (
     mime_type     VARCHAR(128) DEFAULT 'application/octet-stream',
     uploaded_by   INT DEFAULT NULL,
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_filename (filename),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -326,7 +210,6 @@ CREATE TABLE IF NOT EXISTS line_comments (
     author_name   VARCHAR(128) NOT NULL DEFAULT '匿名',
     content       VARCHAR(20) NOT NULL,
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_article_line (article_type, article_slug, line_number),
     INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -341,7 +224,6 @@ CREATE TABLE IF NOT EXISTS ratings (
     score         DECIMAL(4,2) NOT NULL,
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
     UNIQUE KEY uq_user_article (article_type, article_slug, author_name),
     INDEX idx_article (article_type, article_slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -356,15 +238,47 @@ CREATE TABLE IF NOT EXISTS webauthn_credentials (
     sign_count    INT DEFAULT 0,
     transports    VARCHAR(255) DEFAULT '',
     created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     INDEX idx_username (username),
     FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+# ── 所有建表语句的列表（按依赖顺序） ────────────────────────
+
+ALL_TABLE_SQLS = [
+    MD_TABLE_SQL,
+    WK_TABLE_SQL,
+    USERS_TABLE_SQL,
+    TAGS_TABLE_SQL,
+    ARTICLE_TAGS_TABLE_SQL,
+    HTML_PAGES_TABLE_SQL,
+    BBCODE_PAGES_TABLE_SQL,
+    COMMENTS_TABLE_SQL,
+    SUBSITE_LINKS_TABLE_SQL,
+    FEATURED_ARTICLES_TABLE_SQL,
+    NOTIFICATIONS_TABLE_SQL,
+    EXTERNAL_SITES_TABLE_SQL,
+    EXTERNAL_PAGES_TABLE_SQL,
+    STATIC_FILES_TABLE_SQL,
+    LINE_COMMENTS_TABLE_SQL,
+    RATINGS_TABLE_SQL,
+    WEBAUTHN_CREDENTIALS_TABLE_SQL,
+]
+
+
+# ── 迁移辅助 ────────────────────────────────────────────────
+
 
 async def _safe_add_column(cur, table: str, column: str, definition: str) -> None:
-    """安全地添加列（如果不存在则添加，忽略错误）。"""
+    """
+    安全地添加列（如果不存在则添加，忽略重复错误）。
+
+    参数:
+        cur:        数据库游标
+        table:      表名
+        column:     列名
+        definition: 列定义（如 'INT DEFAULT NULL'）
+    """
     try:
         await cur.execute(
             f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
@@ -374,9 +288,14 @@ async def _safe_add_column(cur, table: str, column: str, definition: str) -> Non
 
 
 async def _migrate_user_roles(cur) -> None:
-    """将旧的 is_admin 字段迁移为 role 枚举。"""
+    """
+    将旧的 is_admin 字段迁移为 role 枚举。
+
+    迁移规则:
+        - is_admin=1 且 role='user' → role='admin'
+        - 迁移成功后删除 is_admin 列
+    """
     try:
-        # 检查 role 列是否存在
         await cur.execute(
             "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
             "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
@@ -385,36 +304,38 @@ async def _migrate_user_roles(cur) -> None:
         has_role = await cur.fetchone() is not None
 
         if not has_role:
-            # 添加 role 列
             await cur.execute(
                 "ALTER TABLE users ADD COLUMN role ENUM('user','admin','owner') "
                 "NOT NULL DEFAULT 'user'"
             )
 
-        # 检查 is_admin 列是否存在
         await cur.execute(
             "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
             "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' "
             "AND COLUMN_NAME = 'is_admin'"
         )
         if await cur.fetchone():
-            # 迁移：is_admin=1 -> role='admin'
             await cur.execute(
                 "UPDATE users SET role = 'admin' WHERE is_admin = 1 AND role = 'user'"
             )
-            # 删除旧列
             await cur.execute("ALTER TABLE users DROP COLUMN is_admin")
     except Exception:
-        pass  # 列不存在或已迁移
+        pass
 
 
 async def _migrate_tags() -> None:
-    """为已有文章（无标签的）添加默认标签。"""
-    from . import tag_manager
+    """
+    为已有文章（无标签关联的）添加默认类型标签。
+
+    遍历所有文章表，为没有标签关联的文章自动添加默认标签。
+    同时确保 article_tags 表的 ENUM 支持所有文章类型。
+    """
+    from ..content.tags import auto_tag_article
+
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # 迁移 article_tags ENUM 以支持新类型
+            # 确保 ENUM 支持所有文章类型
             try:
                 await cur.execute(
                     "ALTER TABLE article_tags MODIFY article_type "
@@ -423,117 +344,76 @@ async def _migrate_tags() -> None:
             except Exception:
                 pass
 
-            # Markdown 文章
-            await cur.execute(
-                "SELECT a.slug FROM articles a "
-                "WHERE NOT EXISTS ("
-                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'md' AND at.article_slug = a.slug"
-                ")"
-            )
-            rows = await cur.fetchall()
-            for row in rows:
-                await tag_manager.auto_tag_article("md", row[0])
+            # 为各文章类型添加默认标签
+            type_table_map = {
+                "md": "articles",
+                "wikidot": "pages",
+                "html": "html_pages",
+                "bbcode": "bbcode_pages",
+            }
 
-            # Wikidot 页面
-            await cur.execute(
-                "SELECT p.slug FROM pages p "
-                "WHERE NOT EXISTS ("
-                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'wikidot' AND at.article_slug = p.slug"
-                ")"
-            )
-            rows = await cur.fetchall()
-            for row in rows:
-                await tag_manager.auto_tag_article("wikidot", row[0])
+            for atype, table in type_table_map.items():
+                await cur.execute(
+                    f"SELECT {table}.slug FROM {table} "
+                    "WHERE NOT EXISTS ("
+                    "  SELECT 1 FROM article_tags at "
+                    f" WHERE at.article_type = %s AND at.article_slug = {table}.slug"
+                    ")",
+                    (atype,),
+                )
+                rows = await cur.fetchall()
+                for row in rows:
+                    await auto_tag_article(atype, row[0])
 
-            # HTML 页面
-            await cur.execute(
-                "SELECT hp.slug FROM html_pages hp "
-                "WHERE NOT EXISTS ("
-                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'html' AND at.article_slug = hp.slug"
-                ")"
-            )
-            rows = await cur.fetchall()
-            for row in rows:
-                await tag_manager.auto_tag_article("html", row[0])
 
-            # BBCode 页面
-            await cur.execute(
-                "SELECT bp.slug FROM bbcode_pages bp "
-                "WHERE NOT EXISTS ("
-                "  SELECT 1 FROM article_tags at WHERE at.article_type = 'bbcode' AND at.article_slug = bp.slug"
-                ")"
-            )
-            rows = await cur.fetchall()
-            for row in rows:
-                await tag_manager.auto_tag_article("bbcode", row[0])
+# ── 初始化入口 ──────────────────────────────────────────────
 
 
 async def init_tables() -> None:
-    """在应用启动时确保表结构存在，并执行必要的迁移。"""
+    """
+    初始化所有数据库表结构。
+
+    在应用启动时调用，执行以下操作:
+        1. 创建所有表（如不存在）
+        2. 添加缺失的列
+        3. 迁移旧数据（is_admin → role）
+        4. 为已有文章添加默认标签
+    """
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # Markdown 文章表
-            await cur.execute(MD_TABLE_SQL)
-            await _safe_add_column(cur, "articles", "author_id", "INT DEFAULT NULL")
+            # 依次执行所有建表语句
+            for sql in ALL_TABLE_SQLS:
+                await cur.execute(sql)
 
-            # Wikidot 页面表
-            await cur.execute(WK_TABLE_SQL)
+            # 确保 author_id 列存在
+            await _safe_add_column(cur, "articles", "author_id", "INT DEFAULT NULL")
             await _safe_add_column(cur, "pages", "author_id", "INT DEFAULT NULL")
 
-            # 用户表
-            await cur.execute(USERS_TABLE_SQL)
+            # 迁移用户角色
             await _migrate_user_roles(cur)
 
-            # 标签表
-            await cur.execute(TAGS_TABLE_SQL)
-            await cur.execute(ARTICLE_TAGS_TABLE_SQL)
-
-            # HTML 页面表
-            await cur.execute(HTML_PAGES_TABLE_SQL)
-
-            # BBCode 页面表
-            await cur.execute(BBCODE_PAGES_TABLE_SQL)
-
-            # 评论表
-            await cur.execute(COMMENTS_TABLE_SQL)
-
-            # 子站点链接表
-            await cur.execute(SUBSITE_LINKS_TABLE_SQL)
-
-            # 主页推荐文章表
-            await cur.execute(FEATURED_ARTICLES_TABLE_SQL)
-
-            # 通知表
-            await cur.execute(NOTIFICATIONS_TABLE_SQL)
-
-            # 外部站点表
-            await cur.execute(EXTERNAL_SITES_TABLE_SQL)
-            await cur.execute(EXTERNAL_PAGES_TABLE_SQL)
-
-            # 静态文件表
-            await cur.execute(STATIC_FILES_TABLE_SQL)
-
-            # 行评论表
-            await cur.execute(LINE_COMMENTS_TABLE_SQL)
-
-            # 评分表
-            await cur.execute(RATINGS_TABLE_SQL)
-
-            # 通行密钥表 (WebAuthn)
-            await cur.execute(WEBAUTHN_CREDENTIALS_TABLE_SQL)
-
-    # 迁移：为已有文章添加默认标签
+    # 迁移标签
     await _migrate_tags()
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:
-    """创建默认站长（如不存在），或将已有管理员升级为站长。"""
-    from .auth.password import hash_password
+    """
+    创建默认站长账号（如不存在），或升级已有管理员。
+
+    参数:
+        username: 站长用户名
+        password: 站长密码（明文，会自动哈希存储）
+        nickname: 站长昵称（默认同用户名）
+    """
+    from ..auth.password import hash_password
+
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))
+            await cur.execute(
+                "SELECT COUNT(*) FROM users WHERE username = %s", (username,)
+            )
             if (await cur.fetchone())[0] == 0:
                 pwd_hash = hash_password(password)
                 await cur.execute(
@@ -544,21 +424,7 @@ async def seed_admin(username: str, password: str, nickname: str = "") -> None:
             else:
                 # 确保已有管理员升级为站长
                 await cur.execute(
-                    "UPDATE users SET role = 'owner' WHERE username = %s AND role = 'admin'",
+                    "UPDATE users SET role = 'owner' "
+                    "WHERE username = %s AND role = 'admin'",
                     (username,),
                 )
-
-
-# ── 工具函数 ────────────────────────────────────────────────
-
-def row_to_dict(row: tuple, cursor: aiomysql.Cursor) -> dict:
-    """将查询结果行转为字典，datetime 对象转为 ISO 字符串。"""
-    from datetime import datetime, date
-    cols = [desc[0] for desc in cursor.description]
-    result = {}
-    for col, val in zip(cols, row):
-        if isinstance(val, (datetime, date)):
-            result[col] = val.isoformat()
-        else:
-            result[col] = val
-    return result

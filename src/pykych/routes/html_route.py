@@ -9,13 +9,13 @@ from jinja2 import Environment, FileSystemLoader
 
 from lihil import Request
 
-from .. import html_db as db
-from .. import tag_manager
-from .. import comment_manager
-from .. import line_comment_manager
-from .. import rating_manager
-from .. import external_html
-from ..auth import get_current_user
+from ..content import articles as db
+from ..content import tags as tag_manager
+from ..content import comments as comment_manager
+from ..content import comments as line_comment_manager
+from ..content import ratings as rating_manager
+from ..content import external as external_html
+from ..auth.session import get_current_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -38,7 +38,7 @@ html_route = Route("/html")
 @html_route.get
 async def html_page_list(page: int = 1):
     """HTML 页面列表页。"""
-    result = await db.list_html_pages(page=page, per_page=10)
+    result = await db.list_articles('html', page=page, per_page=10)
     for p in result["pages"]:
         p["tags"] = await tag_manager.get_tags_for_article("html", p["slug"])
 
@@ -60,7 +60,7 @@ async def html_page_list(page: int = 1):
 @html_route.sub("/local/{slug}").get
 async def html_page_detail(request: Request, slug: str):
     """HTML 页面详情页。"""
-    page = await db.get_html_page_by_slug(slug)
+    page = await db.get_article('html', slug)
     if not page:
         return render(
             "html_detail.html",

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from .mysql_manager import get_sys_pool, row_to_dict
-from .auth import hash_password, verify_password
+from .auth.password import hash_password, verify_password
 
 logger = logging.getLogger(__name__)
 

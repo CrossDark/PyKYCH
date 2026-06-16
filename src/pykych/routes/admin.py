@@ -11,16 +11,17 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from urllib.parse import quote
 
-from .. import article_manager
-from .. import auth as auth_mod
-from .. import tag_manager
+from ..content import articles as article_manager
+from ..content import tags as tag_manager
+from ..content import files as file_manager
+from ..content import external as external_html
+from ..auth import user as auth_user
+from ..auth import session as auth_session
+from ..core import settings as settings_manager
 from .. import site_settings
 from .. import notification_manager
-from .. import external_html
-from .. import file_manager
-from .. import settings_manager
 from .. import user_profile
-from .. import theme_manager
+from ..themes_sys import manager as theme_manager
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -37,7 +38,7 @@ def redirect(url: str) -> RedirectResponse:
 
 async def _check(request: Request):
     """所有管理路由复用此检查。返回 (user, error_response)。"""
-    user = await auth_mod.get_current_user(request)
+    user = await auth_session.get_current_user(request)
     if user is None:
         target = quote(request.url.path, safe="")
         return None, redirect(f"/auth/login?next={target}")
@@ -49,7 +50,7 @@ async def _require_owner(request: Request):
     user, err = await _check(request)
     if err:
         return None, err
-    if not auth_mod.is_owner(user):
+    if not auth_user.is_owner(user):
         return None, render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
             md_total=0, wk_total=0, users=[],
@@ -61,7 +62,7 @@ def _can_edit(article: dict | None, user: dict) -> bool:
     """检查用户是否有权限编辑文章：管理员/站长可编辑所有，普通用户只能编辑自己的。"""
     if article is None:
         return False
-    if auth_mod.is_admin(user):
+    if auth_user.is_admin(user):
         return True
     return article.get("author_id") == user.get("id")
 
@@ -81,7 +82,7 @@ async def dashboard(request: Request):
     if err: return err
 
     # 管理员/站长看到所有文章，普通用户只看到自己的
-    is_admin = auth_mod.is_admin(user)
+    is_admin = auth_user.is_admin(user)
     uid = user.get("id") if not is_admin else None
 
     articles_by_type = {}
@@ -89,13 +90,13 @@ async def dashboard(request: Request):
         result = await article_manager.list_articles(atype, page=1, per_page=100, author_id=uid)
         articles_by_type[atype] = result
 
-    users = await auth_mod.list_users() if auth_mod.is_owner(user) else []
-    subsite_links = await site_settings.list_subsite_links() if auth_mod.is_owner(user) else []
-    featured_articles = await site_settings.list_featured_articles() if auth_mod.is_owner(user) else []
-    tags = await tag_manager.get_all_tags_with_counts() if auth_mod.is_admin(user) else []
-    notifications = await notification_manager.list_notifications(include_inactive=True) if auth_mod.is_admin(user) else []
-    ext_sites = await external_html.list_external_sites() if auth_mod.is_admin(user) else []
-    site_settings_data = settings_manager.load_settings() if auth_mod.is_owner(user) else {}
+    users = await auth_user.list_users() if auth_user.is_owner(user) else []
+    subsite_links = await site_settings.list_subsite_links() if auth_user.is_owner(user) else []
+    featured_articles = await site_settings.list_featured_articles() if auth_user.is_owner(user) else []
+    tags = await tag_manager.get_all_tags_with_counts() if auth_user.is_admin(user) else []
+    notifications = await notification_manager.list_notifications(include_inactive=True) if auth_user.is_admin(user) else []
+    ext_sites = await external_html.list_external_sites() if auth_user.is_admin(user) else []
+    site_settings_data = settings_manager.load_settings() if auth_user.is_owner(user) else {}
 
     return render("admin_dashboard.html", title="管理后台 - PyKYCH",
         current_user=user,
@@ -383,7 +384,7 @@ async def manage_tags(request: Request):
     """标签管理页面 — 管理员和站长可以管理所有标签。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
             html_pages=[], bb_pages=[], md_total=0, wk_total=0,
@@ -399,7 +400,7 @@ async def create_tag_route(request: Request):
     """创建新标签。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     name = form.get("name", "").strip()
@@ -412,7 +413,7 @@ async def rename_tag_route(tag_id: int, request: Request):
     """重命名标签。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     new_name = form.get("new_name", "").strip()
@@ -425,7 +426,7 @@ async def delete_tag_route(tag_id: int, request: Request):
     """删除标签。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await tag_manager.delete_tag(tag_id)
     return redirect("/admin/tags")
@@ -437,7 +438,7 @@ async def manage_notifications(request: Request):
     """通知管理页面。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
             html_pages=[], bb_pages=[], md_total=0, wk_total=0,
@@ -453,7 +454,7 @@ async def create_notification(request: Request):
     """创建新通知。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     title = form.get("title", "").strip()
@@ -468,7 +469,7 @@ async def edit_notification(notif_id: int, request: Request):
     """编辑通知。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     title = form.get("title", "").strip()
@@ -486,7 +487,7 @@ async def toggle_notification_importance(notif_id: int, request: Request):
     """切换通知的重要状态。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await notification_manager.toggle_notification_importance(notif_id)
     return redirect("/admin/notifications")
@@ -496,7 +497,7 @@ async def toggle_notification_active(notif_id: int, request: Request):
     """切换通知的启用/停用状态。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await notification_manager.toggle_notification_active(notif_id)
     return redirect("/admin/notifications")
@@ -506,7 +507,7 @@ async def delete_notification_route(notif_id: int, request: Request):
     """删除通知。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await notification_manager.delete_notification(notif_id)
     return redirect("/admin/notifications")
@@ -518,7 +519,7 @@ async def manage_external_sites(request: Request):
     """外部站点管理页面。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
             html_pages=[], bb_pages=[], md_total=0, wk_total=0,
@@ -534,7 +535,7 @@ async def add_external_site(request: Request):
     """添加外部站点。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     name = form.get("name", "").strip()
@@ -553,7 +554,7 @@ async def edit_external_site(site_id: int, request: Request):
     """编辑外部站点配置。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     source_url = form.get("source_url", "").strip()
@@ -571,7 +572,7 @@ async def fetch_external_site(site_id: int, request: Request):
     """手动刷新外部站点首页缓存。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     result = await external_html.fetch_and_cache_site(site_id)
     return redirect("/admin/external")
@@ -581,7 +582,7 @@ async def crawl_external_site(site_id: int, request: Request):
     """全面导入：爬取外部站点所有 HTML 页面并缓存。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     max_pages_str = form.get("max_pages", "500").strip()
@@ -603,7 +604,7 @@ async def fetch_single_page(site_id: int, request: Request):
     """导入单个外部页面。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     form = await request.form()
     page_path = form.get("page_path", "").strip().strip("/")
@@ -628,7 +629,7 @@ async def toggle_external_site(site_id: int, request: Request):
     """切换外部站点启用/停用状态。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     site = await external_html.get_external_site(site_id)
     if site:
@@ -642,7 +643,7 @@ async def clear_external_cache(site_id: int, request: Request):
     """清除外部站点缓存。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await external_html.clear_site_cache(site_id)
     return redirect("/admin/external")
@@ -652,7 +653,7 @@ async def delete_external_site(site_id: int, request: Request):
     """删除外部站点。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await external_html.delete_external_site(site_id)
     return redirect("/admin/external")
@@ -664,7 +665,7 @@ async def manage_files(request: Request, page: int = 1):
     """静态文件管理页面。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
             html_pages=[], bb_pages=[], md_total=0, wk_total=0,
@@ -683,7 +684,7 @@ async def upload_file(request: Request):
     """上传文件。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
 
     form = await request.form()
@@ -728,7 +729,7 @@ async def delete_file_route(file_id: int, request: Request):
     """删除文件。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_admin(user):
+    if not auth_user.is_admin(user):
         return redirect("/admin")
     await file_manager.delete_file(file_id)
     return redirect("/admin/files")
@@ -740,7 +741,7 @@ async def manage_users(request: Request):
     """用户管理页面 — 仅站长可访问。"""
     user, err = await _require_owner(request)
     if err: return err
-    users = await auth_mod.list_users()
+    users = await auth_user.list_users()
     return render("admin_users.html", title="用户管理 - PyKYCH",
         current_user=user, users=users, error=None)
 
@@ -762,10 +763,10 @@ async def add_user(request: Request):
         role = "user"
 
     try:
-        existing = await auth_mod.get_user_by_username(username)
+        existing = await auth_user.get_user_by_username(username)
         if existing:
             return redirect("/admin/users")
-        await auth_mod.create_user(username, password, nickname, role=role)
+        await auth_user.create_user(username, password, nickname, role=role)
     except Exception:
         pass
     return redirect("/admin/users")
@@ -777,7 +778,7 @@ async def delete_user(username: str, request: Request):
     if err: return err
     if username == owner_user["username"]:
         return redirect("/admin/users")
-    await auth_mod.delete_user(username)
+    await auth_user.delete_user(username)
     return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/reset-password").post
@@ -788,7 +789,7 @@ async def reset_password(username: str, request: Request):
     form = await request.form()
     new_password = form.get("new_password", "")
     if new_password:
-        await auth_mod.update_user_password(username, new_password)
+        await auth_user.update_user_password(username, new_password)
     return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/role").post
@@ -801,7 +802,7 @@ async def change_role(username: str, request: Request):
     form = await request.form()
     new_role = form.get("role", "user").strip()
     if new_role in ("user", "admin", "owner"):
-        await auth_mod.update_user_role(username, new_role)
+        await auth_user.update_user_role(username, new_role)
     return redirect("/admin/users")
 
 # ===== 子站点链接管理（仅站长） =====
@@ -893,7 +894,7 @@ async def manage_site_settings(request: Request):
     """站点设置管理页面。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_owner(user):
+    if not auth_user.is_owner(user):
         return redirect("/admin")
     site_cfg = settings_manager.load_settings()
     themes = theme_manager.list_themes()
@@ -906,7 +907,7 @@ async def update_site_settings(request: Request):
     """更新站点设置（含 Logo/Favicon 上传）。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_owner(user):
+    if not auth_user.is_owner(user):
         return redirect("/admin")
 
     form = await request.form()
@@ -1000,7 +1001,7 @@ async def upload_theme(request: Request):
     """上传主题 ZIP 包。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_owner(user):
+    if not auth_user.is_owner(user):
         return redirect("/admin")
 
     form = await request.form()
@@ -1138,7 +1139,7 @@ async def refresh_themes(request: Request):
     """手动刷新主题列表（检测手动添加的主题目录）。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_owner(user):
+    if not auth_user.is_owner(user):
         return redirect("/admin")
 
     # 确保默认主题存在
@@ -1155,7 +1156,7 @@ async def delete_theme_route(theme_name: str, request: Request):
     """删除指定主题。"""
     user, err = await _check(request)
     if err: return err
-    if not auth_mod.is_owner(user):
+    if not auth_user.is_owner(user):
         return redirect("/admin")
 
     success = theme_manager.delete_theme(theme_name)

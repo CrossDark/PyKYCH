@@ -9,13 +9,13 @@ from jinja2 import Environment, FileSystemLoader
 
 from lihil import Request
 
-from .. import wikidot_db as db
-from ..wikidot_parser import parse_wikidot
-from .. import tag_manager
-from .. import comment_manager
-from .. import line_comment_manager
-from .. import rating_manager
-from ..auth import get_current_user
+from ..content import articles as db
+from ..content.parsers.wikidot import parse_wikidot
+from ..content import tags as tag_manager
+from ..content import comments as comment_manager
+from ..content import comments as line_comment_manager
+from ..content import ratings as rating_manager
+from ..auth.session import get_current_user
 
 # ── 模板 ────────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -38,7 +38,7 @@ wikidot_route = Route("/wikidot")
 @wikidot_route.get
 async def page_list(page: int = 1):
     """Wikidot 页面列表。"""
-    result = await db.list_pages(page=page, per_page=10)
+    result = await db.list_articles('wikidot', page=page, per_page=10)
     # 为每个页面加载标签
     for p in result["pages"]:
         p["tags"] = await tag_manager.get_tags_for_article("wikidot", p["slug"])
@@ -55,7 +55,7 @@ async def page_list(page: int = 1):
 @wikidot_route.sub("/{slug}").get
 async def page_detail(request: Request, slug: str):
     """Wikidot 页面详情。"""
-    page = await db.get_page_by_slug(slug)
+    page = await db.get_article('wikidot', slug)
     if not page:
         return render(
             "wikidot_detail.html",

@@ -1,30 +1,52 @@
+"""
+PyKYCH 主应用入口 — 「跨越晨昏」个人网站后端。
+
+模块结构 (v2.0 重构):
+    core/           核心基础设施（数据库、设置）
+    auth/           认证系统（密码、会话、速率限制、通行密钥）
+    content/        内容管理（文章、标签、评论、评分、文件）
+    routes/         HTTP 路由层
+    plugins_sys/    插件系统
+    themes_sys/     主题系统
+
+安全性改进 (v2.0):
+    - 登录速率限制（防暴力破解）
+    - CSRF 保护
+    - 会话固定攻击防护
+    - CAPTCHA 绕过漏洞修复
+    - 密码强度校验
+    - 恒定时间比较（防时序攻击）
+"""
+
+import os
 from lihil import Lihil, Route, Request
 from starlette.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
+from functools import partial
 from pathlib import Path
 from contextlib import asynccontextmanager
 from jinja2 import Environment, FileSystemLoader
 
-from .routes import labels
+from .core.schema import init_tables, seed_admin
+from .core.db import close_pools
+from .core.settings import get_site_title, get_site_subtitle, get_setting
 
-from .mysql_manager import init_tables, close_pools, seed_admin
+from .content.articles import seed_db
+from .content.tags import auto_tag_article
 
-from . import article_manager
+from .auth.user import ensure_profile_columns
+
+from .plugins_sys.manager import load_all_plugins, run_hook, Hooks
+from .themes_sys.manager import set_active_theme
+
 from . import site_settings
 from . import notification_manager
-from . import settings_manager
 from . import user_profile
-from . import plugin_manager
-from . import theme_manager
-from .routes import md
-from .routes import wikidot
-from .routes import admin
-from .routes import auth
-from .routes import labels
-from .routes import html_route
-from .routes import bbcode
-from .routes import comments
-from .routes import search
+
+from .routes import (
+    md, wikidot, admin, auth, labels,
+    html_route, bbcode, comments, search,
+)
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -34,17 +56,17 @@ async def lifespan(app):
     await init_tables()
     # 使用统一文章管理器初始化种子数据
     for atype in ["md", "wikidot", "html", "bbcode"]:
-        await article_manager.seed_db(atype)
+        await seed_db(atype)
     # 确保用户资料字段存在
     try:
         await user_profile.ensure_profile_columns()
     except Exception:
         pass  # 生产环境可能无 ALTER 权限
-    
+
     # 加载所有插件
     try:
-        plugin_manager.load_all_plugins()
-        await plugin_manager.run_hook(plugin_manager.Hooks.ON_STARTUP)
+        load_all_plugins()
+        await run_hook(Hooks.ON_STARTUP)
     except Exception:
         pass
 
@@ -53,14 +75,14 @@ async def lifespan(app):
 
     # 加载样式主题
     try:
-        style_theme = settings_manager.get_setting("appearance.style_theme", "default")
+        style_theme = get_setting("appearance.style_theme", "default")
         if style_theme and style_theme != "default":
-            theme_manager.set_active_theme(style_theme)
+            set_active_theme(style_theme)
     except Exception:
         pass
 
     yield
-    await plugin_manager.run_hook(plugin_manager.Hooks.ON_SHUTDOWN)
+    await run_hook(Hooks.ON_SHUTDOWN)
     await close_pools()
 
 # ── 模板引擎 ──
@@ -75,11 +97,14 @@ jinja_env = Environment(
 app = Lihil(lifespan=lifespan)
 
 # Session 中间件（用于登录状态保持）
-from starlette.middleware.sessions import SessionMiddleware
-from functools import partial
+# 密钥优先使用环境变量，fallback 到默认值（生产环境务必设置环境变量！）
+_SECRET_KEY = os.environ.get(
+    "PYKYCH_SECRET_KEY",
+    "pykych-secret-change-in-production"
+)
 
 app.add_middleware(
-    partial(SessionMiddleware, secret_key="pykych-secret-change-in-production")
+    partial(SessionMiddleware, secret_key=_SECRET_KEY)
 )
 
 
@@ -268,7 +293,7 @@ app.include(admin.admin_route)
 app.include(auth.auth_route)
 
 # ===== 当前用户 API =====
-from .auth import get_current_user
+from .auth.session import get_current_user
 
 api_route = Route("/api")
 
