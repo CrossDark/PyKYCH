@@ -69,6 +69,11 @@
                             <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm" title="全面导入">📥</button>
                         </form>
                         <form method="POST" action="/admin/external/{{ s.id }}/fetch" style="display:inline"><button type="submit" class="wp-btn wp-btn-success wp-btn-sm" title="刷新首页">🔄</button></form>
+                        <button class="wp-btn wp-btn-secondary wp-btn-sm" title="导入单页" onclick="var f=this.nextElementSibling;f.classList.toggle('hidden');if(!f.classList.contains('hidden'))f.querySelector('input').focus();">📄</button>
+                        <form method="POST" action="/admin/external/{{ s.id }}/fetch-page" style="display:inline-flex;gap:0.2rem;" class="hidden">
+                            <input name="page_path" type="text" placeholder="路径，如 docs/guide" class="wp-form-input" style="width:130px;padding:0.15rem 0.3rem;font-size:0.72rem;" required>
+                            <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm" title="导入">导入</button>
+                        </form>
                         <form method="POST" action="/admin/external/{{ s.id }}/toggle" style="display:inline"><button type="submit" class="wp-btn wp-btn-sm {% if s.is_active %}wp-btn-secondary{% else %}wp-btn-success{% endif %}" title="{% if s.is_active %}停用{% else %}启用{% endif %}">{% if s.is_active %}⏸{% else %}▶{% endif %}</button></form>
                         <form method="POST" action="/admin/external/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('确定删除？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm" title="删除">🗑</button></form>
                     </td>
@@ -81,4 +86,6 @@
         {% endif %}
     </div>
 </div>
+
+<style>.hidden { display: none !important; }</style>
 {% endblock %}

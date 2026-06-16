@@ -596,6 +596,32 @@ async def crawl_external_site(site_id: int, request: Request):
         crawl_result=result,
         error=None)
 
+
+@admin_route.sub("/external/{site_id}/fetch-page").post
+async def fetch_single_page(site_id: int, request: Request):
+    """导入单个外部页面。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_mod.is_admin(user):
+        return redirect("/admin")
+    form = await request.form()
+    page_path = form.get("page_path", "").strip().strip("/")
+    if not page_path:
+        sites = await external_html.list_external_sites()
+        return render("admin_external.html", title="外部站点管理 - PyKYCH",
+            current_user=user, sites=sites,
+            error="请输入页面路径。")
+    result = await external_html.fetch_specific_page(site_id, page_path)
+    sites = await external_html.list_external_sites()
+    if result["status"] == "ok":
+        return render("admin_external.html", title="外部站点管理 - PyKYCH",
+            current_user=user, sites=sites,
+            success=result.get("message", ""))
+    else:
+        return render("admin_external.html", title="外部站点管理 - PyKYCH",
+            current_user=user, sites=sites,
+            error=result.get("message", "导入失败"))
+
 @admin_route.sub("/external/{site_id}/toggle").post
 async def toggle_external_site(site_id: int, request: Request):
     """切换外部站点启用/停用状态。"""
