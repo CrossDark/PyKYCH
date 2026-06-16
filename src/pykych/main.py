@@ -34,14 +34,13 @@ from .core.settings import get_site_title, get_site_subtitle, get_setting
 from .content.articles import seed_db
 from .content.tags import auto_tag_article
 
-from .auth.user import ensure_profile_columns
+from .auth import profile as user_profile
 
 from .plugins_sys.manager import load_all_plugins, run_hook, Hooks
 from .themes_sys.manager import set_active_theme
 
-from . import site_settings
-from . import notification_manager
-from . import user_profile
+from .core import site_settings
+from .content import notifications as notification_manager
 
 from .routes import (
     md, wikidot, admin, auth, labels,
@@ -316,7 +315,7 @@ async def api_me(request: Request):
 app.include(api_route)
 
 # ===== 行评论 API =====
-from . import line_comment_manager
+from .content import comments as line_comment_manager
 
 line_comments_api = Route("/api/line-comments")
 
@@ -377,7 +376,7 @@ async def api_get_line_comments_by_line(
 app.include(line_comments_api)
 
 # ===== 评分 API =====
-from . import rating_manager
+from .content import ratings as rating_manager
 
 ratings_api = Route("/api/ratings")
 

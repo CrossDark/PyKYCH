@@ -36,63 +36,79 @@
 - 🔌 **插件系统** — 钩子（Hooks）机制，支持 ON_STARTUP / ON_SHUTDOWN 等生命周期
 - 🎨 **主题系统** — 模板覆盖 + 自定义 CSS，支持多主题切换
 
-**技术特性**
-- PBKDF2-SHA256 密码哈希（NFC Unicode 规范化，支持中文/Emoji 等任意字符），Session 会话管理
-- 🔐 **安全登录** — 数学验证码防暴力破解 + WebAuthn 通行密钥（Passkey）无密码登录
+**安全特性 (v2.0 后端化)**
+- 🔐 **PBKDF2-SHA256** 密码哈希 (60 万次迭代，NFC Unicode 规范化)
+- 🛡️ **速率限制** — 每用户名+IP 组合 5 次/分钟，连续 10 次失败锁定 15 分钟
+- 🔑 **CSRF 保护** — 登录/表单操作使用签名 Token 防跨站请求伪造
+- 🔄 **会话固定防护** — 登录时重建会话 ID
+- ⏱️ **恒定时间比较** — `hmac.compare_digest` 防时序侧信道攻击
+- 🔢 **数学验证码** — 防机器人暴力破解（已修复绕过漏洞）
+- 🔏 **WebAuthn** 通行密钥 (Passkey) 无密码登录
+- 🔒 **Session 密钥** — 通过 `PYKYCH_SECRET_KEY` 环境变量配置
 - MySQL + aiomysql 异步连接池，单库统一架构
 - Jinja2 模板引擎，响应式设计
 - YAML 文件系统设置管理 (`data/settings.yml`)
 
-## 项目架构
+## 项目架构 (v2.0 重构)
 
 ```
 PyKYCH/
 ├── data/                        # 运行时数据目录
-│   ├── settings.yml             # 站点全局设置
+│   ├── settings/
+│   │   ├── db.yaml              # 数据库配置 (gitignored)
+│   │   └── settings.yml         # 站点全局设置
 │   ├── avatars/                 # 用户头像
 │   ├── plugins/                 # 插件包
 │   └── themes/                  # 主题包
-│       └── default/
-│           ├── theme.yaml
-│           ├── static/theme.css
-│           └── templates/
-├── data/
-│   ├── settings/
-│   │   └── db.yaml          # 数据库配置 (gitignored)
-├── src/
-│   ├── plugins/                 # 内置插件示例
-│   └── pykych/
-│       ├── main.py              # 应用入口 & 生命周期
-│       ├── article_manager.py   # 统一文章管理器 (替代分散的 DB 模块)
-│       ├── settings_manager.py  # YAML 文件系统设置管理
-│       ├── plugin_manager.py    # 钩子插件系统
-│       ├── theme_manager.py     # 主题系统
-│       ├── user_profile.py      # 用户资料 & 头像管理
-│       ├── auth.py              # 认证模块 (PBKDF2 + NFC)
-│       ├── webauthn_manager.py  # 通行密钥 (WebAuthn) 管理 & CBOR 解码
-│       ├── wikidot_parser.py    # Wikidot → HTML 解析器
-│       ├── bbcode_parser.py     # BBCode → HTML 解析器
-│       ├── tag_manager.py       # 标签管理
-│       ├── comment_manager.py   # 评论管理
-│       ├── site_settings.py     # 站点设置 (子站点/推荐/外部站)
-│       ├── notification_manager.py  # 通知管理
-│       ├── external_html.py     # 外部站点抓取缓存
-│       ├── file_manager.py      # 静态文件管理
-│       ├── line_comment_manager.py  # 行评论管理
-│       ├── rating_manager.py    # 评分管理
-│       ├── mysql_manager.py     # 连接池 & 表初始化
-│       ├── routes/
-│       │   ├── auth.py          # /auth (登录/登出/CAPTCHA/通行密钥)
-│       │   ├── admin.py         # /admin (管理后台)
-│       │   ├── md.py            # /md (Markdown)
-│       │   ├── wikidot.py       # /wikidot
-│       │   ├── html_route.py    # /html
-│       │   ├── bbcode.py        # /bbcode
-│       │   ├── labels.py        # /labels
-│       │   ├── comments.py      # 评论提交
-│       │   └── search.py        # /search
-│       ├── templates/           # Jinja2 模板
-│       └── static/              # CSS / JS / 上传文件
+├── src/pykych/
+│   ├── main.py                  # 应用入口 & 生命周期
+│   ├── static/                  # CSS / JS / 上传文件
+│   ├── templates/               # Jinja2 模板
+│   │
+│   ├── core/                    # 🔧 核心基础设施
+│   │   ├── db.py                #   MySQL 异步连接池管理
+│   │   ├── schema.py            #   17张表结构定义 & 初始化迁移
+│   │   ├── settings.py          #   YAML 文件系统设置管理
+│   │   └── site_settings.py     #   子站点链接 & 推荐文章
+│   │
+│   ├── auth/                    # 🔒 认证系统 (安全增强)
+│   │   ├── password.py          #   PBKDF2-SHA256 密码哈希 + 强度校验
+│   │   ├── session.py           #   会话管理 + CSRF 保护 + 权限检查
+│   │   ├── user.py              #   用户 CRUD + 角色管理
+│   │   ├── profile.py           #   用户资料 & 头像管理
+│   │   ├── rate_limit.py        #   登录速率限制 (防暴力破解)
+│   │   └── webauthn.py          #   通行密钥 (WebAuthn) + CBOR 解码
+│   │
+│   ├── content/                 # 📝 内容管理
+│   │   ├── articles.py          #   统一文章 CRUD (MD/Wikidot/HTML/BBCode)
+│   │   ├── tags.py              #   标签管理 & 文章关联
+│   │   ├── comments.py          #   全文评论 + 行评论
+│   │   ├── ratings.py           #   评分系统 ([-1, 1] 区间)
+│   │   ├── files.py             #   静态文件上传管理
+│   │   ├── external.py          #   外部站点抓取缓存
+│   │   ├── notifications.py     #   站内通知管理
+│   │   └── parsers/
+│   │       ├── bbcode.py        #     BBCode → HTML 解析器
+│   │       └── wikidot.py       #     Wikidot → HTML 解析器
+│   │
+│   ├── routes/                  # 🌐 HTTP 路由层
+│   │   ├── auth.py              #   /auth (登录/登出/CAPTCHA/通行密钥)
+│   │   ├── admin.py             #   /admin (管理后台)
+│   │   ├── md.py                #   /md (Markdown)
+│   │   ├── wikidot.py           #   /wikidot
+│   │   ├── html_route.py        #   /html
+│   │   ├── bbcode.py            #   /bbcode
+│   │   ├── labels.py            #   /labels
+│   │   ├── comments.py          #   评论提交
+│   │   └── search.py            #   /search
+│   │
+│   ├── plugins_sys/             # 🔌 插件系统
+│   │   └── manager.py           #   钩子 (Hooks) 机制
+│   │
+│   ├── themes_sys/              # 🎨 主题系统
+│   │   └── manager.py           #   模板覆盖 + 自定义 CSS
+│   │
+│   └── legacy/                  # 📦 旧模块 (仅供参考，不再使用)
 ├── pyproject.toml
 ├── LICENSE (MIT)
 └── README.md
@@ -200,7 +216,13 @@ data/
 
 你也可以手动编辑 `data/settings.yml` 来配置网站标题、副标题、ICP 备案号等。
 
-### 7. 启动服务
+### 7. 配置安全密钥 (生产环境必须)
+
+```bash
+export PYKYCH_SECRET_KEY="your-random-secret-key-at-least-32-chars"
+```
+
+### 8. 启动服务
 
 ```bash
 uvicorn src.pykych.main:app --host 0.0.0.0 --port 8000 --reload
@@ -214,7 +236,7 @@ lihil run
 
 访问 http://localhost:8000 即可看到首页。
 
-### 8. 登录后台
+### 9. 登录后台
 
 默认管理员账号（首次启动自动创建）：
 

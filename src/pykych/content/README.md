@@ -13,6 +13,7 @@
 | `ratings.py` | 评分系统（[-1.00, 1.00] 区间） |
 | `files.py` | 静态文件上传管理（UUID 文件名，50MB 限制） |
 | `external.py` | 外部 HTML 站点抓取与缓存 |
+| `notifications.py` | 站内通知管理（重要通知可显示在首页） |
 | `parsers/` | 语法解析器 |
 
 ## 语法解析器

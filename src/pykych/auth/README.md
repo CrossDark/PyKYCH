@@ -23,6 +23,7 @@
 | `password.py` | 密码哈希、验证、强度校验 |
 | `session.py` | 会话管理（登录/登出/CSRF/权限检查） |
 | `user.py` | 用户 CRUD（增删改查、角色管理） |
+| `profile.py` | 用户资料管理（头像上传、简介、密码修改） |
 | `rate_limit.py` | 登录速率限制（内存实现，支持扩展 Redis） |
 | `webauthn.py` | WebAuthn/Passkey 通行密钥 |
 
