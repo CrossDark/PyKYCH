@@ -1,10 +1,12 @@
 """
 用户认证模块 — 密码哈希、会话管理、用户 CRUD。
 使用 hashlib.pbkdf2_hmac（标准库，无外部依赖）。
+支持任意 Unicode 字符作为密码（NFC 规范化）。
 """
 
 import hashlib
 import os
+import unicodedata
 from typing import Optional
 
 from .mysql_manager import get_sys_pool, row_to_dict
@@ -17,22 +19,27 @@ _KEY_LEN = 32
 
 
 def hash_password(password: str) -> str:
-    """返回 '$pbkdf2$iterations$salt_hex$hash_hex' 格式的字符串。"""
+    """返回 '$pbkdf2$iterations$salt_hex$hash_hex' 格式的字符串。
+    使用 NFC 规范化确保跨平台一致性。"""
+    # NFC 规范化：确保相同视觉密码在不同系统上产生相同哈希
+    normalized = unicodedata.normalize("NFC", password)
     salt = os.urandom(_SALT_LEN)
-    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _ITERATIONS, _KEY_LEN)
+    key = hashlib.pbkdf2_hmac("sha256", normalized.encode(), salt, _ITERATIONS, _KEY_LEN)
     return f"$pbkdf2${_ITERATIONS}${salt.hex()}${key.hex()}"
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """验证明文密码与哈希值是否匹配。"""
+    """验证明文密码与哈希值是否匹配。使用 NFC 规范化。"""
     try:
         _, algo, iterations, salt_hex, key_hex = hashed.split("$")
         if algo != "pbkdf2":
             return False
         salt = bytes.fromhex(salt_hex)
         expected = bytes.fromhex(key_hex)
+        # NFC 规范化：与 hash_password 保持一致
+        normalized = unicodedata.normalize("NFC", plain)
         actual = hashlib.pbkdf2_hmac(
-            "sha256", plain.encode(), salt, int(iterations), len(expected)
+            "sha256", normalized.encode(), salt, int(iterations), len(expected)
         )
         return actual == expected
     except (ValueError, AttributeError):

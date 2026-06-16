@@ -18,7 +18,7 @@
         <div id="userCreateForm" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
             <form method="POST" action="/admin/users/add" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
                 <input name="username" placeholder="用户名" class="wp-form-input" style="flex:1;min-width:100px;" required>
-                <input name="password" type="password" placeholder="密码" class="wp-form-input" style="flex:1;min-width:100px;" required>
+                <input name="password" type="password" placeholder="密码（支持任意Unicode）" class="wp-form-input" style="flex:1;min-width:100px;" required>
                 <input name="nickname" placeholder="昵称" class="wp-form-input" style="flex:1;min-width:100px;">
                 <select name="role" class="wp-form-input" style="width:auto;"><option value="user">用户</option><option value="admin">管理员</option><option value="owner">站长</option></select>
                 <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">添加</button>

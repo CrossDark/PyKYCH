@@ -146,7 +146,7 @@ async def change_password(
     返回 (成功, 消息)
     """
     if len(new_password) < 6:
-        return False, "新密码至少需要 6 个字符。"
+        return False, "新密码至少需要 6 个字符（支持任意 Unicode 字符）。"
 
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
