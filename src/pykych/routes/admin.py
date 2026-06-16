@@ -15,12 +15,12 @@ from ..content import articles as article_manager
 from ..content import tags as tag_manager
 from ..content import files as file_manager
 from ..content import external as external_html
+from ..content import notifications as notification_manager
 from ..auth import user as auth_user
 from ..auth import session as auth_session
+from ..auth import profile as user_profile
 from ..core import settings as settings_manager
-from .. import site_settings
-from .. import notification_manager
-from .. import user_profile
+from ..core import site_settings
 from ..themes_sys import manager as theme_manager
 
 # ── 模板 ──

@@ -143,8 +143,10 @@ async def list_articles(
                 await cur.execute(f"SELECT COUNT(*) FROM {table}")
                 total = (await cur.fetchone())[0]
 
+    # 返回统一键名，同时保留 "pages" 兼容旧模板
     return {
         "articles": articles,
+        "pages": articles,       # 向后兼容（wikidot/html/bbcode 模板使用）
         "total": total,
         "page": page,
         "per_page": per_page,

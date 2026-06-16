@@ -124,8 +124,8 @@ async def home():
     subsite_links = await site_settings.list_subsite_links()
     featured = await site_settings.list_featured_articles()
     important_notifications = await notification_manager.get_important_notifications()
-    site_title = settings_manager.get_site_title()
-    site_subtitle = settings_manager.get_site_subtitle()
+    site_title = get_site_title()
+    site_subtitle = get_site_subtitle()
     return render_template(
         "home.html",
         title=site_title,
@@ -472,7 +472,7 @@ app.include(search.search_route)
 
 # ===== 静态文件服务（上传目录） =====
 from starlette.responses import FileResponse
-from .file_manager import UPLOAD_DIR
+from .content.files import UPLOAD_DIR
 
 uploads_route = Route("/static/uploads")
 
@@ -487,7 +487,7 @@ async def serve_upload(filename: str):
 app.include(uploads_route)
 
 # ===== 头像静态文件服务 =====
-from .user_profile import AVATAR_DIR
+from .auth.profile import AVATAR_DIR
 
 # 兼容旧头像路径
 from pathlib import Path as _Path
