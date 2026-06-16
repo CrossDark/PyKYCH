@@ -92,54 +92,6 @@
                     <input type="color" name="primary_color" class="wp-form-input" value="{{ settings.appearance.primary_color|default('#3b82f6')|e }}" style="height:38px;padding:2px;width:60px;">
                 </div>
             </div>
-
-            <!-- 主题管理 -->
-            <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--wp-border-light);">
-                <label style="font-weight:600;font-size:0.85rem;margin-bottom:0.5rem;display:block;">📦 主题管理</label>
-                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
-                    <form method="POST" action="/admin/themes/refresh" style="display:inline;">
-                        <button type="submit" class="wp-btn wp-btn-secondary wp-btn-sm">🔄 扫描检测</button>
-                    </form>
-                    <span class="wp-hint" style="line-height:2;">如果手动复制了主题文件夹，点击此按钮重新检测</span>
-                </div>
-                <!-- 上传新主题 -->
-                <form method="POST" action="/admin/themes/upload" enctype="multipart/form-data" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;">
-                    <div style="flex:1;min-width:200px;">
-                        <input type="file" name="theme_zip" accept=".zip" class="wp-form-input" required style="padding:0.35rem;">
-                    </div>
-                    <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">📤 上传安装</button>
-                </form>
-                <span class="wp-hint">上传 .zip 格式的主题包，需包含 theme.yaml 和 static/theme.css</span>
-
-                <!-- 已安装主题列表 -->
-                {% if themes %}
-                <table class="wp-table" style="margin-top:0.75rem;font-size:0.82rem;">
-                    <thead><tr><th>主题</th><th>描述</th><th>状态</th><th class="col-actions">操作</th></tr></thead>
-                    <tbody>
-                        {% for t in themes %}
-                        <tr>
-                            <td class="col-title">{{ t.name }}</td>
-                            <td style="color:var(--wp-text-muted);">{{ t.description or '—' }}</td>
-                            <td>
-                                {% if t.active %}
-                                <span class="wp-badge wp-badge-primary">当前</span>
-                                {% else %}
-                                <span class="wp-badge">—</span>
-                                {% endif %}
-                            </td>
-                            <td class="col-actions">
-                                {% if t.name != 'default' and not t.active %}
-                                <form method="POST" action="/admin/themes/{{ t.name }}/delete" style="display:inline" onsubmit="return confirm('确定删除主题 «{{ t.name }}» 吗？此操作不可撤销。')">
-                                    <button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑 删除</button>
-                                </form>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
-            </div>
         </div>
     </div>
 
@@ -187,5 +139,57 @@
         <a href="/admin" class="wp-btn wp-btn-secondary">取消</a>
     </div>
     </form>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- 主题管理（独立于设置表单，含自己的子表单）               -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="wp-card" style="margin-top:1.5rem;">
+        <div class="wp-card-header"><h2>📦 主题管理</h2></div>
+        <div class="wp-card-body">
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                <form method="POST" action="/admin/themes/refresh" style="display:inline;">
+                    <button type="submit" class="wp-btn wp-btn-secondary wp-btn-sm">🔄 扫描检测</button>
+                </form>
+                <span class="wp-hint" style="line-height:2;">如果手动复制了主题文件夹，点击此按钮重新检测</span>
+            </div>
+            <!-- 上传新主题 -->
+            <form method="POST" action="/admin/themes/upload" enctype="multipart/form-data" style="display:flex;gap:0.5rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem;">
+                <div style="flex:1;min-width:200px;">
+                    <input type="file" name="theme_zip" accept=".zip" class="wp-form-input" required style="padding:0.35rem;">
+                </div>
+                <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">📤 上传安装</button>
+            </form>
+            <span class="wp-hint">上传 .zip 格式的主题包，需包含 theme.yaml 和 static/theme.css</span>
+
+            <!-- 已安装主题列表 -->
+            {% if themes %}
+            <table class="wp-table" style="margin-top:0.75rem;font-size:0.82rem;">
+                <thead><tr><th>主题</th><th>描述</th><th>状态</th><th class="col-actions">操作</th></tr></thead>
+                <tbody>
+                    {% for t in themes %}
+                    <tr>
+                        <td class="col-title">{{ t.name }}</td>
+                        <td style="color:var(--wp-text-muted);">{{ t.description or '—' }}</td>
+                        <td>
+                            {% if t.active %}
+                            <span class="wp-badge wp-badge-primary">当前</span>
+                            {% else %}
+                            <span class="wp-badge">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="col-actions">
+                            {% if t.name != 'default' and not t.active %}
+                            <form method="POST" action="/admin/themes/{{ t.name }}/delete" style="display:inline" onsubmit="return confirm('确定删除主题 «{{ t.name }}» 吗？此操作不可撤销。')">
+                                <button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑 删除</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}
