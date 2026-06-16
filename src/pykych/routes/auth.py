@@ -142,7 +142,7 @@ async def webauthn_register_begin(request: Request):
     )
     webauthn._store_challenge(request, challenge)
 
-    return JSONResponse(options)
+    return JSONResponse({"publicKey": options})
 
 
 @auth_route.sub("/webauthn/register/complete").post
@@ -184,7 +184,7 @@ async def webauthn_login_begin(request: Request):
     options, challenge = webauthn.generate_authentication_options(rp["rp_id"])
     webauthn._store_challenge(request, challenge)
 
-    return JSONResponse(options)
+    return JSONResponse({"publicKey": options})
 
 
 @auth_route.sub("/webauthn/login/complete").post
