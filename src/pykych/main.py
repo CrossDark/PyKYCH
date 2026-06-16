@@ -51,6 +51,14 @@ async def lifespan(app):
     # 创建默认管理员（如不存在）
     await seed_admin("admin", "admin123", "管理员")
 
+    # 加载样式主题
+    try:
+        style_theme = settings_manager.get_setting("appearance.style_theme", "default")
+        if style_theme and style_theme != "default":
+            theme_manager.set_active_theme(style_theme)
+    except Exception:
+        pass
+
     yield
     await plugin_manager.run_hook(plugin_manager.Hooks.ON_SHUTDOWN)
     await close_pools()

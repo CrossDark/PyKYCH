@@ -76,6 +76,18 @@
                     </select>
                 </div>
                 <div class="wp-form-group">
+                    <label>站点风格主题</label>
+                    <select name="style_theme" class="wp-form-input">
+                        <option value="default" {% if settings.appearance.style_theme|default('default') == 'default' %}selected{% endif %}>默认 (蓝白)</option>
+                        {% for t in themes %}
+                        <option value="{{ t.name }}" {% if settings.appearance.style_theme|default('default') == t.name %}selected{% endif %}>
+                            {{ t.name }} — {{ t.description or '' }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <span class="wp-hint">选择网站的色彩风格，每个主题都支持浅色和深色模式</span>
+                </div>
+                <div class="wp-form-group">
                     <label>主题色</label>
                     <input type="color" name="primary_color" class="wp-form-input" value="{{ settings.appearance.primary_color|default('#3b82f6')|e }}" style="height:38px;padding:2px;width:60px;">
                 </div>

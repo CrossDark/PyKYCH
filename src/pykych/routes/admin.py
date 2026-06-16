@@ -20,6 +20,7 @@ from .. import external_html
 from .. import file_manager
 from .. import settings_manager
 from .. import user_profile
+from .. import theme_manager
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -895,8 +896,9 @@ async def manage_site_settings(request: Request):
     if not auth_mod.is_owner(user):
         return redirect("/admin")
     site_cfg = settings_manager.load_settings()
+    themes = theme_manager.list_themes()
     return render("admin_settings.html", title="站点设置 - PyKYCH",
-        current_user=user, settings=site_cfg, error=None)
+        current_user=user, settings=site_cfg, themes=themes, error=None)
 
 
 @admin_route.sub("/settings/update").post
@@ -941,7 +943,13 @@ async def update_site_settings(request: Request):
 
     # 外观
     settings_manager.set_setting("appearance.theme", form.get("theme", "auto").strip())
+    settings_manager.set_setting("appearance.style_theme", form.get("style_theme", "default").strip())
     settings_manager.set_setting("appearance.primary_color", form.get("primary_color", "#3b82f6").strip())
+
+    # 应用样式主题
+    new_style = form.get("style_theme", "default").strip()
+    if new_style and theme_manager.list_themes():
+        theme_manager.set_active_theme(new_style)
 
     # 功能
     settings_manager.set_setting("features.enable_comments", form.get("enable_comments") == "1")
