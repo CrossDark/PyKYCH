@@ -86,6 +86,43 @@
         font-size: 3rem;
         margin-bottom: 0.5rem;
     }
+
+    /* 上传区域 */
+    .wp-upload-section {
+        background: var(--wp-card-bg);
+        border: 2px dashed var(--wp-border);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        text-align: center;
+        transition: border-color 0.2s;
+    }
+    .wp-upload-section:hover {
+        border-color: var(--wp-primary);
+    }
+    .wp-upload-section .wp-upload-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    .wp-upload-section .wp-upload-text {
+        font-size: 0.85rem;
+        color: var(--wp-text-secondary);
+        margin-bottom: 0.75rem;
+    }
+    .wp-upload-section input[type="file"] {
+        font-size: 0.85rem;
+        color: var(--wp-text-secondary);
+        max-width: 280px;
+    }
+    .wp-upload-section .wp-upload-hint {
+        font-size: 0.72rem;
+        color: var(--wp-text-muted);
+        margin-top: 0.5rem;
+    }
+    .wp-upload-btn {
+        display: inline-block;
+        margin-top: 0.5rem;
+    }
 </style>
 
 <div class="wp-page-section">
@@ -95,6 +132,25 @@
     <p style="color:var(--wp-text-muted);font-size:0.82rem;margin-bottom:1rem;">
         已安装的插件列表。插件位于 <code style="background:var(--wp-table-stripe);padding:0.1rem 0.35rem;border-radius:3px;">data/plugins/</code> 目录下。
     </p>
+
+    {% if error %}
+    <div class="wp-notice wp-notice-error" style="margin-bottom:1rem;">❌ {{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="wp-notice wp-notice-success" style="margin-bottom:1rem;">✅ {{ success }}</div>
+    {% endif %}
+
+    <!-- 上传插件 -->
+    <form method="POST" action="/admin/plugins/upload" enctype="multipart/form-data" class="wp-upload-section">
+        <div class="wp-upload-icon">📦</div>
+        <div class="wp-upload-text">上传新插件（.zip 压缩包）</div>
+        <input type="file" name="plugin_zip" accept=".zip" required style="display:inline-block;">
+        <br>
+        <button type="submit" class="wp-btn wp-btn-primary wp-upload-btn">⬆️ 上传并安装</button>
+        <div class="wp-upload-hint">
+            zip 包内需包含 <code>__init__.py</code>，结构如 <code>插件名/__init__.py</code> 或直接 <code>__init__.py</code>
+        </div>
+    </form>
 
     {% if plugins %}
     <div class="wp-plugins-grid">

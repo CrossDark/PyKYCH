@@ -25,5 +25,6 @@ from .manager import (
     load_all_plugins,
     get_plugin_info,
     get_all_plugins_info,
+    install_plugin_from_zip,
     _loaded_plugins,
 )

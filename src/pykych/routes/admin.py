@@ -23,7 +23,7 @@ from ..core import settings as settings_manager
 from ..core import site_settings
 from ..themes_sys import manager as theme_manager
 from ..plugins_sys.manager import run_hook, Hooks
-from ..plugins_sys.manager import get_all_plugins_info
+from ..plugins_sys.manager import get_all_plugins_info, install_plugin_from_zip
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -541,6 +541,53 @@ async def manage_plugins(request: Request):
     plugins = get_all_plugins_info()
     return render("admin_plugins.html", title="插件管理 - PyKYCH",
         current_user=user, plugins=plugins)
+
+
+@admin_route.sub("/plugins/upload").post
+async def upload_plugin(request: Request):
+    """上传并安装插件（zip 压缩包）。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_user.is_admin(user):
+        return redirect("/admin")
+
+    form = await request.form()
+    uploaded = form.get("plugin_zip")
+
+    if uploaded is None or not hasattr(uploaded, "filename"):
+        plugins = get_all_plugins_info()
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            error="请选择要上传的插件 zip 文件。")
+
+    # 检查文件扩展名
+    if not uploaded.filename.lower().endswith(".zip"):
+        plugins = get_all_plugins_info()
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            error="仅支持 .zip 格式的插件压缩包。")
+
+    # 读取文件内容
+    zip_data = await uploaded.read()
+    if not zip_data:
+        plugins = get_all_plugins_info()
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            error="上传的文件为空。")
+
+    # 安装插件
+    success, message = install_plugin_from_zip(zip_data)
+
+    plugins = get_all_plugins_info()
+    if success:
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            success=message)
+    else:
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            error=message)
+
 
 # ===== 外部站点管理（管理员/站长） =====
 

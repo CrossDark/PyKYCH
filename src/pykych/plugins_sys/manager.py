@@ -224,6 +224,99 @@ def get_all_plugins_info() -> list[dict]:
     return [get_plugin_info(name) for name in all_plugins]
 
 
+# ── 插件安装（从 zip 上传） ─────────────────────────────────
+
+
+def install_plugin_from_zip(zip_data: bytes) -> tuple[bool, str]:
+    """
+    从 zip 文件数据安装插件。
+    
+    zip 结构支持两种：
+    1. plugin_name/__init__.py  （含顶层目录）
+    2. __init__.py              （不含顶层目录，以 zip 文件名作为插件名）
+    
+    返回 (成功, 消息)。
+    """
+    import zipfile
+    import io
+    import shutil
+
+    _ensure_plugins_dir()
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_data)) as zf:
+            # 检查是否包含 __init__.py
+            init_paths = [n for n in zf.namelist() if n.rstrip("/").endswith("__init__.py")]
+            if not init_paths:
+                return False, "zip 文件中未找到 __init__.py，请确保插件包含此文件。"
+
+            # 确定插件名和文件前缀
+            # 取第一个 __init__.py 的路径来判断结构
+            first_init = init_paths[0]
+            parts = first_init.rstrip("/").split("/")
+            
+            if len(parts) >= 2 and parts[-1] == "__init__.py":
+                # 有顶层目录: plugin_name/__init__.py
+                plugin_name = parts[-2]
+                prefix = plugin_name + "/"
+            else:
+                # 无顶层目录: __init__.py 直接在根
+                plugin_name = first_init.rstrip("/__init__.py").replace("/", "_") or "uploaded_plugin"
+                # 避免与现有插件冲突
+                if not plugin_name.isidentifier():
+                    plugin_name = "uploaded_plugin"
+                prefix = ""
+
+            # 验证插件名
+            if not plugin_name or not plugin_name.isidentifier():
+                return False, f"插件名称 '{plugin_name}' 无效。"
+
+            # 目标目录
+            dest_dir = PLUGINS_DIR / plugin_name
+
+            # 处理冲突
+            if dest_dir.exists():
+                return False, f"插件 '{plugin_name}' 已存在，请先删除旧版本再上传。"
+
+            # 解压文件
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for member in zf.namelist():
+                # 跳过目录条目
+                if member.endswith("/"):
+                    continue
+
+                # 计算目标路径（去掉前缀）
+                if prefix and member.startswith(prefix):
+                    rel_path = member[len(prefix):]
+                else:
+                    rel_path = member
+
+                if not rel_path or rel_path.startswith(".."):
+                    continue
+
+                target = dest_dir / rel_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+
+                with zf.open(member) as src, open(target, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+
+            # 验证安装：确保 __init__.py 存在
+            if not (dest_dir / "__init__.py").exists():
+                # 回滚
+                shutil.rmtree(dest_dir, ignore_errors=True)
+                return False, "安装后 __init__.py 不在插件根目录，请检查 zip 结构。"
+
+            # 尝试加载
+            load_plugin(plugin_name)
+
+            return True, f"插件 '{plugin_name}' 安装成功！"
+
+    except zipfile.BadZipFile:
+        return False, "文件不是有效的 zip 压缩包。"
+    except Exception as e:
+        return False, f"安装失败: {e}"
+
+
 # ── 示例插件（若无插件目录则创建默认） ──────────────────────
 
 
