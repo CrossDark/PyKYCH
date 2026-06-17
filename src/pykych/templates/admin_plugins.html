@@ -1,0 +1,136 @@
+{% extends "admin_base.html" %}
+{% set active_menu = 'plugins' %}
+{% block head_title %}插件管理 - PyKYCH{% endblock %}
+
+{% block content %}
+<style>
+    .wp-plugins-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1rem;
+        margin-top: 0.5rem;
+    }
+    .wp-plugin-card {
+        background: var(--wp-card-bg);
+        border: 1px solid var(--wp-border-light);
+        border-radius: 6px;
+        padding: 1.25rem;
+        transition: box-shadow 0.15s;
+    }
+    .wp-plugin-card:hover {
+        box-shadow: var(--wp-shadow);
+    }
+    .wp-plugin-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.6rem;
+    }
+    .wp-plugin-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--wp-text);
+    }
+    .wp-plugin-badge {
+        display: inline-block;
+        padding: 0.15rem 0.55rem;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .wp-plugin-badge.loaded {
+        background: #edfaef;
+        color: #008a20;
+    }
+    .wp-plugin-badge.unloaded {
+        background: #fdf0e8;
+        color: #d97706;
+    }
+    [data-theme="dark"] .wp-plugin-badge.loaded { background: rgba(0,138,32,0.15); }
+    [data-theme="dark"] .wp-plugin-badge.unloaded { background: rgba(217,119,6,0.15); }
+
+    .wp-plugin-desc {
+        font-size: 0.85rem;
+        color: var(--wp-text-secondary);
+        margin-bottom: 0.75rem;
+        line-height: 1.5;
+    }
+    .wp-plugin-meta {
+        font-size: 0.75rem;
+        color: var(--wp-text-muted);
+        margin-bottom: 0.6rem;
+    }
+    .wp-plugin-meta span {
+        margin-right: 1rem;
+    }
+    .wp-plugin-hooks {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+    }
+    .wp-plugin-hook-tag {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        border-radius: 3px;
+        font-size: 0.7rem;
+        background: var(--wp-table-stripe);
+        color: var(--wp-text-secondary);
+        font-family: monospace;
+    }
+    .wp-no-plugins {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--wp-text-muted);
+    }
+    .wp-no-plugins .wp-no-icon {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+</style>
+
+<div class="wp-page-section">
+    <h2 style="font-size:1.05rem;font-weight:600;margin-bottom:0.25rem;color:var(--wp-text);">
+        🧩 插件管理
+    </h2>
+    <p style="color:var(--wp-text-muted);font-size:0.82rem;margin-bottom:1rem;">
+        已安装的插件列表。插件位于 <code style="background:var(--wp-table-stripe);padding:0.1rem 0.35rem;border-radius:3px;">data/plugins/</code> 目录下。
+    </p>
+
+    {% if plugins %}
+    <div class="wp-plugins-grid">
+        {% for p in plugins %}
+        <div class="wp-plugin-card">
+            <div class="wp-plugin-card-header">
+                <span class="wp-plugin-name">🧩 {{ p.name }}</span>
+                <span class="wp-plugin-badge {{ 'loaded' if p.loaded else 'unloaded' }}">
+                    {{ '已加载' if p.loaded else '未加载' }}
+                </span>
+            </div>
+            {% if p.description %}
+            <div class="wp-plugin-desc">{{ p.description }}</div>
+            {% endif %}
+            {% if p.author or p.version %}
+            <div class="wp-plugin-meta">
+                {% if p.version %}<span>📦 v{{ p.version }}</span>{% endif %}
+                {% if p.author %}<span>👤 {{ p.author }}</span>{% endif %}
+            </div>
+            {% endif %}
+            {% if p.hooks %}
+            <div class="wp-plugin-hooks">
+                {% for hook in p.hooks %}
+                <span class="wp-plugin-hook-tag">{{ hook }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="wp-no-plugins">
+        <div class="wp-no-icon">📦</div>
+        <p>暂无安装的插件。</p>
+        <p style="font-size:0.82rem;">在 <code>data/plugins/</code> 目录下创建插件包即可自动发现。</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -23,5 +23,7 @@ from .manager import (
     run_hook,
     run_hook_chain,
     load_all_plugins,
+    get_plugin_info,
+    get_all_plugins_info,
     _loaded_plugins,
 )

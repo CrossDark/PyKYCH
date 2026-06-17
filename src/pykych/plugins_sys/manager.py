@@ -183,6 +183,47 @@ def unload_plugin(plugin_name: str) -> bool:
     return True
 
 
+# ── 插件信息查询（管理后台用） ──────────────────────────────
+
+
+def get_plugin_info(plugin_name: str) -> dict:
+    """获取插件的详细信息（用于管理后台展示）。"""
+    info = {
+        "name": plugin_name,
+        "loaded": plugin_name in _loaded_plugins,
+        "hooks": [],
+        "description": "",
+        "author": "",
+        "version": "",
+    }
+    
+    # 获取插件注册的钩子
+    for hook_name, callbacks in _hooks.items():
+        for cb in callbacks:
+            module_name = getattr(cb, "__module__", "")
+            if module_name == f"plugins.{plugin_name}" or module_name.startswith(f"plugins.{plugin_name}."):
+                info["hooks"].append(hook_name)
+    
+    # 从插件模块获取元信息
+    module = _loaded_plugins.get(plugin_name)
+    if module is not None:
+        info["description"] = getattr(module, "__doc__", "") or ""
+        # 提取第一行作为简短描述
+        if info["description"]:
+            first_line = info["description"].strip().split("\n")[0]
+            info["description"] = first_line
+        info["author"] = getattr(module, "__author__", "")
+        info["version"] = getattr(module, "__version__", "")
+    
+    return info
+
+
+def get_all_plugins_info() -> list[dict]:
+    """获取所有插件（含未加载的）的详细信息列表。"""
+    all_plugins = discover_plugins()
+    return [get_plugin_info(name) for name in all_plugins]
+
+
 # ── 示例插件（若无插件目录则创建默认） ──────────────────────
 
 

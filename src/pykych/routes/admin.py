@@ -23,6 +23,7 @@ from ..core import settings as settings_manager
 from ..core import site_settings
 from ..themes_sys import manager as theme_manager
 from ..plugins_sys.manager import run_hook, Hooks
+from ..plugins_sys.manager import get_all_plugins_info
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -522,6 +523,24 @@ async def delete_notification_route(notif_id: int, request: Request):
         return redirect("/admin")
     await notification_manager.delete_notification(notif_id)
     return redirect("/admin/notifications")
+
+# ===== 插件管理（管理员/站长） =====
+
+@admin_route.sub("/plugins").get
+async def manage_plugins(request: Request):
+    """插件管理页面。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_user.is_admin(user):
+        return render("admin_dashboard.html", title="权限不足 - PyKYCH",
+            current_user=user, md_articles=[], wk_pages=[],
+            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
+            html_total=0, bb_total=0, users=[],
+            subsite_links=[], featured_articles=[],
+            permission_error="仅管理员和站长可管理插件。")
+    plugins = get_all_plugins_info()
+    return render("admin_plugins.html", title="插件管理 - PyKYCH",
+        current_user=user, plugins=plugins)
 
 # ===== 外部站点管理（管理员/站长） =====
 
