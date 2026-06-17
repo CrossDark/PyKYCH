@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title | default('管理后台') }} — PyKYCH</title>
+    <!-- Favicon -->
+    {% set favicon_src = site_favicon() if site_favicon is defined else '/static/img/favicon.ico' %}
+    <link rel="icon" type="image/x-icon" href="{{ favicon_src }}">
     <script>
         (function() {
             const saved = localStorage.getItem('theme');
@@ -435,9 +438,11 @@
     <aside class="wp-sidebar" id="wpSidebar">
         <div class="wp-sidebar-brand">
             <a href="/" class="brand-link">
-                <span class="brand-icon">跨</span>
+                {% set logo_src = site_logo() if site_logo is defined else '/static/img/logo.png' %}
+                <img src="{{ logo_src }}" alt="logo" class="brand-logo-img" style="width:32px;height:32px;border-radius:6px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                <span class="brand-icon"{% if logo_src and logo_src != '/static/img/logo.png' %} style="display:none;"{% endif %}>跨</span>
             </a>
-            <span class="brand-text">PyKYCH</span>
+            <span class="brand-text">{{ site_title_func() if site_title_func is defined else 'PyKYCH' }}</span>
         </div>
         <nav class="wp-sidebar-nav">
             <div class="nav-section">管理菜单</div>
