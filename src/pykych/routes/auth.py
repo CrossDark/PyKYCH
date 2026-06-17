@@ -90,12 +90,40 @@ def _get_rp_config(request) -> dict:
 auth_route = Route("/auth")
 
 
+# ═══════════════════════════════════════════════════════════════
+# check-passkey 接口专用限流（防用户名枚举暴力破解）
+# ═══════════════════════════════════════════════════════════════
+
+import time as _time
+_check_passkey_records: dict[str, list[float]] = {}
+_check_passkey_lock = __import__('threading').Lock()
+_CHECK_PASSKEY_MAX_PER_IP = 10      # 每 IP 每分钟最多 10 次
+_CHECK_PASSKEY_WINDOW = 60           # 限流窗口（秒）
+
+
+def _check_passkey_rate_limit(client_ip: str) -> bool:
+    """检查 check-passkey 接口是否被限流。返回 True 表示允许。"""
+    now = _time.time()
+    cutoff = now - _CHECK_PASSKEY_WINDOW
+    with _check_passkey_lock:
+        records = _check_passkey_records.get(client_ip, [])
+        records = [ts for ts in records if ts > cutoff]
+        if len(records) >= _CHECK_PASSKEY_MAX_PER_IP:
+            _check_passkey_records[client_ip] = records
+            return False
+        records.append(now)
+        _check_passkey_records[client_ip] = records
+        return True
+
+
 @auth_route.sub("/login").get
 async def login_form(request: Request):
     """登录页面。"""
     captcha = _generate_captcha(request)
+    csrf_token = auth_session.generate_csrf_token(request)
     return render("login.html", title="登录 - PyKYCH", error=None,
-                  captcha_question=captcha["question"])
+                  captcha_question=captcha["question"],
+                  csrf_token=csrf_token)
 
 
 @auth_route.sub("/login").post
@@ -106,27 +134,43 @@ async def login_action(request: Request):
     password = form.get("password", "")
     captcha_input = form.get("captcha", "")
 
+    # ── CSRF 防护 ──
+    csrf_token = form.get("csrf_token", "")
+    if not auth_session.verify_csrf_token(request, csrf_token):
+        captcha = _generate_captcha(request)
+        new_csrf = auth_session.generate_csrf_token(request)
+        return render("login.html", title="登录 - PyKYCH",
+                      error="安全验证失败，请刷新页面后重试。",
+                      captcha_question=captcha["question"],
+                      csrf_token=new_csrf)
+
     if not username or not password:
         captcha = _generate_captcha(request)
+        csrf = auth_session.generate_csrf_token(request)
         return render("login.html", title="登录 - PyKYCH",
                       error="用户名和密码不能为空。",
-                      captcha_question=captcha["question"])
+                      captcha_question=captcha["question"],
+                      csrf_token=csrf)
 
     # 验证验证码
     if not _verify_captcha(request, captcha_input):
         captcha = _generate_captcha(request)
+        csrf = auth_session.generate_csrf_token(request)
         return render("login.html", title="登录 - PyKYCH",
                       error="验证码错误，请重试。",
-                      captcha_question=captcha["question"])
+                      captcha_question=captcha["question"],
+                      csrf_token=csrf)
 
     # 速率限制检查（防暴力破解）
     client_ip = auth_session._get_client_ip(request)
     allowed, rate_msg = auth_rate.check_login_rate_limit(username, client_ip)
     if not allowed:
         captcha = _generate_captcha(request)
+        csrf = auth_session.generate_csrf_token(request)
         return render("login.html", title="登录 - PyKYCH",
                       error=rate_msg,
-                      captcha_question=captcha["question"])
+                      captcha_question=captcha["question"],
+                      csrf_token=csrf)
 
     user = await auth_user.get_user_with_password(username)
     if not user or not auth_pwd.verify_password(password, user["password_hash"]):
@@ -134,17 +178,21 @@ async def login_action(request: Request):
         client_ip2 = auth_session._get_client_ip(request)
         auth_rate.record_login_failure(username, client_ip2)
         captcha = _generate_captcha(request)
+        csrf = auth_session.generate_csrf_token(request)
         return render("login.html", title="登录 - PyKYCH",
                       error="用户名或密码错误。",
-                      captcha_question=captcha["question"])
+                      captcha_question=captcha["question"],
+                      csrf_token=csrf)
 
     # 检查用户是否已设置通行密钥 → 禁用密码登录
     if await webauthn.has_passkey(username):
         captcha = _generate_captcha(request)
+        csrf = auth_session.generate_csrf_token(request)
         return render("login.html", title="登录 - PyKYCH",
                       error="此账户已设置通行密钥，请使用下方的「通行密钥登录」按钮进行登录。",
                       captcha_question=captcha["question"],
-                      has_passkey=True)
+                      has_passkey=True,
+                      csrf_token=csrf)
 
     await auth_session.login_user(request, username)
 
@@ -283,7 +331,24 @@ async def webauthn_delete_credential(cred_id: int, request: Request):
 
 @auth_route.sub("/check-passkey").get
 async def check_passkey(request: Request):
-    """检查指定用户名是否已设置通行密钥。用于前端 UI 调整。"""
+    """检查指定用户名是否已设置通行密钥。用于前端 UI 调整。
+    
+    安全措施:
+        1. CSRF Token 验证 — 防止跨站请求
+        2. IP 限流 — 每 IP 每分钟最多 10 次，防用户名枚举
+        3. 恒定响应模式 — 限流被拒时返回相同结构，不暴露原因
+    """
+    # ── IP 限流 ──
+    client_ip = auth_session._get_client_ip(request)
+    if not _check_passkey_rate_limit(client_ip):
+        # 返回通用响应，不暴露限流原因
+        return JSONResponse({"has_passkey": False, "throttled": True})
+
+    # ── CSRF 验证 ──
+    csrf_token = request.query_params.get("_csrf", "")
+    if not auth_session.verify_csrf_token(request, csrf_token):
+        return JSONResponse({"has_passkey": False, "error": "invalid_csrf"})
+
     username = request.query_params.get("username", "").strip()
     if not username:
         return JSONResponse({"has_passkey": False})

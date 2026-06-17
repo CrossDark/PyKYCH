@@ -180,6 +180,7 @@
         <div id="login-msg" style="display:none;"></div>
 
         <form method="POST" action="/auth/login" id="password-form"{% if has_passkey %} style="opacity:0.4;pointer-events:none;"{% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token|default('')|e }}">
             <div class="form-group">
                 <label for="username">用户名</label>
                 <input type="text" id="username" name="username"
@@ -223,12 +224,23 @@ async function checkPasskeyOnBlur() {
     const username = document.getElementById('username').value.trim();
     if (!username) return;
 
+    // 获取 CSRF token
+    const csrfEl = document.querySelector('input[name="csrf_token"]');
+    const csrfToken = csrfEl ? csrfEl.value : '';
+
     try {
-        const resp = await fetch('/auth/check-passkey?username=' + encodeURIComponent(username));
+        const resp = await fetch(
+            '/auth/check-passkey?username=' + encodeURIComponent(username) + '&_csrf=' + encodeURIComponent(csrfToken)
+        );
         const data = await resp.json();
         const pwForm = document.getElementById('password-form');
         const passkeyBtn = document.getElementById('btn-passkey-login');
         const pwBtn = document.getElementById('btn-password-login');
+
+        if (data.throttled || data.error) {
+            // 限流或 CSRF 错误 → 保持密码登录可用，不调整 UI
+            return;
+        }
 
         if (data.has_passkey) {
             // 禁用密码登录 UI
@@ -248,7 +260,7 @@ async function checkPasskeyOnBlur() {
             passkeyBtn.style.boxShadow = 'none';
         }
     } catch (e) {
-        // 检测失败时不阻止密码登录
+        // 检测失败时不阻止密码登录（容错）
     }
 }
 
