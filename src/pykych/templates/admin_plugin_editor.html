@@ -1,0 +1,66 @@
+{% extends "admin_base.html" %}
+{% set active_menu = 'plugins' %}
+{% block head_title %}编辑 {{ file_path }} - PyKYCH{% endblock %}
+
+{% block content %}
+<style>
+    .wp-code-editor {
+        width: 100%; min-height: 400px;
+        font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+        font-size: 0.85rem; line-height: 1.5;
+        padding: 1rem; border: 1px solid var(--wp-border);
+        border-radius: 4px; background: var(--wp-table-stripe);
+        color: var(--wp-text); resize: vertical;
+        tab-size: 4;
+    }
+    .wp-code-editor:focus {
+        outline: none; border-color: var(--wp-primary);
+        box-shadow: 0 0 0 1px var(--wp-primary);
+    }
+    .wp-editor-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .wp-editor-header h2 { margin: 0; font-size: 1rem; }
+    .wp-editor-filepath {
+        font-family: monospace; font-size: 0.8rem;
+        color: var(--wp-text-muted); background: var(--wp-table-stripe);
+        padding: 0.15rem 0.5rem; border-radius: 3px;
+    }
+    .wp-editor-actions {
+        display: flex; gap: 0.5rem; margin-top: 1rem;
+    }
+    .wp-back-link {
+        display: inline-block; margin-bottom: 1rem;
+        font-size: 0.82rem; color: var(--wp-primary); text-decoration: none;
+    }
+    .wp-back-link:hover { text-decoration: underline; }
+    [data-theme="dark"] .wp-code-editor {
+        background: #0d1117;
+    }
+</style>
+
+<a href="/admin/plugins/{{ plugin.name }}" class="wp-back-link">← 返回插件详情</a>
+
+{% if error %}
+<div class="wp-notice wp-notice-error" style="margin-bottom:1rem;">❌ {{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="wp-notice wp-notice-success" style="margin-bottom:1rem;">✅ {{ success }}</div>
+{% endif %}
+
+<div class="wp-editor-header">
+    <div>
+        <h2>✏️ 编辑文件</h2>
+        <span class="wp-editor-filepath">{{ plugin.name }}/{{ file_path }}</span>
+    </div>
+</div>
+
+<form method="POST" action="/admin/plugins/{{ plugin.name }}/edit/{{ file_path }}">
+    <textarea name="content" class="wp-code-editor" spellcheck="false">{{ file_content }}</textarea>
+    <div class="wp-editor-actions">
+        <button type="submit" class="wp-btn wp-btn-primary">💾 保存</button>
+        <a href="/admin/plugins/{{ plugin.name }}" class="wp-btn wp-btn-secondary">取消</a>
+    </div>
+</form>
+{% endblock %}

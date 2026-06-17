@@ -24,6 +24,10 @@ from ..core import site_settings
 from ..themes_sys import manager as theme_manager
 from ..plugins_sys.manager import run_hook, Hooks
 from ..plugins_sys.manager import get_all_plugins_info, install_plugin_from_zip
+from ..plugins_sys.manager import (
+    get_plugin_info, get_plugin_files, read_plugin_file,
+    write_plugin_file, delete_plugin,
+)
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -578,6 +582,95 @@ async def upload_plugin(request: Request):
     # 安装插件
     success, message = install_plugin_from_zip(zip_data)
 
+    plugins = get_all_plugins_info()
+    if success:
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            success=message)
+    else:
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            error=message)
+
+
+@admin_route.sub("/plugins/{plugin_name}").get
+async def plugin_detail(plugin_name: str, request: Request):
+    """插件详情页（含文件列表）。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_user.is_admin(user):
+        return redirect("/admin")
+
+    info = get_plugin_info(plugin_name)
+    files = get_plugin_files(plugin_name)
+    if not files and not info.get("loaded", False):
+        # 插件不存在且未加载
+        plugins = get_all_plugins_info()
+        return render("admin_plugins.html", title="插件管理 - PyKYCH",
+            current_user=user, plugins=plugins,
+            error=f"插件 '{plugin_name}' 不存在。")
+
+    return render("admin_plugin_detail.html", title=f"插件 {plugin_name} - PyKYCH",
+        current_user=user, plugin=info, files=files)
+
+
+@admin_route.sub("/plugins/{plugin_name}/edit/{file_path:path}").get
+async def plugin_file_editor(plugin_name: str, file_path: str, request: Request):
+    """插件文件编辑器页面。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_user.is_admin(user):
+        return redirect("/admin")
+
+    success, content = read_plugin_file(plugin_name, file_path)
+    if not success:
+        info = get_plugin_info(plugin_name)
+        files = get_plugin_files(plugin_name)
+        return render("admin_plugin_detail.html", title=f"插件 {plugin_name} - PyKYCH",
+            current_user=user, plugin=info, files=files,
+            error=content)
+
+    info = get_plugin_info(plugin_name)
+    return render("admin_plugin_editor.html", title=f"编辑 {file_path} - PyKYCH",
+        current_user=user, plugin=info,
+        file_path=file_path, file_content=content)
+
+
+@admin_route.sub("/plugins/{plugin_name}/edit/{file_path:path}").post
+async def plugin_file_save(plugin_name: str, file_path: str, request: Request):
+    """保存插件文件。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_user.is_admin(user):
+        return redirect("/admin")
+
+    form = await request.form()
+    new_content = form.get("content", "")
+
+    success, message = write_plugin_file(plugin_name, file_path, new_content)
+
+    info = get_plugin_info(plugin_name)
+    if success:
+        return render("admin_plugin_editor.html", title=f"编辑 {file_path} - PyKYCH",
+            current_user=user, plugin=info,
+            file_path=file_path, file_content=new_content,
+            success=message)
+    else:
+        return render("admin_plugin_editor.html", title=f"编辑 {file_path} - PyKYCH",
+            current_user=user, plugin=info,
+            file_path=file_path, file_content=new_content,
+            error=message)
+
+
+@admin_route.sub("/plugins/{plugin_name}/delete").post
+async def plugin_delete(plugin_name: str, request: Request):
+    """删除插件。"""
+    user, err = await _check(request)
+    if err: return err
+    if not auth_user.is_admin(user):
+        return redirect("/admin")
+
+    success, message = delete_plugin(plugin_name)
     plugins = get_all_plugins_info()
     if success:
         return render("admin_plugins.html", title="插件管理 - PyKYCH",

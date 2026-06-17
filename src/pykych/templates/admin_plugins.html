@@ -81,6 +81,10 @@
         color: var(--wp-text-secondary);
         font-family: monospace;
     }
+    .wp-plugin-actions {
+        display: flex; gap: 0.4rem; margin-top: 0.75rem;
+        padding-top: 0.6rem; border-top: 1px solid var(--wp-border-light);
+    }
     .wp-no-plugins {
         text-align: center;
         padding: 3rem 1rem;
@@ -191,6 +195,12 @@
                 {% endfor %}
             </div>
             {% endif %}
+            <div class="wp-plugin-actions">
+                <a href="/admin/plugins/{{ p.name }}" class="wp-btn wp-btn-sm wp-btn-secondary">📋 详情</a>
+                <form method="POST" action="/admin/plugins/{{ p.name }}/delete" style="display:inline;" onsubmit="return confirm('确定删除插件 «{{ p.name }}» 吗？此操作不可撤销！')">
+                    <button type="submit" class="wp-btn wp-btn-sm wp-btn-danger">🗑 删除</button>
+                </form>
+            </div>
         </div>
         {% endfor %}
     </div>

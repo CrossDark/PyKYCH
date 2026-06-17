@@ -317,6 +317,97 @@ def install_plugin_from_zip(zip_data: bytes) -> tuple[bool, str]:
         return False, f"安装失败: {e}"
 
 
+# ── 插件管理（删除 / 文件编辑） ─────────────────────────────
+
+
+def delete_plugin(plugin_name: str) -> tuple[bool, str]:
+    """删除插件目录。返回 (成功, 消息)。"""
+    import shutil
+
+    _ensure_plugins_dir()
+    plugin_dir = PLUGINS_DIR / plugin_name
+
+    if not plugin_dir.exists():
+        return False, f"插件 '{plugin_name}' 不存在。"
+
+    if not plugin_dir.is_dir():
+        return False, f"'{plugin_name}' 不是有效的插件目录。"
+
+    # 先卸载
+    unload_plugin(plugin_name)
+
+    try:
+        shutil.rmtree(plugin_dir)
+        return True, f"插件 '{plugin_name}' 已删除。"
+    except Exception as e:
+        return False, f"删除失败: {e}"
+
+
+def get_plugin_files(plugin_name: str) -> list[dict]:
+    """获取插件目录下所有文件的列表。"""
+    _ensure_plugins_dir()
+    plugin_dir = PLUGINS_DIR / plugin_name
+    if not plugin_dir.exists() or not plugin_dir.is_dir():
+        return []
+
+    files = []
+    for item in sorted(plugin_dir.rglob("*")):
+        if item.is_file():
+            rel_path = str(item.relative_to(plugin_dir))
+            files.append({
+                "path": rel_path,
+                "size": item.stat().st_size,
+                "editable": item.suffix in (".py", ".txt", ".md", ".yml", ".yaml", ".json", ".css", ".html", ".js"),
+            })
+    return files
+
+
+def read_plugin_file(plugin_name: str, file_path: str) -> tuple[bool, str]:
+    """读取插件文件内容。返回 (成功, 内容或错误消息)。"""
+    _ensure_plugins_dir()
+    plugin_dir = PLUGINS_DIR / plugin_name
+    target = (plugin_dir / file_path).resolve()
+
+    # 安全检查：确保文件在插件目录内
+    if not str(target).startswith(str(plugin_dir.resolve())):
+        return False, "非法的文件路径。"
+
+    if not target.exists() or not target.is_file():
+        return False, "文件不存在。"
+
+    try:
+        content = target.read_text(encoding="utf-8")
+        return True, content
+    except UnicodeDecodeError:
+        return False, "无法读取二进制文件。"
+    except Exception as e:
+        return False, f"读取失败: {e}"
+
+
+def write_plugin_file(plugin_name: str, file_path: str, content: str) -> tuple[bool, str]:
+    """写入插件文件内容。返回 (成功, 消息)。"""
+    _ensure_plugins_dir()
+    plugin_dir = PLUGINS_DIR / plugin_name
+    target = (plugin_dir / file_path).resolve()
+
+    # 安全检查
+    if not str(target).startswith(str(plugin_dir.resolve())):
+        return False, "非法的文件路径。"
+
+    if not target.parent.exists():
+        return False, "目标目录不存在。"
+
+    try:
+        target.write_text(content, encoding="utf-8")
+        # 如果编辑的是 __init__.py，重新加载插件
+        if target.name == "__init__.py":
+            unload_plugin(plugin_name)
+            load_plugin(plugin_name)
+        return True, "文件保存成功。"
+    except Exception as e:
+        return False, f"保存失败: {e}"
+
+
 # ── 示例插件（若无插件目录则创建默认） ──────────────────────
 
 

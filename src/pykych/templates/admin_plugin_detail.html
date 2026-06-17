@@ -1,0 +1,105 @@
+{% extends "admin_base.html" %}
+{% set active_menu = 'plugins' %}
+{% block head_title %}{{ plugin.name }} - 插件详情 - PyKYCH{% endblock %}
+
+{% block content %}
+<style>
+    .wp-plugin-detail-header {
+        display: flex; align-items: center; gap: 1rem;
+        margin-bottom: 1.5rem; flex-wrap: wrap;
+    }
+    .wp-plugin-detail-header h2 { margin: 0; }
+    .wp-file-list { margin-top: 1rem; }
+    .wp-file-item {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0.55rem 0.85rem;
+        border-bottom: 1px solid var(--wp-border-light);
+        font-size: 0.85rem;
+    }
+    .wp-file-item:hover { background: var(--wp-table-stripe); }
+    .wp-file-name { font-family: monospace; color: var(--wp-text); }
+    .wp-file-size { color: var(--wp-text-muted); font-size: 0.75rem; margin: 0 1rem; }
+    .wp-file-actions { display: flex; gap: 0.4rem; }
+    .wp-file-tag {
+        font-size: 0.65rem; padding: 0.08rem 0.35rem; border-radius: 3px;
+        background: var(--wp-table-stripe); color: var(--wp-text-muted);
+    }
+    .wp-back-link {
+        display: inline-block; margin-bottom: 1rem;
+        font-size: 0.82rem; color: var(--wp-primary); text-decoration: none;
+    }
+    .wp-back-link:hover { text-decoration: underline; }
+</style>
+
+<a href="/admin/plugins" class="wp-back-link">← 返回插件列表</a>
+
+{% if error %}
+<div class="wp-notice wp-notice-error" style="margin-bottom:1rem;">❌ {{ error }}</div>
+{% endif %}
+{% if success %}
+<div class="wp-notice wp-notice-success" style="margin-bottom:1rem;">✅ {{ success }}</div>
+{% endif %}
+
+<div class="wp-plugin-detail-header">
+    <h2>🧩 {{ plugin.name }}</h2>
+    <span class="wp-plugin-badge {{ 'loaded' if plugin.loaded else 'unloaded' }}" style="display:inline-block;padding:0.15rem 0.55rem;border-radius:10px;font-size:0.7rem;font-weight:600;{% if plugin.loaded %}background:#edfaef;color:#008a20;{% else %}background:#fdf0e8;color:#d97706;{% endif %}">
+        {{ '已加载' if plugin.loaded else '未加载' }}
+    </span>
+</div>
+
+<div class="wp-card" style="margin-bottom:1.5rem;">
+    <div class="wp-card-header"><h3>📋 基本信息</h3></div>
+    <div class="wp-card-body">
+        {% if plugin.description %}
+        <p style="margin-bottom:0.5rem;color:var(--wp-text-secondary);">{{ plugin.description }}</p>
+        {% endif %}
+        <div style="font-size:0.82rem;color:var(--wp-text-muted);display:flex;gap:1.5rem;flex-wrap:wrap;">
+            {% if plugin.version %}<span>📦 v{{ plugin.version }}</span>{% endif %}
+            {% if plugin.author %}<span>👤 {{ plugin.author }}</span>{% endif %}
+        </div>
+        {% if plugin.hooks %}
+        <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;gap:0.3rem;">
+            <span style="font-size:0.78rem;color:var(--wp-text-muted);">钩子:</span>
+            {% for hook in plugin.hooks %}
+            <span class="wp-file-tag">{{ hook }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="wp-card">
+    <div class="wp-card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>📁 文件列表</h3>
+    </div>
+    <div class="wp-card-body" style="padding:0;">
+        {% if files %}
+        <div class="wp-file-list">
+            {% for f in files %}
+            <div class="wp-file-item">
+                <div>
+                    <span class="wp-file-name">{{ f.path }}</span>
+                    <span class="wp-file-size">{{ (f.size / 1024) | round(1) }} KB</span>
+                    {% if f.editable %}<span class="wp-file-tag">可编辑</span>{% endif %}
+                </div>
+                <div class="wp-file-actions">
+                    {% if f.editable %}
+                    <a href="/admin/plugins/{{ plugin.name }}/edit/{{ f.path }}" class="wp-btn wp-btn-sm wp-btn-secondary">✏️ 编辑</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="padding:1rem;color:var(--wp-text-muted);">此插件没有文件。</p>
+        {% endif %}
+    </div>
+</div>
+
+<div style="margin-top:1.5rem;display:flex;gap:0.5rem;">
+    <a href="/admin/plugins" class="wp-btn wp-btn-secondary wp-btn-sm">← 返回</a>
+    <form method="POST" action="/admin/plugins/{{ plugin.name }}/delete" style="display:inline;" onsubmit="return confirm('确定删除插件 «{{ plugin.name }}» 吗？此操作不可撤销！')">
+        <button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑 删除插件</button>
+    </form>
+</div>
+{% endblock %}
