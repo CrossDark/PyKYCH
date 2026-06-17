@@ -22,6 +22,7 @@ from ..auth import profile as user_profile
 from ..core import settings as settings_manager
 from ..core import site_settings
 from ..themes_sys import manager as theme_manager
+from ..plugins_sys.manager import run_hook, Hooks
 
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -581,7 +582,12 @@ async def fetch_external_site(site_id: int, request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return redirect("/admin")
-    result = await external_html.fetch_and_cache_site(site_id)
+    # 优先使用插件实现，回退到内置实现
+    results = await run_hook(Hooks.EXTERNAL_SITE_FETCH, site_id)
+    if results:
+        result = results[0]
+    else:
+        result = await external_html.fetch_and_cache_site(site_id)
     return redirect("/admin/external")
 
 @admin_route.sub("/external/{site_id}/crawl").post
@@ -597,7 +603,12 @@ async def crawl_external_site(site_id: int, request: Request):
         max_pages = int(max_pages_str)
     except ValueError:
         max_pages = 500
-    result = await external_html.crawl_and_cache_site(site_id, max_pages=max_pages)
+    # 优先使用插件实现，回退到内置实现
+    results = await run_hook(Hooks.EXTERNAL_SITE_CRAWL, site_id, max_pages)
+    if results:
+        result = results[0]
+    else:
+        result = await external_html.crawl_and_cache_site(site_id, max_pages=max_pages)
     sites = await external_html.list_external_sites()
     return render("admin_external.html", title="外部站点管理 - PyKYCH",
         current_user=user, sites=sites,
@@ -620,7 +631,12 @@ async def fetch_single_page(site_id: int, request: Request):
         return render("admin_external.html", title="外部站点管理 - PyKYCH",
             current_user=user, sites=sites,
             error="请输入页面路径。")
-    result = await external_html.fetch_specific_page(site_id, page_path)
+    # 优先使用插件实现，回退到内置实现
+    results = await run_hook(Hooks.EXTERNAL_PAGE_FETCH, site_id, page_path)
+    if results:
+        result = results[0]
+    else:
+        result = await external_html.fetch_specific_page(site_id, page_path)
     sites = await external_html.list_external_sites()
     if result["status"] == "ok":
         return render("admin_external.html", title="外部站点管理 - PyKYCH",

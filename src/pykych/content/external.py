@@ -323,7 +323,17 @@ async def fetch_page(url: str) -> Optional[tuple[str, str]]:
 
 
 async def fetch_and_cache_site(site_id: int) -> dict:
-    """抓取外部站点首页并缓存。返回结果摘要。"""
+    """抓取外部站点首页并缓存。返回结果摘要。
+    
+    优先通过插件系统处理，若无插件则使用内置实现。
+    """
+    # 优先使用插件实现
+    from ..plugins_sys.manager import run_hook, Hooks
+    results = await run_hook(Hooks.EXTERNAL_SITE_FETCH, site_id)
+    if results:
+        return results[0]
+    
+    # 内置回退实现
     site = await get_external_site(site_id)
     if not site or not site["is_active"]:
         return {"status": "error", "message": "站点不存在或已停用"}
@@ -355,7 +365,17 @@ async def fetch_and_cache_site(site_id: int) -> dict:
 
 
 async def fetch_specific_page(site_id: int, path: str) -> dict:
-    """抓取外部站点的特定路径页面并缓存。"""
+    """抓取外部站点的特定路径页面并缓存。
+    
+    优先通过插件系统处理，若无插件则使用内置实现。
+    """
+    # 优先使用插件实现
+    from ..plugins_sys.manager import run_hook, Hooks
+    results = await run_hook(Hooks.EXTERNAL_PAGE_FETCH, site_id, path)
+    if results:
+        return results[0]
+    
+    # 内置回退实现
     site = await get_external_site(site_id)
     if not site or not site["is_active"]:
         return {"status": "error", "message": "站点不存在或已停用"}
@@ -459,16 +479,15 @@ def _extract_internal_links(html: str, source_domain: str) -> list[str]:
 async def crawl_and_cache_site(site_id: int, max_pages: int = 500) -> dict:
     """全面导入：爬取外部站点的所有内部 HTML 页面并缓存，同时重构内部链接。
     
-    使用 BFS 策略从首页开始递归发现并抓取所有同域 HTML 页面。
-    每个页面中的内部链接会被重写为本站 /html/{site_name}/... 路由。
-    
-    Args:
-        site_id: 外部站点 ID
-        max_pages: 最大抓取页数（防止无限爬取），默认 500
-    
-    Returns:
-        {"status": "ok"/"error", "message": str, "pages": int, "errors": list}
+    优先通过插件系统处理，若无插件则使用内置实现。
     """
+    # 优先使用插件实现
+    from ..plugins_sys.manager import run_hook, Hooks
+    results = await run_hook(Hooks.EXTERNAL_SITE_CRAWL, site_id, max_pages)
+    if results:
+        return results[0]
+    
+    # 内置回退实现
     site = await get_external_site(site_id)
     if not site or not site["is_active"]:
         return {"status": "error", "message": "站点不存在或已停用"}

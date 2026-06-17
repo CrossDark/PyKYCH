@@ -4,13 +4,19 @@
 """
 
 import importlib
-import pkgutil
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
 # ── 插件目录 ─────────────────────────────────────────────────
 
-PLUGINS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "plugins"
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+PLUGINS_DIR = DATA_DIR / "plugins"
+
+# 确保 data/ 在 sys.path 中，使 "import plugins.xxx" 可用
+if str(DATA_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_DIR))
 
 
 def _ensure_plugins_dir() -> None:
@@ -106,6 +112,11 @@ class Hooks:
     # 站点启动
     ON_STARTUP = "on_startup"                      # () -> None
     ON_SHUTDOWN = "on_shutdown"                    # () -> None
+    
+    # 外部站点导入（由插件实现）
+    EXTERNAL_SITE_FETCH = "external_site_fetch"    # (site_id: int) -> dict result
+    EXTERNAL_SITE_CRAWL = "external_site_crawl"    # (site_id: int, max_pages: int) -> dict result
+    EXTERNAL_PAGE_FETCH = "external_page_fetch"    # (site_id: int, path: str) -> dict result
 
 
 # ── 插件加载器 ──────────────────────────────────────────────
