@@ -138,6 +138,14 @@ async def login_action(request: Request):
                       error="用户名或密码错误。",
                       captcha_question=captcha["question"])
 
+    # 检查用户是否已设置通行密钥 → 禁用密码登录
+    if await webauthn.has_passkey(username):
+        captcha = _generate_captcha(request)
+        return render("login.html", title="登录 - PyKYCH",
+                      error="此账户已设置通行密钥，请使用下方的「通行密钥登录」按钮进行登录。",
+                      captcha_question=captcha["question"],
+                      has_passkey=True)
+
     await auth_session.login_user(request, username)
 
     next_url = request.query_params.get("next", "/admin")
@@ -266,4 +274,20 @@ async def webauthn_delete_credential(cred_id: int, request: Request):
         return JSONResponse({"status": "ok"})
     else:
         return JSONResponse({"error": "凭据不存在"}, status_code=404)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 通行密钥检测（用于前端判断是否禁用密码登录）
+# ═══════════════════════════════════════════════════════════════
+
+
+@auth_route.sub("/check-passkey").get
+async def check_passkey(request: Request):
+    """检查指定用户名是否已设置通行密钥。用于前端 UI 调整。"""
+    username = request.query_params.get("username", "").strip()
+    if not username:
+        return JSONResponse({"has_passkey": False})
+
+    has = await webauthn.has_passkey(username)
+    return JSONResponse({"has_passkey": has})
 

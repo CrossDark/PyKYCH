@@ -354,6 +354,19 @@ async def get_credentials(username: str) -> list[dict]:
             return [row_to_dict(r, cur) for r in rows]
 
 
+async def has_passkey(username: str) -> bool:
+    """检查用户是否已设置通行密钥。"""
+    pool = await get_sys_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT COUNT(*) FROM webauthn_credentials WHERE username = %s",
+                (username,),
+            )
+            row = await cur.fetchone()
+            return row[0] > 0 if row else False
+
+
 async def get_credential_by_id(credential_id_b64: str) -> Optional[dict]:
     """根据 base64url 编码的 credential_id 获取凭据详情。"""
     pool = await get_sys_pool()

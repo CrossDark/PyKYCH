@@ -179,7 +179,7 @@
 
         <div id="login-msg" style="display:none;"></div>
 
-        <form method="POST" action="/auth/login" id="password-form">
+        <form method="POST" action="/auth/login" id="password-form"{% if has_passkey %} style="opacity:0.4;pointer-events:none;"{% endif %}>
             <div class="form-group">
                 <label for="username">用户名</label>
                 <input type="text" id="username" name="username"
@@ -200,7 +200,7 @@
                            required autocomplete="off" style="flex:1;">
                 </div>
             </div>
-            <button type="submit" class="btn-login">🔑 密码登录</button>
+            <button type="submit" class="btn-login" id="btn-password-login">🔑 密码登录</button>
         </form>
 
         <div class="divider"><span>或</span></div>
@@ -215,6 +215,66 @@
 </div>
 
 <script>
+// ── 通行密钥检测 ──
+
+let passkeyCheckTimer = null;
+
+async function checkPasskeyOnBlur() {
+    const username = document.getElementById('username').value.trim();
+    if (!username) return;
+
+    try {
+        const resp = await fetch('/auth/check-passkey?username=' + encodeURIComponent(username));
+        const data = await resp.json();
+        const pwForm = document.getElementById('password-form');
+        const passkeyBtn = document.getElementById('btn-passkey-login');
+        const pwBtn = document.getElementById('btn-password-login');
+
+        if (data.has_passkey) {
+            // 禁用密码登录 UI
+            pwForm.style.opacity = '0.4';
+            pwForm.style.pointerEvents = 'none';
+            pwBtn.disabled = true;
+            // 高亮通行密钥按钮
+            passkeyBtn.style.borderColor = 'var(--accent)';
+            passkeyBtn.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.2)';
+            showMsg('此账户已设置通行密钥，请使用通行密钥登录', false);
+        } else {
+            // 恢复密码登录
+            pwForm.style.opacity = '1';
+            pwForm.style.pointerEvents = 'auto';
+            pwBtn.disabled = false;
+            passkeyBtn.style.borderColor = 'var(--border)';
+            passkeyBtn.style.boxShadow = 'none';
+        }
+    } catch (e) {
+        // 检测失败时不阻止密码登录
+    }
+}
+
+// 绑定到用户名输入框
+document.addEventListener('DOMContentLoaded', function() {
+    const usernameEl = document.getElementById('username');
+    if (usernameEl) {
+        usernameEl.addEventListener('blur', checkPasskeyOnBlur);
+        // 也支持回车时触发
+        usernameEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                checkPasskeyOnBlur().then(() => {
+                    // 如果通行密钥存在，自动触发通行密钥登录
+                    const pwForm = document.getElementById('password-form');
+                    if (pwForm.style.pointerEvents === 'none') {
+                        passkeyLogin();
+                    } else {
+                        document.getElementById('password').focus();
+                    }
+                });
+            }
+        });
+    }
+});
+
 // ── 通行密钥 (WebAuthn) 登录 ──
 
 function b64urlToBase64(s) {
