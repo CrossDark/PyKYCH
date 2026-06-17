@@ -2,6 +2,10 @@
 {% set active_menu = 'plugins' %}
 {% block head_title %}插件管理 - PyKYCH{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <style>
     .wp-plugins-grid {
@@ -141,14 +145,23 @@
     {% endif %}
 
     <!-- 上传插件 -->
-    <form method="POST" action="/admin/plugins/upload" enctype="multipart/form-data" class="wp-upload-section">
+    <form method="POST" action="/admin/plugins/upload" enctype="multipart/form-data" class="wp-upload-section" id="pluginUploadForm">
         <div class="wp-upload-icon">📦</div>
-        <div class="wp-upload-text">上传新插件（.zip 压缩包）</div>
-        <input type="file" name="plugin_zip" accept=".zip" required style="display:inline-block;">
+        <div class="wp-upload-text">上传新插件</div>
+        <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;align-items:flex-start;">
+            <div style="text-align:center;">
+                <div style="font-size:0.8rem;color:var(--wp-text-muted);margin-bottom:0.3rem;">📎 ZIP 压缩包</div>
+                <input type="file" name="plugin_zip" accept=".zip" style="display:inline-block;max-width:200px;">
+            </div>
+            <div style="text-align:center;">
+                <div style="font-size:0.8rem;color:var(--wp-text-muted);margin-bottom:0.3rem;">📁 文件夹</div>
+                <input type="file" id="pluginFolder" webkitdirectory multiple style="display:inline-block;max-width:200px;" onchange="handleFolderUpload(event, 'plugin_zip', 'pluginUploadForm')">
+            </div>
+        </div>
         <br>
         <button type="submit" class="wp-btn wp-btn-primary wp-upload-btn">⬆️ 上传并安装</button>
         <div class="wp-upload-hint">
-            zip 包内需包含 <code>__init__.py</code>，结构如 <code>插件名/__init__.py</code> 或直接 <code>__init__.py</code>
+            支持 .zip 压缩包或直接选择插件文件夹。结构需包含 <code>__init__.py</code>
         </div>
     </form>
 
@@ -189,4 +202,52 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── 文件夹上传：使用 JSZip 在浏览器端压缩后提交 ──
+async function handleFolderUpload(event, targetInputName, formId) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const zip = new JSZip();
+
+    // 获取文件夹名（从第一个文件的相对路径提取）
+    let folderName = '';
+    if (files[0].webkitRelativePath) {
+        folderName = files[0].webkitRelativePath.split('/')[0];
+    }
+
+    for (const file of files) {
+        // 获取相对于文件夹的路径
+        let relPath = file.webkitRelativePath || file.name;
+        if (folderName && relPath.startsWith(folderName + '/')) {
+            relPath = relPath.substring(folderName.length + 1);
+        }
+        if (!relPath) continue;
+
+        // 读取文件内容并添加到 zip
+        const arrayBuffer = await file.arrayBuffer();
+        zip.file(relPath, arrayBuffer);
+    }
+
+    // 生成 zip blob
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+    // 创建 File 对象并设置到隐藏的 zip input
+    const zipFileName = (folderName || 'plugin') + '.zip';
+    const zipFile = new File([zipBlob], zipFileName, { type: 'application/zip' });
+
+    // 通过 DataTransfer 设置文件
+    const form = document.getElementById(formId);
+    const zipInput = form.querySelector('input[name="' + targetInputName + '"]');
+    const dt = new DataTransfer();
+    dt.items.add(zipFile);
+    zipInput.files = dt.files;
+
+    // 清除文件夹选择（避免表单提交原始文件）
+    event.target.value = '';
+}
+</script>
 {% endblock %}
