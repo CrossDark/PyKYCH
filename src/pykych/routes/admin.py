@@ -27,6 +27,13 @@ from ..themes_sys import manager as theme_manager
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
 
+# 注入站点设置访问函数
+from ..core.settings import get_setting, get_site_title, get_site_subtitle
+jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
+jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
+jinja_env.globals["site_title_func"] = lambda: get_site_title()
+jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
+
 def render(template_name: str, status_code: int = 200, **context) -> HTMLResponse:
     template = jinja_env.get_template(template_name)
     return HTMLResponse(template.render(**context), status_code=status_code)

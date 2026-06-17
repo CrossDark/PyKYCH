@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title | default('跨越晨昏') }}</title>
+    <!-- Favicon -->
+    {% set favicon_src = site_favicon() if site_favicon is defined else '/static/img/favicon.ico' %}
+    <link rel="icon" type="image/x-icon" href="{{ favicon_src }}">
     <!-- 黑暗模式防闪烁脚本：必须在 <body> 渲染前执行 -->
     <script>
         (function() {
@@ -109,6 +112,13 @@
             color: white;
             font-weight: 800;
             font-size: 1rem;
+        }
+
+        .logo-img {
+            height: 32px;
+            width: auto;
+            max-width: 160px;
+            object-fit: contain;
         }
 
         nav {
@@ -795,7 +805,11 @@
     <header>
         <div class="header-inner">
             <a href="/" class="logo">
-                <span class="logo-icon">跨</span>
+                {% set logo_src = site_logo() if site_logo is defined else '/static/img/logo.png' %}
+                {% if logo_src and logo_src != '/static/img/logo.png' %}
+                <img src="{{ logo_src }}" alt="{{ site_title_func() if site_title_func is defined else '跨越晨昏' }}" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                {% endif %}
+                <span class="logo-icon"{% if logo_src and logo_src != '/static/img/logo.png' %} style="display:none;"{% endif %}>跨</span>
             </a>
             <nav>
                 <a href="/search" title="搜索" aria-label="搜索">🔍</a>

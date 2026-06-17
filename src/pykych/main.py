@@ -92,6 +92,12 @@ jinja_env = Environment(
     autoescape=True,
 )
 
+# 注入站点设置访问函数，供所有模板使用
+jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
+jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
+jinja_env.globals["site_title_func"] = lambda: get_site_title()
+jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
+
 # 创建 Lihil 应用
 app = Lihil(lifespan=lifespan)
 
@@ -485,6 +491,21 @@ async def serve_upload(filename: str):
     return FileResponse(str(file_path))
 
 app.include(uploads_route)
+
+# ===== 站点图片静态文件服务（Logo、Favicon） =====
+STATIC_IMG_DIR = Path(__file__).parent / "static" / "img"
+
+static_img_route = Route("/static/img")
+
+@static_img_route.sub("/{filename}").get
+async def serve_static_img(filename: str):
+    """提供站点图片（Logo、Favicon 等）的访问。"""
+    file_path = STATIC_IMG_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        return HTMLResponse("<p>图片不存在</p>", status_code=404)
+    return FileResponse(str(file_path))
+
+app.include(static_img_route)
 
 # ===== 头像静态文件服务 =====
 from .auth.profile import AVATAR_DIR
