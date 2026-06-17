@@ -50,13 +50,9 @@ async def _check(request: Request):
     if user is None:
         target = quote(request.url.path, safe="")
         return None, redirect(f"/auth/login?next={target}")
-    # 补充用户头像（从 profile 表获取）
-    try:
-        profile = await user_profile.get_user_profile(user["username"])
-        if profile:
-            user["avatar"] = profile.get("avatar")
-    except Exception:
-        pass  # profile 表可能尚未初始化
+    # 确保 avatar 有默认值（兼容 avatar 列不存在的情况）
+    if not user.get("avatar"):
+        user["avatar"] = user_profile.DEFAULT_AVATAR
     return user, None
 
 

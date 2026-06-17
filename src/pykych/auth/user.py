@@ -36,7 +36,7 @@ async def get_user_by_username(username: str) -> Optional[dict]:
     """
     根据用户名获取用户基本信息（不含密码哈希）。
 
-    返回字段: id, username, nickname, role, created_at
+    返回字段: id, username, nickname, role, avatar, created_at
 
     参数:
         username: 用户名
@@ -47,11 +47,20 @@ async def get_user_by_username(username: str) -> Optional[dict]:
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute(
-                "SELECT id, username, nickname, role, created_at "
-                "FROM users WHERE username = %s",
-                (username,),
-            )
+            # 优先查询含 avatar 的完整字段；若 avatar 列不存在则回退
+            try:
+                await cur.execute(
+                    "SELECT id, username, nickname, role, "
+                    "COALESCE(avatar, '') AS avatar, created_at "
+                    "FROM users WHERE username = %s",
+                    (username,),
+                )
+            except Exception:
+                await cur.execute(
+                    "SELECT id, username, nickname, role, created_at "
+                    "FROM users WHERE username = %s",
+                    (username,),
+                )
             row = await cur.fetchone()
             return row_to_dict(row, cur) if row else None
 
