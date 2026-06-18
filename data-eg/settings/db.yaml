@@ -3,16 +3,16 @@
 
 mysql:
   # 服务器地址
-  host: kych.net
+  host: db
 
   # 端口 (MySQL 默认 3306)
   port: 3306
 
   # 数据库用户
-  user: pykych
+  user: user
 
   # 数据库密码
-  password: rfeiii4390gij430304i43gj0h0g430iunweiowwie08820_w-9303r0j832-jru9weooiqwowe
+  password: password
 
   # 统一数据库名（所有表存放在同一数据库中）
   database: pykych

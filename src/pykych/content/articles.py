@@ -55,6 +55,15 @@ ARTICLE_TYPES = {
         "form_title_new": "新建 BBCode 文章",
         "form_title_edit": "编辑 BBCode 文章",
     },
+    "typst": {
+        "label": "Typst",
+        "table": "typst_pages",
+        "list_cols": "id, slug, title, author_id, created_at, updated_at",
+        "default_tag": "typst",
+        "url_prefix": "/typst",
+        "form_title_new": "新建 Typst 文章",
+        "form_title_edit": "编辑 Typst 文章",
+    },
 }
 
 
@@ -346,6 +355,30 @@ async def seed_db(article_type: str) -> None:
              "[url=https://example.com]链接文字[/url]\n"
              "[img]https://via.placeholder.com/100[/img]\n\n"
              "[spoiler=点击展开]隐藏内容[/spoiler]\n\n[hr]"),
+        ],
+        "typst": [
+            ("typst-demo", "Typst 示例",
+             '#import "@preview/tufted:0.1.1"\n\n'
+             "= Typst 示例文档\n\n"
+             "欢迎使用 Typst！这是一个现代化的排版系统。\n\n"
+             "== 特点\n\n"
+             "- *快速编译*：增量编译，即时预览\n"
+             "- *编程式*：使用函数和变量自动化排版\n"
+             "- *美观*：内置优雅的默认样式\n\n"
+             "== 代码示例\n\n"
+             "```typst\n"
+             "#let add(x, y) = x + y\n"
+             "#add(3, 4)  // 输出 7\n"
+             "```\n\n"
+             "== 数学公式\n\n"
+             "$ integral_0^oo e^(-x^2) dif x = sqrt(pi)/2 $\n\n"
+             "== 表格\n\n"
+             "#table(\n"
+             "  columns: 3,\n"
+             "  [ID], [名称], [数量],\n"
+             "  [1], [苹果], [10],\n"
+             "  [2], [香蕉], [5],\n"
+             ")\n"),
         ],
     }
 

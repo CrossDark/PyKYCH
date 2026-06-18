@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS tags (
 ARTICLE_TAGS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS article_tags (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    article_type ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_type ENUM('md','wikidot','html','bbcode','typst') NOT NULL,
     article_slug VARCHAR(255) NOT NULL,
     tag_id       INT NOT NULL,
     UNIQUE KEY uq_article_tag (article_type, article_slug, tag_id),
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS bbcode_pages (
 COMMENTS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS comments (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    article_type ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_type ENUM('md','wikidot','html','bbcode','typst') NOT NULL,
     article_slug VARCHAR(255) NOT NULL,
     author_name  VARCHAR(128) NOT NULL DEFAULT '匿名',
     content      TEXT NOT NULL,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS subsite_links (
 FEATURED_ARTICLES_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS featured_articles (
     id           INT AUTO_INCREMENT PRIMARY KEY,
-    article_type ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_type ENUM('md','wikidot','html','bbcode','typst') NOT NULL,
     article_slug VARCHAR(255) NOT NULL,
     sort_order   INT NOT NULL DEFAULT 0,
     created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS static_files (
 LINE_COMMENTS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS line_comments (
     id            INT AUTO_INCREMENT PRIMARY KEY,
-    article_type  ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_type  ENUM('md','wikidot','html','bbcode','typst') NOT NULL,
     article_slug  VARCHAR(255) NOT NULL,
     line_number   INT NOT NULL,
     author_name   VARCHAR(128) NOT NULL DEFAULT '匿名',
@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS line_comments (
 RATINGS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS ratings (
     id            INT AUTO_INCREMENT PRIMARY KEY,
-    article_type  ENUM('md','wikidot','html','bbcode') NOT NULL,
+    article_type  ENUM('md','wikidot','html','bbcode','typst') NOT NULL,
     article_slug  VARCHAR(255) NOT NULL,
     author_name   VARCHAR(128) NOT NULL,
     score         DECIMAL(4,2) NOT NULL,
@@ -243,6 +243,33 @@ CREATE TABLE IF NOT EXISTS webauthn_credentials (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+TYPST_PAGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS typst_pages (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    slug        VARCHAR(255) UNIQUE NOT NULL,
+    title       VARCHAR(255) NOT NULL,
+    content     LONGTEXT NOT NULL,
+    author_id   INT DEFAULT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_slug (slug),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+TYPST_FILES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS typst_files (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    page_id     INT NOT NULL,
+    filename    VARCHAR(255) NOT NULL,
+    content     LONGTEXT NOT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_page_file (page_id, filename),
+    INDEX idx_page (page_id),
+    FOREIGN KEY (page_id) REFERENCES typst_pages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 # ── 所有建表语句的列表（按依赖顺序） ────────────────────────
 
 ALL_TABLE_SQLS = [
@@ -253,6 +280,8 @@ ALL_TABLE_SQLS = [
     ARTICLE_TAGS_TABLE_SQL,
     HTML_PAGES_TABLE_SQL,
     BBCODE_PAGES_TABLE_SQL,
+    TYPST_PAGES_TABLE_SQL,
+    TYPST_FILES_TABLE_SQL,
     COMMENTS_TABLE_SQL,
     SUBSITE_LINKS_TABLE_SQL,
     FEATURED_ARTICLES_TABLE_SQL,
@@ -335,11 +364,11 @@ async def _migrate_tags() -> None:
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # 确保 ENUM 支持所有文章类型
+            # 确保 ENUM 支持所有文章类型（包括 typst）
             try:
                 await cur.execute(
                     "ALTER TABLE article_tags MODIFY article_type "
-                    "ENUM('md','wikidot','html','bbcode') NOT NULL"
+                    "ENUM('md','wikidot','html','bbcode','typst') NOT NULL"
                 )
             except Exception:
                 pass
@@ -350,6 +379,7 @@ async def _migrate_tags() -> None:
                 "wikidot": "pages",
                 "html": "html_pages",
                 "bbcode": "bbcode_pages",
+                "typst": "typst_pages",
             }
 
             for atype, table in type_table_map.items():
@@ -364,6 +394,31 @@ async def _migrate_tags() -> None:
                 rows = await cur.fetchall()
                 for row in rows:
                     await auto_tag_article(atype, row[0])
+
+
+async def _migrate_enums_for_typst() -> None:
+    """
+    将已有 ENUM 列扩展为包含 'typst' 类型。
+
+    对 comments, line_comments, ratings, featured_articles 表的
+    article_type 列进行 ALTER，确保新值 'typst' 可用。
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            enum_migrations = {
+                "comments": "ENUM('md','wikidot','html','bbcode','typst')",
+                "line_comments": "ENUM('md','wikidot','html','bbcode','typst')",
+                "ratings": "ENUM('md','wikidot','html','bbcode','typst')",
+                "featured_articles": "ENUM('md','wikidot','html','bbcode','typst')",
+            }
+            for table, enum_def in enum_migrations.items():
+                try:
+                    await cur.execute(
+                        f"ALTER TABLE {table} MODIFY article_type {enum_def} NOT NULL"
+                    )
+                except Exception:
+                    pass  # 列可能已是新定义，或表尚不存在
 
 
 # ── 初始化入口 ──────────────────────────────────────────────
@@ -395,6 +450,8 @@ async def init_tables() -> None:
 
     # 迁移标签
     await _migrate_tags()
+    # 迁移 ENUM 以支持 typst
+    await _migrate_enums_for_typst()
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:

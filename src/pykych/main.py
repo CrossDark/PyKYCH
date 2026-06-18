@@ -45,6 +45,7 @@ from .content import notifications as notification_manager
 from .routes import (
     md, wikidot, admin, auth, labels,
     html_route, bbcode, comments, search,
+    typst_route,
 )
 
 # ── 应用生命周期 ──────────────────────────────────────────────
@@ -54,7 +55,7 @@ async def lifespan(app):
     """启动时建表并写入种子数据，关闭时释放连接池。"""
     await init_tables()
     # 使用统一文章管理器初始化种子数据
-    for atype in ["md", "wikidot", "html", "bbcode"]:
+    for atype in ["md", "wikidot", "html", "bbcode", "typst"]:
         await seed_db(atype)
     # 清理可能的孤立标签关联（修复旧版本遗留数据）
     try:
@@ -300,6 +301,9 @@ app.include(html_route.html_route)
 # ===== BBCode 页面路由 =====
 app.include(bbcode.bbcode_route)
 app.include(comments.comments_route)
+
+# ===== Typst 页面路由 =====
+app.include(typst_route.typst_route)
 
 # ===== 标签路由 =====
 app.include(labels.labels_route)

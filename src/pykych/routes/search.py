@@ -1,6 +1,6 @@
 """
 搜索路由 — /search/ 下的所有端点。
-支持跨全部文章类型（Markdown、Wikidot、HTML、BBCode）的内容搜索。
+支持跨全部文章类型（Markdown、Wikidot、HTML、BBCode、Typst）的内容搜索。
 """
 
 from lihil import Route
@@ -40,6 +40,7 @@ TYPE_ROUTE_MAP = {
     "wikidot": "/wikidot/",
     "html": "/html/local/",
     "bbcode": "/bbcode/",
+    "typst": "/typst/",
 }
 
 TYPE_LABEL_MAP = {
@@ -47,6 +48,7 @@ TYPE_LABEL_MAP = {
     "wikidot": "Wikidot",
     "html": "HTML",
     "bbcode": "BBCode",
+    "typst": "Typst",
 }
 
 
@@ -79,9 +81,13 @@ async def search(q: str = "", page: int = 1):
                         UNION ALL
                         SELECT slug FROM bbcode_pages
                         WHERE title LIKE %s OR content LIKE %s
+                        UNION ALL
+                        SELECT slug FROM typst_pages
+                        WHERE title LIKE %s OR content LIKE %s
                     ) AS all_results
                     """,
-                    (keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword),
+                    (keyword, keyword, keyword, keyword, keyword, keyword,
+                     keyword, keyword, keyword, keyword),
                 )
                 total = (await cur.fetchone())[0]
                 total_pages = max(1, (total + per_page - 1) // per_page)
@@ -105,10 +111,15 @@ async def search(q: str = "", page: int = 1):
                     SELECT slug, title, content, created_at, 'bbcode' AS article_type
                     FROM bbcode_pages
                     WHERE title LIKE %s OR content LIKE %s
+                    UNION ALL
+                    SELECT slug, title, content, created_at, 'typst' AS article_type
+                    FROM typst_pages
+                    WHERE title LIKE %s OR content LIKE %s
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
-                    (keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
+                    (keyword, keyword, keyword, keyword, keyword, keyword,
+                     keyword, keyword, keyword, keyword,
                      per_page, offset),
                 )
                 page_rows = await cur.fetchall()

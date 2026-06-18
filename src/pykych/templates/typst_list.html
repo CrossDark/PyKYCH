@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📄 Typst 文章</h1>
+    <p class="subtitle">共 {{ total }} 篇文章</p>
+</div>
+
+{% if not typst_available %}
+<div class="card" style="text-align: center; padding: 1rem; margin-bottom: 1.5rem; background: var(--code-bg); border-left: 4px solid #f59e0b;">
+    <p style="color: var(--text-secondary); margin: 0;">
+        ⚠️ Typst CLI 未安装。文章列表可正常浏览，但详情页需要 Typst 才能渲染。
+        <br><small>安装方法：<code>brew install typst</code> (macOS) 或访问 <a href="https://typst.app" target="_blank">typst.app</a></small>
+    </p>
+</div>
+{% endif %}
+
+<div class="article-list">
+    {% for article in articles %}
+    <a href="/typst/{{ article.slug }}" class="article-card card">
+        <h3>{{ article.title }}</h3>
+        <div class="date">{{ article.created_at[:10] }}</div>
+        {% if article.tags %}
+        <div class="inline-tags">
+            {% for tag in article.tags %}
+            <span class="inline-tag">#{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <p class="summary">阅读全文 →</p>
+    </a>
+    {% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+        <p style="color: var(--text-muted); margin: 0;">暂无 Typst 文章</p>
+    </div>
+    {% endfor %}
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}" class="page-btn">← 上一页</a>
+    {% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}" class="page-btn">下一页 →</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

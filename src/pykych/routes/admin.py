@@ -69,7 +69,9 @@ async def _require_owner(request: Request):
     if not auth_user.is_owner(user):
         return None, render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
-            md_total=0, wk_total=0, users=[],
+            html_pages=[], bb_pages=[], typst_articles=[],
+            md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
+            users=[],
             permission_error="仅站长可执行此操作。")
     return user, None
 
@@ -89,7 +91,7 @@ admin_route = Route("/admin")
 # ===== 仪表盘 =====
 
 # ── 文章类型列表（用于统一构建 CRUD 路由） ──
-_ARTICLE_TYPES = ["md", "wikidot", "html", "bbcode"]
+_ARTICLE_TYPES = ["md", "wikidot", "html", "bbcode", "typst"]
 
 
 @admin_route.get
@@ -121,10 +123,12 @@ async def dashboard(request: Request):
         wk_pages=articles_by_type["wikidot"]["articles"],
         html_pages=articles_by_type["html"]["articles"],
         bb_pages=articles_by_type["bbcode"]["articles"],
+        typst_articles=articles_by_type["typst"]["articles"],
         md_total=articles_by_type["md"]["total"],
         wk_total=articles_by_type["wikidot"]["total"],
         html_total=articles_by_type["html"]["total"],
         bb_total=articles_by_type["bbcode"]["total"],
+        typst_total=articles_by_type["typst"]["total"],
         users=users,
         subsite_links=subsite_links, featured_articles=featured_articles,
         tags=tags, notifications=notifications, ext_sites=ext_sites,
@@ -141,6 +145,7 @@ _TYPE_LABELS = {
     "wikidot": "Wikidot 页面",
     "html": "HTML 页面",
     "bbcode": "BBCode 文章",
+    "typst": "Typst 文章",
 }
 
 # ── 通用：新建表单 (GET) ──
@@ -394,6 +399,27 @@ async def bbcode_update(slug: str, request: Request):
 async def bbcode_delete(slug: str, request: Request):
     return await _article_delete("bbcode", slug, request)
 
+# Typst
+@admin_route.sub("/typst/new").get
+async def typst_create_form(request: Request):
+    return await _article_new_form("typst", request)
+
+@admin_route.sub("/typst/new").post
+async def typst_create(request: Request):
+    return await _article_create("typst", request)
+
+@admin_route.sub("/typst/{slug}/edit").get
+async def typst_edit_form(slug: str, request: Request):
+    return await _article_edit_form("typst", slug, request)
+
+@admin_route.sub("/typst/{slug}/edit").post
+async def typst_update(slug: str, request: Request):
+    return await _article_update("typst", slug, request)
+
+@admin_route.sub("/typst/{slug}/delete").post
+async def typst_delete(slug: str, request: Request):
+    return await _article_delete("typst", slug, request)
+
 # ===== 标签管理（管理员/站长） =====
 
 @admin_route.sub("/tags").get
@@ -404,8 +430,9 @@ async def manage_tags(request: Request):
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
-            html_total=0, bb_total=0, users=[],
+            html_pages=[], bb_pages=[], typst_articles=[],
+            md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
+            users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理标签。")
     tags = await tag_manager.get_all_tags_with_counts()
@@ -458,8 +485,9 @@ async def manage_notifications(request: Request):
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
-            html_total=0, bb_total=0, users=[],
+            html_pages=[], bb_pages=[], typst_articles=[],
+            md_total=0, wk_total=0,
+            html_total=0, bb_total=0, typst_total=0, users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理通知。")
     notifications = await notification_manager.list_notifications(include_inactive=True)
@@ -539,8 +567,9 @@ async def manage_plugins(request: Request):
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
-            html_total=0, bb_total=0, users=[],
+            html_pages=[], bb_pages=[], typst_articles=[],
+            md_total=0, wk_total=0,
+            html_total=0, bb_total=0, typst_total=0, users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理插件。")
     plugins = get_all_plugins_info()
@@ -693,8 +722,9 @@ async def manage_external_sites(request: Request):
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
-            html_total=0, bb_total=0, users=[],
+            html_pages=[], bb_pages=[], typst_articles=[],
+            md_total=0, wk_total=0,
+            html_total=0, bb_total=0, typst_total=0, users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理外部站点。")
     sites = await external_html.list_external_sites()
@@ -854,8 +884,9 @@ async def manage_files(request: Request, page: int = 1):
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
             current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], md_total=0, wk_total=0,
-            html_total=0, bb_total=0, users=[],
+            html_pages=[], bb_pages=[], typst_articles=[],
+            md_total=0, wk_total=0,
+            html_total=0, bb_total=0, typst_total=0, users=[],
             subsite_links=[], featured_articles=[],
             tags=[], notifications=[], ext_sites=[],
             permission_error="仅管理员和站长可管理文件。")

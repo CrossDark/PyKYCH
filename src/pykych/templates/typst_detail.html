@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% if article %}
+{% block extra_head %}
+<style>
+    /* ── Typst 文章排版增强 ── */
+    .typst-content {
+        font-size: 1.05rem;
+        line-height: 1.85;
+    }
+
+    .typst-content h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .typst-content h2 {
+        font-size: 1.4rem;
+        margin-top: 2rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 2px solid var(--border);
+    }
+
+    .typst-content h3 {
+        font-size: 1.15rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .typst-content blockquote {
+        border-left: 4px solid var(--accent);
+        padding: 0.5rem 1rem;
+        margin: 1.2rem 0;
+        background: var(--code-bg);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        color: var(--text-secondary);
+    }
+
+    .typst-content pre {
+        background: var(--code-bg);
+        padding: 1rem 1.2rem;
+        border-radius: var(--radius);
+        overflow-x: auto;
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin: 1rem 0;
+        border: 1px solid var(--border);
+    }
+
+    .typst-content code {
+        background: var(--code-bg);
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.9em;
+        border: 1px solid var(--border);
+    }
+
+    .typst-content pre code {
+        background: none;
+        padding: 0;
+        border: none;
+    }
+
+    .typst-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+        font-size: 0.95rem;
+    }
+
+    .typst-content th,
+    .typst-content td {
+        border: 1px solid var(--border);
+        padding: 0.6rem 0.9rem;
+        text-align: left;
+    }
+
+    .typst-content th {
+        background: var(--code-bg);
+        font-weight: 600;
+    }
+
+    .typst-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: var(--radius);
+        margin: 1rem 0;
+    }
+
+    .typst-content .figure,
+    .typst-content figure {
+        margin: 1.5rem 0;
+        text-align: center;
+    }
+
+    .typst-content .figure img,
+    .typst-content figure img {
+        display: block;
+        margin: 0 auto;
+    }
+
+    .typst-content figcaption,
+    .typst-content .figure-caption {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+    }
+
+    /* 数学公式 */
+    .typst-content .katex,
+    .typst-content .math {
+        font-size: 1.05em;
+    }
+
+    /* ── Typst 编译错误样式 ── */
+    .typst-error {
+        background: #fff5f5;
+        border: 2px solid #e53e3e;
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+
+    [data-theme="dark"] .typst-error {
+        background: #1a0000;
+        border-color: #e53e3e;
+    }
+
+    .typst-error h2 {
+        color: #e53e3e;
+        margin-top: 0;
+        border-bottom: none;
+    }
+
+    .typst-error pre {
+        background: #1a1a1a;
+        color: #e0e0e0;
+        padding: 1rem;
+        border-radius: var(--radius);
+        overflow-x: auto;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+    /* ── PDF 下载按钮 ── */
+    .pdf-download-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .pdf-download-bar .pdf-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.9rem;
+        background: var(--accent);
+        color: #fff;
+        border-radius: var(--radius);
+        text-decoration: none;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .pdf-download-bar .pdf-btn:hover {
+        background: var(--accent-hover);
+    }
+</style>
+{% endblock %}
+{% endif %}
+
+{% block content %}
+{% if article %}
+    <!-- PDF 下载栏 -->
+    {% if typst_available %}
+    <div class="pdf-download-bar">
+        <span>📄 本文由 Typst 编译生成</span>
+        <a href="/typst/{{ article.slug }}/pdf" class="pdf-btn">📥 下载 PDF</a>
+    </div>
+    {% endif %}
+
+    <!-- 文章头 -->
+    <article class="article-detail">
+        <header class="article-header">
+            <h1>{{ article.title }}</h1>
+            <div class="article-meta">
+                <time datetime="{{ article.created_at[:10] }}">📅 {{ article.created_at[:10] }}</time>
+                {% if article.tags %}
+                <span class="article-tags">
+                    {% for tag in article.tags %}
+                    <a href="/labels/{{ tag.name }}" class="tag-badge">#{{ tag.name }}</a>
+                    {% endfor %}
+                </span>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Typst 编译内容 -->
+        <div class="typst-content">
+            {{ html_content | safe }}
+        </div>
+    </article>
+
+    <!-- 评分 -->
+    {% include "_rating_section.html" %}
+
+    <!-- 评论区 -->
+    {% include "_line_comments.html" %}
+
+    <!-- 全文评论 -->
+    <section class="comments-section" style="margin-top: 3rem; border-top: 2px solid var(--border); padding-top: 2rem;">
+        <h2>💬 评论 ({{ comments | length }})</h2>
+        {% if comments %}
+        <ul class="comment-list">
+            {% for c in comments %}
+            <li class="comment-item">
+                <div class="comment-meta">
+                    <strong>{{ c.author_name }}</strong>
+                    <time>{{ c.created_at[:19] }}</time>
+                </div>
+                <div class="comment-body">{{ c.content }}</div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color: var(--text-muted);">暂无评论，来抢沙发吧！</p>
+        {% endif %}
+
+        <!-- 评论表单 -->
+        <form method="POST" action="/comments/typst/{{ article.slug }}" class="comment-form" style="margin-top: 1.5rem;">
+            {% if current_user %}
+            <input type="hidden" name="author_name" value="{{ current_user.username }}">
+            {% else %}
+            <div class="form-group">
+                <label for="author_name">昵称</label>
+                <input type="text" id="author_name" name="author_name" placeholder="你的昵称" required>
+            </div>
+            {% endif %}
+            <div class="form-group">
+                <label for="comment_content">评论</label>
+                <textarea id="comment_content" name="content" rows="4" placeholder="写下你的想法..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">发表评论</button>
+        </form>
+    </section>
+
+{% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+        <h2 style="color: var(--text-muted);">404 — 文章未找到</h2>
+        <p style="color: var(--text-muted);">{{ html_content | safe if html_content else '抱歉，您查找的 Typst 文章不存在。' }}</p>
+        <a href="/typst" class="btn" style="margin-top: 1rem;">← 返回 Typst 文章列表</a>
+    </div>
+{% endif %}
+{% endblock %}

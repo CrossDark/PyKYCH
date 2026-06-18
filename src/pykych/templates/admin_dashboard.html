@@ -35,6 +35,13 @@
             <div class="wp-stat-label">BBCode</div>
         </div>
     </div>
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon teal">📄</div>
+        <div>
+            <div class="wp-stat-num">{{ typst_total }}</div>
+            <div class="wp-stat-label">Typst</div>
+        </div>
+    </div>
 </div>
 
 <!-- ══ 文章管理 ══ -->
@@ -130,6 +137,29 @@
         </div>
     </div>
 
+    <!-- Typst -->
+    <div class="wp-card">
+        <div class="wp-card-header">
+            <h2>📄 Typst 文章</h2>
+            <a href="/admin/typst/new" class="wp-btn wp-btn-primary wp-btn-sm">+ 新建</a>
+        </div>
+        <div class="wp-card-body no-padding">
+            {% if typst_articles %}
+            <table class="wp-table"><thead><tr><th>标题</th><th>Slug</th><th class="col-date">创建时间</th><th class="col-actions">操作</th></tr></thead><tbody>
+            {% for p in typst_articles %}<tr>
+                <td class="col-title">{{ p.title }}</td>
+                <td class="col-slug">{{ p.slug }}</td>
+                <td class="col-date">{{ p.created_at[:10] }}</td>
+                <td class="col-actions">
+                    <a href="/typst/{{ p.slug }}" class="wp-btn wp-btn-outline wp-btn-sm" title="查看">👁</a>
+                    <a href="/admin/typst/{{ p.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
+                    <form method="POST" action="/admin/typst/{{ p.slug }}/delete" style="display:inline" onsubmit="return confirm('确定删除 «{{ p.title }}» 吗？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
+                </td>
+            </tr>{% endfor %}
+            </tbody></table>{% else %}<div class="wp-empty">暂无 Typst 文章</div>{% endif %}
+        </div>
+    </div>
+
 {% if current_user.role == 'owner' %}
     <!-- 子站点链接 -->
     <div class="wp-card">
@@ -179,7 +209,7 @@
             <div id="featuredForm" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
                 <form method="POST" action="/admin/featured/add" style="display:flex;gap:0.35rem;flex-wrap:wrap;">
                     <select name="article_type" class="wp-form-input" style="width:auto;" required>
-                        <option value="md">Markdown</option><option value="wikidot">Wikidot</option><option value="html">HTML</option><option value="bbcode">BBCode</option>
+                        <option value="md">Markdown</option><option value="wikidot">Wikidot</option><option value="html">HTML</option><option value="bbcode">BBCode</option><option value="typst">Typst</option>
                     </select>
                     <input name="article_slug" placeholder="Slug" class="wp-form-input" style="flex:1;min-width:130px;" required>
                     <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">添加</button>

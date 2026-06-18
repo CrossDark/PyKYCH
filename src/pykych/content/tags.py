@@ -16,6 +16,7 @@ _TYPE_TABLE_MAP = {
     "wikidot": "pages",
     "html": "html_pages",
     "bbcode": "bbcode_pages",
+    "typst": "typst_pages",
 }
 
 # ── 文章类型 → URL 前缀 映射 ─────────────────────────────────
@@ -24,6 +25,7 @@ _TYPE_URL_MAP = {
     "wikidot": "/wikidot",
     "html": "/html/local",
     "bbcode": "/bbcode",
+    "typst": "/typst",
 }
 
 
@@ -132,6 +134,7 @@ async def get_all_tags_with_counts() -> list[dict]:
                                WHEN at.article_type = 'wikidot' AND EXISTS(SELECT 1 FROM pages p WHERE p.slug = at.article_slug) THEN 1
                                WHEN at.article_type = 'html' AND EXISTS(SELECT 1 FROM html_pages h WHERE h.slug = at.article_slug) THEN 1
                                WHEN at.article_type = 'bbcode' AND EXISTS(SELECT 1 FROM bbcode_pages b WHERE b.slug = at.article_slug) THEN 1
+                               WHEN at.article_type = 'typst' AND EXISTS(SELECT 1 FROM typst_pages t2 WHERE t2.slug = at.article_slug) THEN 1
                                ELSE 0
                            END
                        ) as cnt
@@ -412,6 +415,7 @@ async def get_articles_by_tag(
                     OR (at.article_type = 'wikidot' AND EXISTS(SELECT 1 FROM pages p WHERE p.slug = at.article_slug))
                     OR (at.article_type = 'html' AND EXISTS(SELECT 1 FROM html_pages h WHERE h.slug = at.article_slug))
                     OR (at.article_type = 'bbcode' AND EXISTS(SELECT 1 FROM bbcode_pages b WHERE b.slug = at.article_slug))
+                    OR (at.article_type = 'typst' AND EXISTS(SELECT 1 FROM typst_pages t2 WHERE t2.slug = at.article_slug))
                   )
                 """,
                 (tag["id"],),
@@ -427,14 +431,14 @@ async def get_articles_by_tag(
 
             offset = (page - 1) * per_page
 
-            # 使用 LEFT JOIN 一次性跨四表查询，避免 N+1 问题
+            # 使用 LEFT JOIN 一次性跨五表查询，避免 N+1 问题
             await cur.execute(
                 "SELECT "
                 "  at.article_type, "
                 "  at.article_slug, "
-                "  COALESCE(a.title, p.title, h.title, b.title) AS title, "
-                "  COALESCE(a.created_at, p.created_at, h.created_at, b.created_at) AS created_at, "
-                "  COALESCE(a.updated_at, p.updated_at, h.updated_at, b.updated_at) AS updated_at "
+                "  COALESCE(a.title, p.title, h.title, b.title, t2.title) AS title, "
+                "  COALESCE(a.created_at, p.created_at, h.created_at, b.created_at, t2.created_at) AS created_at, "
+                "  COALESCE(a.updated_at, p.updated_at, h.updated_at, b.updated_at, t2.updated_at) AS updated_at "
                 "FROM article_tags at "
                 "LEFT JOIN articles a "
                 "  ON at.article_type = 'md' AND at.article_slug = a.slug "
@@ -444,6 +448,8 @@ async def get_articles_by_tag(
                 "  ON at.article_type = 'html' AND at.article_slug = h.slug "
                 "LEFT JOIN bbcode_pages b "
                 "  ON at.article_type = 'bbcode' AND at.article_slug = b.slug "
+                "LEFT JOIN typst_pages t2 "
+                "  ON at.article_type = 'typst' AND at.article_slug = t2.slug "
                 "WHERE at.tag_id = %s "
                 "ORDER BY at.id DESC "
                 "LIMIT %s OFFSET %s",
@@ -516,6 +522,9 @@ async def cleanup_orphan_article_tags() -> int:
                 ))
                 OR (article_type = 'bbcode' AND NOT EXISTS(
                     SELECT 1 FROM bbcode_pages b WHERE b.slug = article_slug
+                ))
+                OR (article_type = 'typst' AND NOT EXISTS(
+                    SELECT 1 FROM typst_pages t WHERE t.slug = article_slug
                 ))
                 """
             )

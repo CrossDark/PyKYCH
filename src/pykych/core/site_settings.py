@@ -101,12 +101,13 @@ async def list_featured_articles() -> list[dict]:
             await cur.execute(
                 """
                 SELECT f.id, f.article_type, f.article_slug, f.sort_order, f.created_at,
-                       COALESCE(a.title, p.title, h.title, b.title) AS title
+                       COALESCE(a.title, p.title, h.title, b.title, t.title) AS title
                 FROM featured_articles f
                 LEFT JOIN articles a ON f.article_type = 'md' AND f.article_slug = a.slug
                 LEFT JOIN pages p ON f.article_type = 'wikidot' AND f.article_slug = p.slug
                 LEFT JOIN html_pages h ON f.article_type = 'html' AND f.article_slug = h.slug
                 LEFT JOIN bbcode_pages b ON f.article_type = 'bbcode' AND f.article_slug = b.slug
+                LEFT JOIN typst_pages t ON f.article_type = 'typst' AND f.article_slug = t.slug
                 ORDER BY f.sort_order ASC, f.id ASC
                 """
             )
@@ -217,6 +218,7 @@ TABLE_MAP = {
     "wikidot": "pages",
     "html": "html_pages",
     "bbcode": "bbcode_pages",
+    "typst": "typst_pages",
 }
 
 URL_MAP = {
@@ -224,6 +226,7 @@ URL_MAP = {
     "wikidot": "/wikidot/{slug}",
     "html": "/html/local/{slug}",
     "bbcode": "/bbcode/{slug}",
+    "typst": "/typst/{slug}",
 }
 
 
