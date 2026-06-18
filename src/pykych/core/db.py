@@ -22,12 +22,8 @@ from datetime import datetime, date
 import aiomysql
 
 # ── 配置文件路径 ────────────────────────────────────────────
-
-# 支持通过 PYKYCH_ENV 环境变量切换配置：
-#   - 未设置或 'production': 使用 data/settings/db.yaml
-#   - 'test': 使用 data/settings/db.test.yaml
-_ENV = os.environ.get("PYKYCH_ENV", "").strip().lower()
-_CONFIG_NAME = "db.test.yaml" if _ENV == "test" else "db.yaml"
+# 统一使用 data/settings/db.yaml，测试与生产环境通过文件内容区分。
+_CONFIG_NAME = "db.yaml"
 CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "settings" / _CONFIG_NAME
 
 _config: dict[str, Any] | None = None
@@ -51,8 +47,7 @@ def _load_config() -> dict[str, Any]:
     except FileNotFoundError:
         raise FileNotFoundError(
             f"数据库配置文件未找到: {CONFIG_PATH}\n"
-            f"当前环境: {_ENV or 'production'}，请确保 {_CONFIG_NAME} 存在。\n"
-            f"可复制 db.yaml.example 或 db.test.yaml.example 并重命名。"
+            f"请确保 {_CONFIG_NAME} 存在。可复制 db.yaml.example 并重命名。"
         ) from None
     except yaml.YAMLError as e:
         raise ValueError(f"数据库配置文件格式错误: {e}") from None
