@@ -1,0 +1,32 @@
+/* Forest 森林绿主题 */
+
+:root {
+    --bg: #f6f8f5;
+    --bg-card: #ffffff;
+    --text: #1a2318;
+    --text-secondary: #4a5e42;
+    --text-muted: #8a9e82;
+    --border: #dce5d8;
+    --accent: #4a8c3f;
+    --accent-hover: #3a7032;
+    --code-bg: #edf3ea;
+    --shadow: 0 1px 3px rgba(74, 140, 63, 0.06), 0 1px 2px rgba(74, 140, 63, 0.04);
+    --shadow-md: 0 4px 6px rgba(74, 140, 63, 0.05), 0 2px 4px rgba(74, 140, 63, 0.04);
+    --radius: 10px;
+    --header-bg: rgba(246, 248, 245, 0.94);
+}
+
+[data-theme="dark"] {
+    --bg: #0d140c;
+    --bg-card: #151c14;
+    --text: #dce5d8;
+    --text-secondary: #8a9e82;
+    --text-muted: #5a6e52;
+    --border: #1e2a1c;
+    --accent: #6abf5a;
+    --accent-hover: #8cd980;
+    --code-bg: #111810;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
+    --header-bg: rgba(13, 20, 12, 0.94);
+}

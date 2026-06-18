@@ -1,0 +1,2 @@
+/* Default 默认主题 — 使用 base.html 内联默认值，无需额外覆盖 */
+/* 此文件留空，所有变量由 base.html 的 :root / [data-theme="dark"] 定义 */

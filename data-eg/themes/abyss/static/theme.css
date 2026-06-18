@@ -1,0 +1,120 @@
+/* ═══════════════════════════════════════════════════════════
+   Abyss 深渊主题 — 暗黑恐怖，血红与暗影交织
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    --bg: #0a0a0c;
+    --bg-card: #111116;
+    --text: #c4b5b5;
+    --text-secondary: #8a7070;
+    --text-muted: #5a4444;
+    --border: #1f1518;
+    --accent: #c0392b;
+    --accent-hover: #e74c3c;
+    --code-bg: #0d0c10;
+    --shadow: 0 1px 3px rgba(192, 57, 43, 0.08), 0 1px 2px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 4px 12px rgba(192, 57, 43, 0.10), 0 2px 4px rgba(0, 0, 0, 0.7);
+    --radius: 4px;
+    --max-width: 720px;
+    --header-bg: rgba(10, 10, 12, 0.97);
+}
+
+[data-theme="dark"] {
+    --bg: #060508;
+    --bg-card: #0e0c10;
+    --text: #c4b5b5;
+    --text-secondary: #8a7070;
+    --text-muted: #5a4444;
+    --border: #1a1014;
+    --accent: #c0392b;
+    --accent-hover: #e74c3c;
+    --code-bg: #0a080c;
+    --shadow: 0 1px 3px rgba(192, 57, 43, 0.10), 0 1px 2px rgba(0, 0, 0, 0.8);
+    --shadow-md: 0 4px 14px rgba(192, 57, 43, 0.12), 0 2px 4px rgba(0, 0, 0, 0.8);
+    --radius: 4px;
+    --max-width: 720px;
+    --header-bg: rgba(6, 5, 8, 0.98);
+}
+
+/* ── 标题血红色 ── */
+h1, h2, h3 {
+    color: #d4a5a5;
+}
+
+h1 {
+    text-shadow: 0 0 20px rgba(192, 57, 43, 0.15);
+}
+
+/* ── 链接：血红悬停发光 ── */
+a {
+    color: var(--accent);
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+a:hover {
+    color: #e74c3c;
+    text-shadow: 0 0 12px rgba(231, 76, 60, 0.4);
+    text-decoration: none;
+}
+
+/* ── 按钮 ── */
+button, .btn, .wp-btn-primary {
+    background: #8b1a1a;
+    border-color: #a02020;
+    transition: all 0.3s ease;
+}
+button:hover, .btn:hover, .wp-btn-primary:hover {
+    background: #a02020;
+    border-color: #c0392b;
+    box-shadow: 0 0 12px rgba(192, 57, 43, 0.3);
+}
+
+/* ── 输入框聚焦血光 ── */
+input:focus, textarea:focus, select:focus {
+    border-color: #c0392b !important;
+    box-shadow: 0 0 8px rgba(192, 57, 43, 0.2) !important;
+    outline: none;
+}
+
+/* ── 代码块 ── */
+pre, code {
+    border-left: 2px solid #3a1018;
+}
+
+/* ── 引用块 ── */
+blockquote {
+    border-left-color: #5a1a1a !important;
+    background: rgba(192, 57, 43, 0.03) !important;
+}
+
+/* ── 表格 ── */
+th {
+    background: rgba(192, 57, 43, 0.06);
+    border-bottom: 2px solid #3a1018 !important;
+}
+
+/* ── 水平线 ── */
+hr {
+    border-color: #2a1018;
+}
+
+/* ── 滚动条 ── */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #0a0a0c;
+}
+::-webkit-scrollbar-thumb {
+    background: #2a1018;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #3a1520;
+}
+
+/* ── 选中文字 ── */
+::selection {
+    background: rgba(192, 57, 43, 0.30);
+    color: #e8d0d0;
+}
+

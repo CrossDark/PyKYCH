@@ -1,0 +1,24 @@
+appearance:
+  font_family: system-ui, -apple-system, sans-serif
+  primary_color: '#3b82f6'
+  style_theme: forest
+  theme: auto
+features:
+  enable_comments: true
+  enable_dark_mode: true
+  enable_search: true
+  enable_tags_sidebar: true
+  posts_per_page: 10
+site:
+  description: ''
+  favicon_path: /static/img/favicon.ico
+  icp_number: 京ICP备2026033372号
+  language: zh-CN
+  logo_path: /static/img/logo_c40563d07988.png
+  subtitle: 欢迎来到我的个人网站
+  timezone: Asia/Shanghai
+  title: 跨越晨昏
+social:
+  email: ''
+  github: ''
+  twitter: ''

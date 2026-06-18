@@ -1,0 +1,32 @@
+/* Lavender 薰衣草紫主题 */
+
+:root {
+    --bg: #f8f6fc;
+    --bg-card: #ffffff;
+    --text: #1e1530;
+    --text-secondary: #4a3d62;
+    --text-muted: #8a7da2;
+    --border: #e4ddf0;
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --code-bg: #f3f0fa;
+    --shadow: 0 1px 3px rgba(139, 92, 246, 0.06), 0 1px 2px rgba(139, 92, 246, 0.04);
+    --shadow-md: 0 4px 6px rgba(139, 92, 246, 0.05), 0 2px 4px rgba(139, 92, 246, 0.04);
+    --radius: 12px;
+    --header-bg: rgba(248, 246, 252, 0.94);
+}
+
+[data-theme="dark"] {
+    --bg: #100a1c;
+    --bg-card: #1a102c;
+    --text: #dcd0f0;
+    --text-secondary: #8a7da2;
+    --text-muted: #5a4d72;
+    --border: #281e3c;
+    --accent: #a78bfa;
+    --accent-hover: #c4b5fd;
+    --code-bg: #140c22;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
+    --header-bg: rgba(16, 10, 28, 0.94);
+}

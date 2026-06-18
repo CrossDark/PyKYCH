@@ -1,5 +1,9 @@
 # ── PyKYCH Docker 部署 ────────────────────────────────────
 # 使用: docker compose up -d
+#
+# 测试环境:
+#   PYKYCH_ENV=test DB_NAME=pykych_test docker compose up -d
+#   或使用 override 文件: docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
 
 services:
   # ── MySQL 数据库 ──────────────────────────────────────────

@@ -13,6 +13,7 @@
     from pykych.core.db import init_tables, close_pools, row_to_dict
 """
 
+import os
 import yaml
 from pathlib import Path
 from typing import Any
@@ -22,13 +23,18 @@ import aiomysql
 
 # ── 配置文件路径 ────────────────────────────────────────────
 
-CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "settings" / "db.yaml"
+# 支持通过 PYKYCH_ENV 环境变量切换配置：
+#   - 未设置或 'production': 使用 data/settings/db.yaml
+#   - 'test': 使用 data/settings/db.test.yaml
+_ENV = os.environ.get("PYKYCH_ENV", "").strip().lower()
+_CONFIG_NAME = "db.test.yaml" if _ENV == "test" else "db.yaml"
+CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "settings" / _CONFIG_NAME
 
 _config: dict[str, Any] | None = None
 
 
 def _load_config() -> dict[str, Any]:
-    """惰性加载数据库配置。"""
+    """惰性加载数据库配置。支持环境变量覆盖数据库名。"""
     global _config
     if _config is not None:
         return _config
@@ -36,12 +42,17 @@ def _load_config() -> dict[str, Any]:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             _config = yaml.safe_load(f)
         if not _config or "mysql" not in _config:
-            raise ValueError("db.yaml 缺少必需的 'mysql' 配置节")
+            raise ValueError(f"{_CONFIG_NAME} 缺少必需的 'mysql' 配置节")
+        # 环境变量覆盖数据库名（Docker 部署时使用）
+        db_name_override = os.environ.get("DB_NAME", "").strip()
+        if db_name_override:
+            _config["mysql"]["database"] = db_name_override
         return _config
     except FileNotFoundError:
         raise FileNotFoundError(
             f"数据库配置文件未找到: {CONFIG_PATH}\n"
-            f"请复制 db.yaml.example 并重命名为 db.yaml，然后填写数据库连接信息。"
+            f"当前环境: {_ENV or 'production'}，请确保 {_CONFIG_NAME} 存在。\n"
+            f"可复制 db.yaml.example 或 db.test.yaml.example 并重命名。"
         ) from None
     except yaml.YAMLError as e:
         raise ValueError(f"数据库配置文件格式错误: {e}") from None

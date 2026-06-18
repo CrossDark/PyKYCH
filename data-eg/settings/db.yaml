@@ -1,0 +1,27 @@
+# ── PyKYCH 数据库配置 ──────────────────────────────────────
+# 该文件管理所有数据库连接参数，修改后重启服务即可生效。
+
+mysql:
+  # 服务器地址
+  host: kych.net
+
+  # 端口 (MySQL 默认 3306)
+  port: 3306
+
+  # 数据库用户
+  user: pykych
+
+  # 数据库密码
+  password: rfeiii4390gij430304i43gj0h0g430iunweiowwie08820_w-9303r0j832-jru9weooiqwowe
+
+  # 统一数据库名（所有表存放在同一数据库中）
+  database: pykych
+
+  # 字符集
+  charset: utf8mb4
+
+  # 连接池配置
+  pool:
+    minsize: 2       # 最小连接数
+    maxsize: 10      # 最大连接数
+    pool_recycle: 3600  # 连接回收时间 (秒)

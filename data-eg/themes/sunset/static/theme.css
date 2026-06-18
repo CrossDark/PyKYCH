@@ -1,0 +1,32 @@
+/* Sunset 日落橙主题 */
+
+:root {
+    --bg: #fefaf6;
+    --bg-card: #ffffff;
+    --text: #2d1a0c;
+    --text-secondary: #6b4430;
+    --text-muted: #a0806a;
+    --border: #f0e0d0;
+    --accent: #f97316;
+    --accent-hover: #ea580c;
+    --code-bg: #fef5ee;
+    --shadow: 0 1px 3px rgba(249, 115, 22, 0.06), 0 1px 2px rgba(249, 115, 22, 0.04);
+    --shadow-md: 0 4px 6px rgba(249, 115, 22, 0.05), 0 2px 4px rgba(249, 115, 22, 0.04);
+    --radius: 8px;
+    --header-bg: rgba(254, 250, 246, 0.94);
+}
+
+[data-theme="dark"] {
+    --bg: #1a0e06;
+    --bg-card: #24160c;
+    --text: #f0d8c0;
+    --text-secondary: #a0806a;
+    --text-muted: #6b5040;
+    --border: #302018;
+    --accent: #fb923c;
+    --accent-hover: #fbbf7c;
+    --code-bg: #1c1008;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
+    --header-bg: rgba(26, 14, 6, 0.94);
+}

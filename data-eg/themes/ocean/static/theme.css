@@ -1,0 +1,32 @@
+/* Ocean 海洋蓝主题 */
+
+:root {
+    --bg: #f4f7fa;
+    --bg-card: #ffffff;
+    --text: #15202b;
+    --text-secondary: #3a5568;
+    --text-muted: #7a95a8;
+    --border: #d4dfe8;
+    --accent: #0ea5e9;
+    --accent-hover: #0284c7;
+    --code-bg: #eaf2f8;
+    --shadow: 0 1px 3px rgba(14, 165, 233, 0.06), 0 1px 2px rgba(14, 165, 233, 0.04);
+    --shadow-md: 0 4px 6px rgba(14, 165, 233, 0.05), 0 2px 4px rgba(14, 165, 233, 0.04);
+    --radius: 8px;
+    --header-bg: rgba(244, 247, 250, 0.94);
+}
+
+[data-theme="dark"] {
+    --bg: #0a1628;
+    --bg-card: #101e34;
+    --text: #d0dde8;
+    --text-secondary: #7a95a8;
+    --text-muted: #4a6578;
+    --border: #1a2e44;
+    --accent: #38bdf8;
+    --accent-hover: #7dd3fc;
+    --code-bg: #0c1a2e;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
+    --header-bg: rgba(10, 22, 40, 0.94);
+}
