@@ -9,21 +9,31 @@
 {% if articles %}
 <div class="article-list">
     {% for article in articles %}
-    <a href="/{{ article.article_type }}{% if article.article_type == 'html' %}/local{% endif %}/{{ article.article_slug }}" class="article-card card">
+    {% set art_type = article.article_type %}
+    {% set art_slug = article.article_slug %}
+    {% if art_type == 'html' %}
+        {% set art_url = '/html/local/' ~ art_slug %}
+    {% else %}
+        {% set art_url = '/' ~ art_type ~ '/' ~ art_slug %}
+    {% endif %}
+    <a href="{{ art_url }}" class="article-card card">
         <h3>
-            {% if article.article_type == 'md' %}📝{% elif article.article_type == 'html' %}🌐{% else %}📚{% endif %}
+            {% if art_type == 'md' %}📝
+            {% elif art_type == 'html' %}🌐
+            {% elif art_type == 'wikidot' %}📚
+            {% elif art_type == 'bbcode' %}💬
+            {% else %}📄{% endif %}
             {{ article.title }}
         </h3>
-        <div class="date">
-            {{ article.created_at[:10] if article.created_at else '' }}
+        <div class="article-meta">
+            <span class="article-type-badge">{{ art_type }}</span>
+            {% if article.created_at %}
+            <span class="date">{{ article.created_at[:10] }}</span>
+            {% endif %}
             {% if article.updated_at and article.updated_at != article.created_at %}
-            · 更新于 {{ article.updated_at[:10] }}
+            <span class="date">· 更新于 {{ article.updated_at[:10] }}</span>
             {% endif %}
         </div>
-        <p class="summary">
-            <span class="article-type-badge">{{ article.article_type }}</span>
-            阅读全文 →
-        </p>
     </a>
     {% endfor %}
 </div>
@@ -42,6 +52,7 @@
 {% else %}
 <div class="card" style="text-align: center; padding: 3rem 1.5rem;">
     <p style="color: var(--text-muted); margin: 0;">此标签下暂无文章</p>
+    <a href="/labels" style="display: inline-block; margin-top: 1rem; color: var(--accent);">← 返回标签列表</a>
 </div>
 {% endif %}
 {% endblock %}

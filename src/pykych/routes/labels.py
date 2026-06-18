@@ -37,32 +37,12 @@ labels_route = Route("/labels")
 @labels_route.get
 async def label_list():
     """标签列表页 — 展示所有标签及其文章数量（包含0篇的标签）。"""
-    tags = await tm.get_all_tags()
-
-    # 统计每个标签的文章数量
-    from ..mysql_manager import _get_pool
-    pool = await _get_pool()
-    tag_counts = {}
-    async with pool.acquire() as conn:
-        async with conn.cursor() as cur:
-            for tag in tags:
-                await cur.execute(
-                    "SELECT COUNT(*) FROM article_tags WHERE tag_id = %s",
-                    (tag["id"],),
-                )
-                count = (await cur.fetchone())[0]
-                tag_counts[tag["id"]] = count
-
-    # 显示所有标签（包括没有文章的标签）
-    tags_with_count = [
-        {**t, "count": tag_counts.get(t["id"], 0)}
-        for t in tags
-    ]
+    tags = await tm.get_all_tags_with_counts()
 
     return render(
         "labels.html",
         title="标签 - 跨越晨昏",
-        tags=tags_with_count,
+        tags=tags,
     )
 
 

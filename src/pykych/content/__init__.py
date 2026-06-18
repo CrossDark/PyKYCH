@@ -27,6 +27,8 @@ from .articles import (
 from .tags import (
     get_all_tags,
     get_all_tags_with_counts,
+    get_tag_by_name,
+    get_tag_by_id,
     get_tags_for_article,
     set_article_tags,
     auto_tag_article,
@@ -34,6 +36,9 @@ from .tags import (
     rename_tag,
     delete_tag,
     get_articles_by_tag,
+    add_tag_to_article,
+    remove_tag_from_article,
+    cleanup_orphan_tags,
 )
 from .comments import (
     get_comments,
@@ -67,6 +72,8 @@ __all__ = [
     # 标签
     "get_all_tags",
     "get_all_tags_with_counts",
+    "get_tag_by_name",
+    "get_tag_by_id",
     "get_tags_for_article",
     "set_article_tags",
     "auto_tag_article",
@@ -74,6 +81,9 @@ __all__ = [
     "rename_tag",
     "delete_tag",
     "get_articles_by_tag",
+    "add_tag_to_article",
+    "remove_tag_from_article",
+    "cleanup_orphan_tags",
     # 评论
     "get_comments",
     "add_comment",
