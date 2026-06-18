@@ -74,14 +74,20 @@ def _verify_captcha(request, user_input: str) -> bool:
 # ── RP 配置 ──────────────────────────────────────────────────
 
 def _get_rp_config(request) -> dict:
-    """获取 WebAuthn Relying Party 配置。"""
-    host = request.headers.get("host", "localhost:8000")
+    """获取 WebAuthn Relying Party 配置。
+    
+    支持反向代理：检查 X-Forwarded-Proto 和 X-Forwarded-Host 头。
+    """
+    # 优先使用反向代理转发的头
+    host = request.headers.get("x-forwarded-host", "") or request.headers.get("host", "localhost:8000")
+    proto = request.headers.get("x-forwarded-proto", "") or request.url.scheme
     # 移除端口号作为 rp_id
     rp_id = host.split(":")[0] if ":" in host else host
     # 对于 localhost，使用 localhost
     if rp_id in ("127.0.0.1", "0.0.0.0"):
         rp_id = "localhost"
-    origin = f"http://{host}" if "localhost" in host or rp_id == "localhost" else f"https://{host}"
+    is_local = "localhost" in host or rp_id == "localhost"
+    origin = f"http://{host}" if is_local else f"{proto}://{host}"
     return {"rp_id": rp_id, "rp_name": "PyKYCH", "origin": origin}
 
 
@@ -200,9 +206,9 @@ async def login_action(request: Request):
     return redirect(next_url)
 
 
-@auth_route.sub("/logout").get
+@auth_route.sub("/logout").post
 async def logout(request: Request):
-    """登出。"""
+    """登出（需 POST 请求，防止 CSRF 强制登出）。"""
     auth_session.logout_user(request)
     return redirect("/")
 

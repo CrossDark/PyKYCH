@@ -40,6 +40,11 @@ _LOCKOUT_DURATION = 15 * 60  # 15 分钟
 
 
 # ── 内存存储 ────────────────────────────────────────────────
+#
+# ⚠️ 注意：当前使用内存字典存储速率限制数据。
+# 在多进程部署（如多个 Uvicorn worker）下，每个进程有独立的速率限制状态。
+# 生产环境建议接入 Redis 等外部存储以保证一致性。
+#
 
 # 存储结构: {key: [(timestamp, count), ...]}
 _failure_records: dict[str, list[tuple[float, int]]] = defaultdict(list)

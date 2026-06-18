@@ -64,7 +64,30 @@ async def search(q: str = "", page: int = 1):
 
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
-                # 跨四张表搜索，使用 UNION ALL
+                # 先查总数
+                await cur.execute(
+                    """
+                    SELECT COUNT(*) FROM (
+                        SELECT slug FROM articles
+                        WHERE title LIKE %s OR content LIKE %s
+                        UNION ALL
+                        SELECT slug FROM pages
+                        WHERE title LIKE %s OR content LIKE %s
+                        UNION ALL
+                        SELECT slug FROM html_pages
+                        WHERE title LIKE %s OR content LIKE %s
+                        UNION ALL
+                        SELECT slug FROM bbcode_pages
+                        WHERE title LIKE %s OR content LIKE %s
+                    ) AS all_results
+                    """,
+                    (keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword),
+                )
+                total = (await cur.fetchone())[0]
+                total_pages = max(1, (total + per_page - 1) // per_page)
+
+                # SQL 层面分页
+                offset = (page - 1) * per_page
                 await cur.execute(
                     """
                     SELECT slug, title, content, created_at, 'md' AS article_type
@@ -83,20 +106,15 @@ async def search(q: str = "", page: int = 1):
                     FROM bbcode_pages
                     WHERE title LIKE %s OR content LIKE %s
                     ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
                     """,
-                    (keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword),
+                    (keyword, keyword, keyword, keyword, keyword, keyword, keyword, keyword,
+                     per_page, offset),
                 )
-                all_rows = await cur.fetchall()
-
-        total = len(all_rows)
-        total_pages = max(1, (total + per_page - 1) // per_page)
-
-        # 分页截取
-        start = (page - 1) * per_page
-        end = start + per_page
-        page_rows = all_rows[start:end]
+                page_rows = await cur.fetchall()
 
         # 生成摘要：从 content 中截取包含关键词的片段
+        results = []
         for row in page_rows:
             slug, title, content, created_at, article_type = row
             snippet = _generate_snippet(content, q.strip(), max_length=200)

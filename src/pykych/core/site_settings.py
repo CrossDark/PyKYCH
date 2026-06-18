@@ -91,22 +91,30 @@ async def delete_subsite_link(link_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════
 
 async def list_featured_articles() -> list[dict]:
-    """获取所有推荐文章（按 sort_order 排序），补全文章标题。"""
+    """获取所有推荐文章（按 sort_order 排序），补全文章标题。
+    
+    使用 UNION ALL + LEFT JOIN 一次性获取所有推荐及其标题，避免 N+1 查询。
+    """
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, article_type, article_slug, sort_order, created_at "
-                "FROM featured_articles ORDER BY sort_order ASC, id ASC"
+                """
+                SELECT f.id, f.article_type, f.article_slug, f.sort_order, f.created_at,
+                       COALESCE(a.title, p.title, h.title, b.title) AS title
+                FROM featured_articles f
+                LEFT JOIN articles a ON f.article_type = 'md' AND f.article_slug = a.slug
+                LEFT JOIN pages p ON f.article_type = 'wikidot' AND f.article_slug = p.slug
+                LEFT JOIN html_pages h ON f.article_type = 'html' AND f.article_slug = h.slug
+                LEFT JOIN bbcode_pages b ON f.article_type = 'bbcode' AND f.article_slug = b.slug
+                ORDER BY f.sort_order ASC, f.id ASC
+                """
             )
             rows = await cur.fetchall()
-            # 立即转换所有行（在 cur.description 被覆盖前）
             items = [row_to_dict(r, cur) for r in rows]
 
-        # 使用新连接补全标题（避免游标描述被覆盖）
         for item in items:
-            title = await _get_article_title_by_pool(pool, item["article_type"], item["article_slug"])
-            item["title"] = title or item["article_slug"]
+            item["title"] = item.get("title") or item["article_slug"]
             item["url"] = _article_url(item["article_type"], item["article_slug"])
         return items
 

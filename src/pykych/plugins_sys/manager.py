@@ -427,7 +427,7 @@ def _create_example_plugin() -> None:
 
 def setup():
     """插件加载时调用。"""
-    from src.pykych.plugin_manager import register_hook, Hooks
+    from pykych.plugins_sys.manager import register_hook, Hooks
     
     async def inject_hello(context: dict) -> dict:
         """在页面渲染前注入问候语。"""

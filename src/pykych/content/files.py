@@ -122,7 +122,7 @@ async def get_file(file_id: int) -> dict | None:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, filename, original_name, file_size, "
+                "SELECT id, filename, original_name, file_path, file_size, "
                 "mime_type, uploaded_by, created_at "
                 "FROM static_files WHERE id = %s",
                 (file_id,),
@@ -181,7 +181,9 @@ async def delete_file(file_id: int) -> bool:
         return False
 
     # 删除物理文件
-    file_path = UPLOAD_DIR / file_info["filename"]
+    file_path = Path(file_info.get("file_path", ""))
+    if not file_path.is_absolute():
+        file_path = UPLOAD_DIR / file_info["filename"]
     try:
         if file_path.exists():
             os.remove(file_path)

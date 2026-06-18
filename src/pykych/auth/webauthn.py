@@ -230,9 +230,9 @@ def _cose_key_to_public_key(cose_key: dict) -> str:
 
     # 构建 SEC1 编码的公钥点
     # SEC1: 0x04 || x || y
-    # 确保坐标是32字节（P-256）
-    x_padded = x.rjust(32, b"\x00") if len(x) < 32 else x[:32]
-    y_padded = y.rjust(32, b"\x00") if len(y) < 32 else y[:32]
+    # 确保坐标是32字节（P-256），使用 ljust 右侧补零保留高位
+    x_padded = x[-32:].rjust(32, b"\x00") if len(x) >= 32 else x.rjust(32, b"\x00")
+    y_padded = y[-32:].rjust(32, b"\x00") if len(y) >= 32 else y.rjust(32, b"\x00")
 
     point_bytes = b"\x04" + x_padded + y_padded
 

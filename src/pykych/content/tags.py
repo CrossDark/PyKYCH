@@ -112,7 +112,10 @@ async def get_tag_by_id(tag_id: int) -> dict | None:
 
 async def get_all_tags_with_counts() -> list[dict]:
     """
-    获取所有标签及其关联文章数量。
+    获取所有标签及其关联的"真实存在"文章数量。
+
+    通过子查询验证 article_tags 关联的文章确实存在于对应的文章表中，
+    避免统计已删除但关联未清理的孤立记录。
 
     返回:
         [{id, name, created_at, count}, ...]
@@ -121,12 +124,22 @@ async def get_all_tags_with_counts() -> list[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT t.id, t.name, t.created_at, "
-                "COUNT(at.tag_id) as cnt "
-                "FROM tags t "
-                "LEFT JOIN article_tags at ON t.id = at.tag_id "
-                "GROUP BY t.id, t.name, t.created_at "
-                "ORDER BY t.name"
+                """
+                SELECT t.id, t.name, t.created_at,
+                       SUM(
+                           CASE
+                               WHEN at.article_type = 'md' AND EXISTS(SELECT 1 FROM articles a WHERE a.slug = at.article_slug) THEN 1
+                               WHEN at.article_type = 'wikidot' AND EXISTS(SELECT 1 FROM pages p WHERE p.slug = at.article_slug) THEN 1
+                               WHEN at.article_type = 'html' AND EXISTS(SELECT 1 FROM html_pages h WHERE h.slug = at.article_slug) THEN 1
+                               WHEN at.article_type = 'bbcode' AND EXISTS(SELECT 1 FROM bbcode_pages b WHERE b.slug = at.article_slug) THEN 1
+                               ELSE 0
+                           END
+                       ) as cnt
+                FROM tags t
+                LEFT JOIN article_tags at ON t.id = at.tag_id
+                GROUP BY t.id, t.name, t.created_at
+                ORDER BY t.name
+                """
             )
             rows = await cur.fetchall()
             result = []
@@ -389,9 +402,18 @@ async def get_articles_by_tag(
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # 先统计总数
+            # 统计真实存在的文章数（排除已删除但关联残留的记录）
             await cur.execute(
-                "SELECT COUNT(*) FROM article_tags WHERE tag_id = %s",
+                """
+                SELECT COUNT(*) FROM article_tags at
+                WHERE at.tag_id = %s
+                  AND (
+                    (at.article_type = 'md' AND EXISTS(SELECT 1 FROM articles a WHERE a.slug = at.article_slug))
+                    OR (at.article_type = 'wikidot' AND EXISTS(SELECT 1 FROM pages p WHERE p.slug = at.article_slug))
+                    OR (at.article_type = 'html' AND EXISTS(SELECT 1 FROM html_pages h WHERE h.slug = at.article_slug))
+                    OR (at.article_type = 'bbcode' AND EXISTS(SELECT 1 FROM bbcode_pages b WHERE b.slug = at.article_slug))
+                  )
+                """,
                 (tag["id"],),
             )
             total = (await cur.fetchone())[0]
@@ -466,5 +488,35 @@ async def cleanup_orphan_tags() -> int:
             await cur.execute(
                 "DELETE FROM tags WHERE id NOT IN "
                 "(SELECT DISTINCT tag_id FROM article_tags)"
+            )
+            return cur.rowcount
+
+
+async def cleanup_orphan_article_tags() -> int:
+    """
+    清理 article_tags 中指向已删除文章的孤立关联记录。
+
+    返回:
+        清理的 article_tags 记录数量
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                DELETE FROM article_tags
+                WHERE (article_type = 'md' AND NOT EXISTS(
+                    SELECT 1 FROM articles a WHERE a.slug = article_slug
+                ))
+                OR (article_type = 'wikidot' AND NOT EXISTS(
+                    SELECT 1 FROM pages p WHERE p.slug = article_slug
+                ))
+                OR (article_type = 'html' AND NOT EXISTS(
+                    SELECT 1 FROM html_pages h WHERE h.slug = article_slug
+                ))
+                OR (article_type = 'bbcode' AND NOT EXISTS(
+                    SELECT 1 FROM bbcode_pages b WHERE b.slug = article_slug
+                ))
+                """
             )
             return cur.rowcount

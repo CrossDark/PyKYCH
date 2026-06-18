@@ -1,0 +1,147 @@
+/Volumes/Web/PyKYCH/BUG.md
+# Bug 跟踪
+
+## 🔴 严重 (Critical)
+
+### BUG-001: 文件删除功能失效 — 使用了错误的字段构建路径
+- **文件**: `content/files.py` 第 184 行
+- **描述**: `delete_file()` 使用 `UPLOAD_DIR / file_info["filename"]` 构建文件路径，但 `filename` 只是 UUID 文件名（如 `abc123.png`），而 `UPLOAD_DIR` 已经是 `src/pykych/static/uploads/`。实际存储的 `file_path` 字段才是完整路径。当前代码会生成 `src/pykych/static/uploads/abc123.png`，但由于 `UPLOAD_DIR` 与保存时的路径一致，实际上这里碰巧能工作。**然而**，`get_file()` 返回的字段中 `file_path` 是完整路径，而 `filename` 只是 UUID 名。如果将来 `UPLOAD_DIR` 变更或路径结构改变，此处会静默失败。
+- **修复建议**: 使用 `file_info["file_path"]` 代替 `UPLOAD_DIR / file_info["filename"]`。
+
+### BUG-002: `_save_site_asset` 中 `logger` 导入路径错误
+- **文件**: `routes/admin.py` 第 1177 行
+- **描述**: `from .. import logger` 试图从 `src/pykych/__init__.py` 导入 `logger`，但 `__init__.py` 中并未定义 `logger` 对象。当 Logo/Favicon 上传过程中发生 `OSError` 时，会触发 `ImportError`，导致异常处理本身也抛出异常，最终返回 500 错误且无任何日志输出。
+- **修复建议**: 改为 `import logging; logger = logging.getLogger(__name__)`，或从 `auth/profile.py` 中复用 logger。
+
+### BUG-003: 修改密码的最低长度校验不一致（安全漏洞）
+- **文件**: `auth/profile.py` 第 148 行
+- **描述**: `change_password()` 仅要求新密码 ≥ 6 个字符，但 `password.py` 中的 `validate_password_strength()` 要求 ≥ 8 个字符 + 大小写字母 + 数字。通过「修改密码」路径设置的密码可以绕过强度校验（6-7 字符的弱密码可被设置），而通过「创建用户」路径则不行。
+- **修复建议**: 在 `change_password()` 中调用 `validate_password_strength(new_password)` 替代自定义的 6 字符检查。
+
+### BUG-004: 上传文件删除使用错误路径（静默失败）
+- **文件**: `content/files.py` 第 184 行
+- **描述**: `delete_file()` 中 `file_path = UPLOAD_DIR / file_info["filename"]`。`file_info["filename"]` 是 UUID 名（如 `abc123.png`），拼接后为 `src/pykych/static/uploads/abc123.png`。但数据库存储的 `file_path` 字段已经是完整绝对路径。如果 `UPLOAD_DIR` 在部署中与存储路径不一致（如 Docker 挂载不同），删除将静默失败（`file_path.exists()` 返回 False 但不报错），导致磁盘空间泄漏。
+- **实际影响**: 在当前默认配置下碰巧能工作，但属于脆弱代码。
+- **修复建议**: 直接使用 `file_path = Path(file_info["file_path"])`。
+
+---
+
+## 🟠 高 (High)
+
+### BUG-005: `posts_per_page` 设置转换无错误处理
+- **文件**: `routes/admin.py` 第 1144 行
+- **描述**: `int(form.get("posts_per_page", "10"))` 在用户输入非数字字符串（如空字符串、字母）时会抛出 `ValueError`，导致 500 错误页面。
+- **修复建议**: 用 `try/except ValueError` 包裹，回退到默认值 10。
+
+### BUG-006: WebAuthn `rp_id` 在生产环境可能不匹配
+- **文件**: `routes/auth.py` 第 76-85 行
+- **描述**: `_get_rp_config()` 从 `Host` 请求头提取 `rp_id`，并假设非 localhost 使用 HTTPS。但在反向代理（Nginx）后面时，`Host` 头可能包含端口号或不反映真实协议。更关键的是，如果生产环境使用 `https://example.com`，但 `X-Forwarded-Proto` 未被检查，`origin` 可能被错误设为 `https://example.com:443`，导致 WebAuthn 断言验证失败。
+- **修复建议**: 检查 `X-Forwarded-Proto` 和 `X-Forwarded-Host` 头，或允许配置 `rp_id` 和 `origin`。
+
+### BUG-007: COSE 密钥坐标填充方向错误
+- **文件**: `auth/webauthn.py` 第 234-235 行
+- **描述**: `x.rjust(32, b"\x00")` 在 Python `bytes` 上是在**左侧**填充零字节。对于大端编码的 P-256 坐标，这在数学上是正确的（高位补零）。但 `rjust` 的语义是"右对齐"，即填充在左侧——这对无符号大端整数是正确的。然而，如果坐标已经超过 32 字节（如 33 字节），`x[:32]` 会截断**高位**字节，导致坐标值完全错误。
+- **实际影响**: 某些 authenticator 可能生成带前导零的 33 字节坐标，截断高位会导致公钥无效，签名验证永远失败。
+- **修复建议**: 使用 `x.ljust(32, b"\x00")[:32]` 或更安全的 `x[-32:].rjust(32, b"\x00")`。
+
+### BUG-008: 搜索功能在大数据量下性能问题
+- **文件**: `routes/search.py` 第 68-88 行
+- **描述**: 搜索使用 `LIKE %keyword%` 跨四张表 `UNION ALL` 查询，无法利用索引。当文章数量增长时，每次搜索都会全表扫描四张表。且所有结果先全部加载到内存（`fetchall()`），再在 Python 中分页，浪费内存和带宽。
+- **修复建议**: 使用 `LIMIT` + `OFFSET` 在 SQL 层面分页，或引入全文索引 / 搜索引擎。
+
+### BUG-009: 外部 HTML 抓取的正则表达式无法处理嵌套标签
+- **文件**: `content/external.py` 第 213 行
+- **描述**: `_extract_body()` 策略 2 使用 `<div[^>]*class=...>(.*?)</div>` 匹配内容容器。正则 `.*?` 会在遇到**第一个** `</div>` 时停止匹配，如果内容容器内有嵌套的 `<div>`（非常常见），只会提取到部分内容。
+- **修复建议**: 使用 HTML 解析库（如 `html.parser` 或 `lxml`）替代正则表达式。
+
+---
+
+## 🟡 中 (Medium)
+
+### BUG-010: 数据库配置文件在模块导入时立即读取
+- **文件**: `core/db.py` 第 27-28 行
+- **描述**: `with open(CONFIG_PATH, "r") as f` 在模块级别执行。如果 `db.yaml` 不存在或格式错误，整个应用无法导入模块，无法给出友好的错误提示。在 Docker 部署中，如果配置文件挂载延迟，会导致启动失败。
+- **修复建议**: 将配置读取移入函数内（惰性加载），或在 `try/except` 中包裹并提供明确的错误消息。
+
+### BUG-011: Markdown 解析器全局实例的线程安全问题
+- **文件**: `routes/md.py` 第 41-55 行
+- **描述**: `md_parser = Markdown(...)` 是模块级全局实例。虽然每次调用 `md_parser.reset().convert()`，但在高并发下，多个协程可能同时调用 `reset()` 和 `convert()`，导致解析器内部状态混乱，渲染出错误的 HTML。
+- **修复建议**: 每次请求创建新的 `Markdown` 实例，或使用 `asyncio.Lock()` 保护。
+
+### BUG-012: `list_featured_articles` 可能耗尽连接池
+- **文件**: `core/site_settings.py` 第 107-110 行
+- **描述**: 先获取连接读取 `featured_articles` 表，释放连接后，对每个推荐文章调用 `_get_article_title_by_pool()`，该函数每次从池中获取新连接。如果有 N 个推荐文章，就需要 N 次额外的连接获取。当连接池 `maxsize=10` 且推荐文章较多时，可能导致连接池耗尽。
+- **修复建议**: 使用单次 JOIN 查询获取所有推荐文章的标题，避免 N+1 查询。
+
+### BUG-013: 示例插件的导入路径错误
+- **文件**: `plugins_sys/manager.py` 第 431 行
+- **描述**: 示例插件代码中 `from src.pykych.plugin_manager import register_hook, Hooks` 引用了不存在的模块 `plugin_manager`（实际为 `plugins_sys.manager`），且使用了绝对导入 `src.pykych`，在 `data/` 目录的 `sys.path` 上下文中不可用。
+- **修复建议**: 改为 `from pykych.plugins_sys.manager import register_hook, Hooks` 或使用相对导入。
+
+### BUG-014: 登出使用 GET 方法（CSRF 风险）
+- **文件**: `routes/auth.py` 第 203 行
+- **描述**: `/auth/logout` 使用 GET 请求执行登出操作。虽然当前没有 CSRF Token 保护，但 GET 请求可被浏览器预取、图片标签、链接嵌入等方式触发。攻击者可以在恶意页面嵌入 `<img src="/auth/logout">` 导致用户被登出。
+- **修复建议**: 改为 POST 请求，并添加 CSRF Token 验证。
+
+### BUG-015: 速率限制数据仅存储在内存中
+- **文件**: `auth/rate_limit.py` 第 44-47 行
+- **描述**: `_failure_records` 和 `_lockout_records` 使用模块级字典存储。在多进程部署（如多个 Uvicorn worker）下，每个进程有独立的速率限制状态，攻击者可以通过轮询不同连接绕过限制。此外，进程重启后所有记录丢失。
+- **修复建议**: 使用 Redis 或数据库存储速率限制数据。
+
+---
+
+## 🔵 低 (Low)
+
+### BUG-016: `__init__.py` 文件使用空字符串而非 docstring
+- **文件**: `src/pykych/__init__.py` 第 1 行, `routes/__init__.py` 第 1 行
+- **描述**: `""` 是一个无效的字符串表达式，不是 docstring。虽然不会报错，但无实际意义，且 IDE 可能给出警告。
+- **修复建议**: 改为模块级 docstring 或移除。
+
+### BUG-017: `_extract_body` 策略 3 中 `</[^>]+>` 正则可能匹配错误
+- **文件**: `content/external.py` 第 233 行
+- **描述**: 去除类名匹配的正则 `'<[^>]*class\s*=\s*["\'][^"\']*\b{cls}\b[^"\']*["\'][^>]*>.*?</[^>]+>'` 中，`</[^>]+>` 匹配任意关闭标签，不一定是与开始标签对应的标签。如果内容中有嵌套标签，可能错误地删除过多或过少的内容。
+- **修复建议**: 使用 HTML 解析库替代正则。
+
+### BUG-018: `external_site_subpage` 的 `request` 参数默认 `None`
+- **文件**: `routes/html_route.py` 第 152 行
+- **描述**: `async def external_site_subpage(site_name: str, sub_path: str, request=None)` 中 `request` 参数默认 `None`，但函数体内未使用该参数。如果将来需要使用 `request`，默认值 `None` 可能导致难以追踪的错误。
+- **修复建议**: 移除未使用的 `request` 参数，或将其设为必需参数。
+
+### BUG-019: 硬编码的管理员密码
+- **文件**: `main.py` 第 73 行
+- **描述**: `await seed_admin("admin", "admin123", "管理员")` 使用硬编码的默认密码。虽然生产环境应该修改，但代码中没有强制修改的机制或启动时警告。`admin123` 不满足 `validate_password_strength` 的要求（缺少大写字母），但 `seed_admin` 绕过了强度校验直接哈希存储。
+- **修复建议**: 在启动日志中输出警告，或要求首次登录时强制修改密码。
+
+### BUG-020: `_rewrite_links` 中 srcset 属性处理不完整
+- **文件**: `content/external.py` 第 298-303 行
+- **描述**: 正则匹配了 `srcset` 属性，但 `srcset` 的值可能包含多个 URL（逗号分隔的不同分辨率图片），当前代码将整个 srcset 值当作单个 URL 处理，导致重写后的 srcset 格式错误。
+- **修复建议**: 对 `srcset` 特殊处理，逐个重写其中的 URL。
+
+---
+
+## 📊 统计
+
+| 严重程度 | 数量 |
+|----------|------|
+| 🔴 严重  | 4    |
+| 🟠 高    | 5    |
+| 🟡 中    | 6    |
+| 🔵 低    | 5    |
+| **总计** | **20** |
+
+# 安全
+
+## 🔴 严重 (Critical) — 可被远程利用，直接造成数据泄露或系统被控制
+
+### SEC-001: 静态文件服务存在路径遍历漏洞 (Path Traversal)
+- **文件**: `main.py` 第 486-491 行、第 500-506 行、第 519-529 行
+- **漏洞类型**: CWE-22 Path Traversal
+- **描述**: 三个静态文件服务端点 (`serve_upload`, `serve_static_img`, `serve_avatar`) 直接将 URL 路径参数拼接到文件路径中，**未对 `..` 做任何过滤或路径规范化**。攻击者可通过构造 `../` 序列读取服务器上的任意文件。
+- **攻击示例**: `GET /static/uploads/../../settings/db.yaml → 读取数据库配置（含密码） GET /static/uploads/../../../data/settings/db.yaml → 同上 GET /static/avatars/../../settings/db.yaml → 同上 GET /static/img/../../settings/db.yaml → 同上`
+- **影响**: 攻击者可读取服务器上任意文件（数据库凭据、源代码、系统配置文件等），造成完全信息泄露。
+- **代码分析**: main.py L486-491 — 三个端点均存在相同问题: async def serve_upload(filename: str): file_path = UPLOAD_DIR / filename # filename 可为 "../../etc/passwd" if not file_path.exists() or not file_path.is_file(): return HTMLResponse("<p>文件不存在</p>", status_code=404) return FileResponse(str(file_path)) # 直接返回文件内容
+- **修复建议**: ```python 
+- async def serve_upload(filename: str): 
+- # 拒绝包含路径分隔符或 .. 的文件名 
+- if "/" in filename or "\" in filename or ".." in filename: return HTMLResponse("<p>非法文件名</p>", status_code=400) file_path = (UPLOAD_DIR / filename).resolve() if not str(file_path).startswith(str(UPLOAD_DIR.resolve())): return HTMLResponse("<p>禁止访问</p>", status_code=403) if not file_path.exists() or not file_path.is_file(): return HTMLResponse("<p>文件不存在</p>", status_code=404) return FileResponse(str(file_path))```
+  

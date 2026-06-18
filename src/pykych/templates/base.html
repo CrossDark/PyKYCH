@@ -829,7 +829,9 @@
                         <div class="user-dropdown-name" id="userDropdownName"></div>
                         <a href="/admin/profile">👤 个人资料</a>
                         <a href="/admin" style="color: var(--accent);">⚙️ 管理后台</a>
-                        <a href="/auth/logout">🚪 退出登录</a>
+                        <form action="/auth/logout" method="post" style="display:inline;">
+                            <button type="submit" style="background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:0;">🚪 退出登录</button>
+                        </form>
                     </div>
                 </div>
             </nav>

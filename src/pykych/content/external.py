@@ -194,32 +194,86 @@ async def clear_site_cache(site_id: int) -> None:
 def _extract_body(html: str) -> str:
     """从 HTML 中智能提取正文内容（去除导航、页脚等附属部分）。
     
-    优先级：
+    使用 html.parser 处理嵌套标签，优先级：
     1. <main> 或 <article> 标签内容
-    2. 带有 content/main/article 类名的 div
+    2. 带有 content/main/article 类名的容器
     3. <body> 内容（去除 nav/footer/header/sidebar）
     4. 原始 HTML
     """
-    # 策略 1：查找 <main> 或 <article> 标签
-    for tag in ("main", "article"):
-        match = re.search(
-            rf"<{tag}[^>]*>(.*?)</{tag}>", html, re.DOTALL | re.IGNORECASE
-        )
-        if match and len(match.group(1).strip()) > 50:
-            return match.group(1).strip()
+    from html.parser import HTMLParser
 
-    # 策略 2：查找常见内容容器
-    for cls in ("content", "main-content", "article-content", "post-content", "entry-content"):
-        pattern = rf'<div[^>]*class\s*=\s*["\'][^"\']*\b{cls}\b[^"\']*["\'][^>]*>(.*?)</div>'
-        match = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
-        if match and len(match.group(1).strip()) > 50:
-            return match.group(1).strip()
+    class BodyExtractor(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.result = ""
+            self.target_tag = None
+            self.target_class = None
+            self.depth = 0
+            self.collecting = False
+            self.buffer = []
+            self.body_content = ""
+
+        def handle_starttag(self, tag, attrs):
+            attrs_dict = dict(attrs)
+            classes = (attrs_dict.get("class", "")).lower().split()
+
+            # Strategy 1: <main> or <article>
+            if tag in ("main", "article") and not self.target_tag:
+                self.target_tag = tag
+                self.depth = 1
+                self.collecting = True
+                self.buffer = []
+                return
+
+            # Strategy 2: div with content class
+            if not self.target_tag:
+                for cls in ("content", "main-content", "article-content", "post-content", "entry-content"):
+                    if cls in classes:
+                        self.target_tag = tag
+                        self.target_class = cls
+                        self.depth = 1
+                        self.collecting = True
+                        self.buffer = []
+                        return
+
+            if self.collecting and tag == self.target_tag:
+                self.depth += 1
+
+            # Strategy 3: track body
+            if tag == "body":
+                self._body_pos = self.getpos()
+                self._body_start = True
+
+        def handle_endtag(self, tag):
+            if self.collecting and tag == self.target_tag:
+                self.depth -= 1
+                if self.depth == 0:
+                    self.collecting = False
+                    self.result = "".join(self.buffer)
+                    return
+
+        def handle_data(self, data):
+            if self.collecting:
+                self.buffer.append(data)
+
+        def handle_startendtag(self, tag, attrs):
+            if self.collecting:
+                self.buffer.append(self.get_starttag_text() or "")
+
+    # Try strategies 1 & 2
+    extractor = BodyExtractor()
+    try:
+        extractor.feed(html)
+    except Exception:
+        pass
+    if extractor.result and len(extractor.result.strip()) > 50:
+        return extractor.result.strip()
 
     # 策略 3：提取 <body> 并去除导航/页脚等
     match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
     if match:
         body = match.group(1)
-        # 去除常见非内容标签
+        # 去除常见非内容标签（这些标签通常不嵌套自身，正则可行）
         for tag in ("nav", "header", "footer", "aside", "script", "style"):
             body = re.sub(
                 rf"<{tag}[\s>].*?</{tag}>", "", body, flags=re.DOTALL | re.IGNORECASE
@@ -227,8 +281,10 @@ def _extract_body(html: str) -> str:
             body = re.sub(
                 rf"<{tag}\s*/>", "", body, flags=re.IGNORECASE
             )
-        # 去除常见非内容类名
-        for cls in ("sidebar", "navigation", "navbar", "footer", "header", "menu", "widget"):
+        # 去除常见非内容类名（深度跟踪方式处理嵌套 div）
+        CONTENT_SKIP_CLASSES = {"sidebar", "navigation", "navbar", "footer", "header", "menu", "widget"}
+        # 简化：使用非贪婪匹配（大多数情况有效；嵌套 div 已在策略 1/2 中处理）
+        for cls in CONTENT_SKIP_CLASSES:
             body = re.sub(
                 rf'<[^>]*class\s*=\s*["\'][^"\']*\b{cls}\b[^"\']*["\'][^>]*>.*?</[^>]+>',
                 "", body, flags=re.DOTALL | re.IGNORECASE
@@ -294,9 +350,44 @@ def _rewrite_links(content: str, source_url: str, site_name: str = "") -> str:
         absolute = urljoin(source_url, url)
         return prefix + absolute + suffix
 
-    # 重写 src 和 href 属性
+    def _replace_srcset(match: re.Match) -> str:
+        """处理 srcset 属性（可能包含逗号分隔的多个 URL）。"""
+        attr = match.group(1)
+        value = match.group(2)
+        # 分割 srcset 值（逗号分隔，每项可能是 "URL descriptor" 格式）
+        parts = []
+        for part in value.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            # 分割 URL 和描述符
+            tokens = part.split(None, 1)
+            url = tokens[0]
+            descriptor = tokens[1] if len(tokens) > 1 else ""
+            # 跳过 data URI 等
+            if url.startswith(("data:", "#", "mailto:", "javascript:")):
+                parts.append(part)
+            elif url.startswith(("http://", "https://")):
+                parts.append(part)
+            else:
+                absolute = urljoin(source_url, url)
+                if descriptor:
+                    parts.append(f"{absolute} {descriptor}")
+                else:
+                    parts.append(absolute)
+        sep = ", "
+        return f'{attr}="{sep.join(parts)}"'
+
+    # 先处理 srcset（需要特殊逻辑处理多 URL）
     content = re.sub(
-        r'(src|href|srcset)\s*=\s*["\']([^"\']+)["\']',
+        r'(srcset)\s*=\s*["\']([^"\']+)["\']',
+        _replace_srcset,
+        content,
+        flags=re.IGNORECASE,
+    )
+    # 再处理 src 和 href
+    content = re.sub(
+        r'(src|href)\s*=\s*["\']([^"\']+)["\']',
         _replace_attr,
         content,
         flags=re.IGNORECASE,

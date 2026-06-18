@@ -1141,7 +1141,11 @@ async def update_site_settings(request: Request):
     settings_manager.set_setting("features.enable_comments", form.get("enable_comments") == "1")
     settings_manager.set_setting("features.enable_search", form.get("enable_search") == "1")
     settings_manager.set_setting("features.enable_dark_mode", form.get("enable_dark_mode") == "1")
-    settings_manager.set_setting("features.posts_per_page", int(form.get("posts_per_page", "10")))
+    try:
+        posts_per_page = int(form.get("posts_per_page", "10"))
+    except (ValueError, TypeError):
+        posts_per_page = 10
+    settings_manager.set_setting("features.posts_per_page", posts_per_page)
 
     # 社交
     settings_manager.set_setting("social.github", form.get("github", "").strip())
@@ -1174,7 +1178,8 @@ async def _save_site_asset(name: str, data: bytes, filename: str) -> str | None:
             f.write(data)
         return f"/static/img/{safe_name}"
     except (OSError, PermissionError) as e:
-        from .. import logger
+        import logging
+        logger = logging.getLogger(__name__)
         logger.error(f"保存站点资源失败 {save_path}: {e}")
         return None
 

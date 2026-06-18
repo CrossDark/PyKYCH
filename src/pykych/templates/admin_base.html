@@ -495,10 +495,12 @@
                 <span class="nav-icon">🏠</span>
                 <span class="nav-label">访问网站</span>
             </a>
-            <a href="/auth/logout">
-                <span class="nav-icon">🚪</span>
-                <span class="nav-label">退出登录</span>
-            </a>
+            <form action="/auth/logout" method="post">
+                <button type="submit" style="background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:0;display:flex;align-items:center;gap:0.5rem;width:100%;text-align:left;">
+                    <span class="nav-icon">🚪</span>
+                    <span class="nav-label">退出登录</span>
+                </button>
+            </form>
         </div>
     </aside>
 
@@ -529,7 +531,9 @@
                         </div>
                         <a href="/admin/profile">👤 个人资料</a>
                         <a href="/">🏠 访问网站</a>
-                        <a href="/auth/logout">🚪 退出登录</a>
+                        <form action="/auth/logout" method="post" style="display:inline;">
+                            <button type="submit" style="background:none;border:none;color:inherit;cursor:pointer;font:inherit;padding:0;">🚪 退出登录</button>
+                        </form>
                     </div>
                 </div>
                 {% endif %}

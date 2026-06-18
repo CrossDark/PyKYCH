@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..core.db import get_sys_pool, row_to_dict
-from .password import hash_password, verify_password
+from .password import hash_password, verify_password, validate_password_strength
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +145,10 @@ async def change_password(
     修改密码。需要验证旧密码。
     返回 (成功, 消息)
     """
-    if len(new_password) < 6:
-        return False, "新密码至少需要 6 个字符（支持任意 Unicode 字符）。"
+    # 使用统一的密码强度校验
+    strength_error = validate_password_strength(new_password)
+    if strength_error:
+        return False, strength_error
 
     pool = await get_sys_pool()
     async with pool.acquire() as conn:

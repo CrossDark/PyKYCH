@@ -56,6 +56,13 @@ async def lifespan(app):
     # 使用统一文章管理器初始化种子数据
     for atype in ["md", "wikidot", "html", "bbcode"]:
         await seed_db(atype)
+    # 清理可能的孤立标签关联（修复旧版本遗留数据）
+    try:
+        from .content.tags import cleanup_orphan_article_tags, cleanup_orphan_tags
+        await cleanup_orphan_article_tags()
+        await cleanup_orphan_tags()
+    except Exception:
+        pass
     # 确保用户资料字段存在
     try:
         await user_profile.ensure_profile_columns()
@@ -70,7 +77,13 @@ async def lifespan(app):
         pass
 
     # 创建默认管理员（如不存在）
+    # ⚠️ 安全警告：生产环境请在首次登录后立即修改默认密码！
     await seed_admin("admin", "admin123", "管理员")
+    import logging
+    logging.getLogger(__name__).warning(
+        "⚠️  默认管理员账户为 admin/admin123。"
+        "如果这是首次启动，请立即登录并修改密码！"
+    )
 
     # 加载样式主题
     try:
@@ -482,11 +495,30 @@ from .content.files import UPLOAD_DIR
 
 uploads_route = Route("/static/uploads")
 
+def _is_safe_filename(filename: str) -> bool:
+    """检查文件名是否安全（防止路径遍历攻击）。"""
+    if not filename:
+        return False
+    # 拒绝包含路径分隔符或 .. 的文件名
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return False
+    return True
+
+def _safe_resolve(base_dir: Path, filename: str) -> Path | None:
+    """安全解析文件路径，确保结果在 base_dir 内。"""
+    if not _is_safe_filename(filename):
+        return None
+    resolved = (base_dir / filename).resolve()
+    base_resolved = base_dir.resolve()
+    if not str(resolved).startswith(str(base_resolved) + os.sep) and resolved != base_resolved:
+        return None
+    return resolved
+
 @uploads_route.sub("/{filename}").get
 async def serve_upload(filename: str):
     """提供上传文件的访问。"""
-    file_path = UPLOAD_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
+    file_path = _safe_resolve(UPLOAD_DIR, filename)
+    if file_path is None or not file_path.exists() or not file_path.is_file():
         return HTMLResponse("<p>文件不存在</p>", status_code=404)
     return FileResponse(str(file_path))
 
@@ -500,8 +532,8 @@ static_img_route = Route("/static/img")
 @static_img_route.sub("/{filename}").get
 async def serve_static_img(filename: str):
     """提供站点图片（Logo、Favicon 等）的访问。"""
-    file_path = STATIC_IMG_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
+    file_path = _safe_resolve(STATIC_IMG_DIR, filename)
+    if file_path is None or not file_path.exists() or not file_path.is_file():
         return HTMLResponse("<p>图片不存在</p>", status_code=404)
     return FileResponse(str(file_path))
 
@@ -519,14 +551,14 @@ avatar_route = Route("/static/avatars")
 @avatar_route.sub("/{filename}").get
 async def serve_avatar(filename: str):
     """提供头像文件的访问。"""
-    file_path = AVATAR_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
-        # 兼容旧头像路径
-        old_path = _OLD_AVATAR_DIR / filename
-        if old_path.exists() and old_path.is_file():
-            return FileResponse(str(old_path))
-        return HTMLResponse("<p>头像不存在</p>", status_code=404)
-    return FileResponse(str(file_path))
+    file_path = _safe_resolve(AVATAR_DIR, filename)
+    if file_path is not None and file_path.exists() and file_path.is_file():
+        return FileResponse(str(file_path))
+    # 兼容旧头像路径
+    old_path = _safe_resolve(_OLD_AVATAR_DIR, filename)
+    if old_path is not None and old_path.exists() and old_path.is_file():
+        return FileResponse(str(old_path))
+    return HTMLResponse("<p>头像不存在</p>", status_code=404)
 
 app.include(avatar_route)
 

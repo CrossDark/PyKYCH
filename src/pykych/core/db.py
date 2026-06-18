@@ -24,10 +24,27 @@ import aiomysql
 
 CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "settings" / "db.yaml"
 
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-    _config: dict[str, Any] = yaml.safe_load(f)
+_config: dict[str, Any] | None = None
 
-_mysql = _config["mysql"]
+
+def _load_config() -> dict[str, Any]:
+    """惰性加载数据库配置。"""
+    global _config
+    if _config is not None:
+        return _config
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            _config = yaml.safe_load(f)
+        if not _config or "mysql" not in _config:
+            raise ValueError("db.yaml 缺少必需的 'mysql' 配置节")
+        return _config
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"数据库配置文件未找到: {CONFIG_PATH}\n"
+            f"请复制 db.yaml.example 并重命名为 db.yaml，然后填写数据库连接信息。"
+        ) from None
+    except yaml.YAMLError as e:
+        raise ValueError(f"数据库配置文件格式错误: {e}") from None
 
 
 # ── 全局连接池（惰性创建，单例） ─────────────────────────────
@@ -42,6 +59,7 @@ async def _create_pool() -> aiomysql.Pool:
     如果目标数据库不存在，尝试自动创建（需要 CREATE DATABASE 权限）。
     失败时给出明确的错误信息和修复建议。
     """
+    _mysql = _load_config()["mysql"]
     pool_cfg = _mysql.get("pool", {})
     db_name = _mysql["database"]
 
