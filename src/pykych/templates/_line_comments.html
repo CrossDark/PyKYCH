@@ -29,7 +29,10 @@
         </div>
         <div class="line-comment-popup-comments"></div>
         <div class="line-comment-popup-form">
-            <input type="text" class="line-comment-input" maxlength="20" placeholder="输入短评（最多20字）...">
+            <div class="line-comment-input-wrap">
+                <input type="text" class="line-comment-input" maxlength="20" placeholder="输入短评（最多20字）...">
+                <span class="line-comment-counter">0/20</span>
+            </div>
             <button class="line-comment-submit">发送</button>
         </div>
     </div>
@@ -310,6 +313,29 @@
         background: var(--accent-hover);
     }
 
+    .line-comment-input-wrap {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    .line-comment-input-wrap .line-comment-input {
+        flex: 1;
+        padding-right: 2.8rem;
+    }
+    .line-comment-counter {
+        position: absolute;
+        right: 0.5rem;
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        pointer-events: none;
+        user-select: none;
+    }
+    .line-comment-counter.overlimit {
+        color: #e74c3c;
+        font-weight: 600;
+    }
+
     /* 暗色模式弹出框 */
     [data-theme="dark"] .line-comment-popup {
         box-shadow: 0 8px 24px rgba(0,0,0,0.5);
@@ -456,7 +482,18 @@
     const popupInput = popup.querySelector('.line-comment-input');
     const popupSubmit = popup.querySelector('.line-comment-submit');
     const popupClose = popup.querySelector('.line-comment-popup-close');
+    const popupCounter = popup.querySelector('.line-comment-counter');
     const toggleBtn = container.querySelector('.line-comments-toggle');
+
+    // 输入框实时字符计数
+    if (popupInput && popupCounter) {
+        popupInput.addEventListener('input', function() {
+            const len = this.value.length;
+            const max = parseInt(this.maxLength) || 20;
+            popupCounter.textContent = len + '/' + max;
+            popupCounter.classList.toggle('overlimit', len >= max);
+        });
+    }
 
     let currentLine = null;
     let lineCounts = {};
@@ -638,15 +675,26 @@
             </div>`;
         } else {
             formEl.innerHTML = `
-                <input type="text" class="line-comment-input" maxlength="20" placeholder="输入短评（最多20字）...">
+                <div class="line-comment-input-wrap">
+                    <input type="text" class="line-comment-input" maxlength="20" placeholder="输入短评（最多20字）...">
+                    <span class="line-comment-counter">0/20</span>
+                </div>
                 <button class="line-comment-submit">发送</button>`;
             // 重新绑定事件
             const newInput = formEl.querySelector('.line-comment-input');
             const newSubmit = formEl.querySelector('.line-comment-submit');
+            const newCounter = formEl.querySelector('.line-comment-counter');
             newSubmit.addEventListener('click', submitLineComment);
             newInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') submitLineComment();
                 if (e.key === 'Escape') closePopup();
+            });
+            // 实时字符计数
+            newInput.addEventListener('input', function() {
+                const len = this.value.length;
+                const max = parseInt(this.maxLength) || 20;
+                newCounter.textContent = len + '/' + max;
+                newCounter.classList.toggle('overlimit', len >= max);
             });
         }
 

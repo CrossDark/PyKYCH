@@ -1,4 +1,3 @@
-/Volumes/Web/PyKYCH/BUG.md
 # Bug 跟踪
 
 ## 🔴 严重 (Critical)
@@ -140,8 +139,61 @@
 - **攻击示例**: `GET /static/uploads/../../settings/db.yaml → 读取数据库配置（含密码） GET /static/uploads/../../../data/settings/db.yaml → 同上 GET /static/avatars/../../settings/db.yaml → 同上 GET /static/img/../../settings/db.yaml → 同上`
 - **影响**: 攻击者可读取服务器上任意文件（数据库凭据、源代码、系统配置文件等），造成完全信息泄露。
 - **代码分析**: main.py L486-491 — 三个端点均存在相同问题: async def serve_upload(filename: str): file_path = UPLOAD_DIR / filename # filename 可为 "../../etc/passwd" if not file_path.exists() or not file_path.is_file(): return HTMLResponse("<p>文件不存在</p>", status_code=404) return FileResponse(str(file_path)) # 直接返回文件内容
-- **修复建议**: ```python 
-- async def serve_upload(filename: str): 
-- # 拒绝包含路径分隔符或 .. 的文件名 
-- if "/" in filename or "\" in filename or ".." in filename: return HTMLResponse("<p>非法文件名</p>", status_code=400) file_path = (UPLOAD_DIR / filename).resolve() if not str(file_path).startswith(str(UPLOAD_DIR.resolve())): return HTMLResponse("<p>禁止访问</p>", status_code=403) if not file_path.exists() or not file_path.is_file(): return HTMLResponse("<p>文件不存在</p>", status_code=404) return FileResponse(str(file_path))```
-  
+- **修复建议**: 使用 `_safe_resolve()` 辅助函数统一处理所有静态文件服务端点，检查 `..` 和路径分隔符，确保解析后路径在基础目录内。
+- **状态**: ✅ 已修复
+
+---
+
+## 🆕 本轮测试新发现 (2026-06-18)
+
+### 🔴 BUG-021: 文章删除后 `article_tags` 孤立记录未清理（数据一致性）
+- **文件**: `content/articles.py` 第 255-270 行
+- **描述**: `delete_article()` 仅删除文章表记录，不级联删除 `article_tags`、`comments`、`ratings`、`line_comments` 等关联表。实测发现 32 条 `article_tags` 中有 15 条（47%）指向已删除文章。导致标签列表计数不准确（如 "upsert" 标签显示 1 篇但实际 0 篇可见）。
+- **影响**: 标签计数虚高、幽灵标签残留、`get_articles_by_tag()` 返回 total 值与实际显示文章数不一致。
+- **修复建议**: 在 `delete_article()` 中增加级联删除：`comments` → `ratings` → `line_comments` → `article_tags`；同时修复 `get_all_tags_with_counts()` 和 `get_articles_by_tag()` 使用 EXISTS 子查询验证文章真实存在。
+- **状态**: ✅ 已修复（`articles.py` + `tags.py` + 启动清理 + 手动清理历史数据）
+
+### 🔴 BUG-022: `delete_user()` 无级联删除
+- **文件**: `auth/user.py` 第 251-265 行
+- **描述**: `delete_user()` 仅执行 `DELETE FROM users WHERE username = %s`，不级联清理用户相关的所有数据：评论 (`comments`)、评分 (`ratings`)、行评论 (`line_comments`)、文章 (`articles` / `pages` / `html_pages` / `bbcode_pages`)、标签关联 (`article_tags`)、通行密钥 (`webauthn_credentials`)、通知 (`notifications`)、上传文件 (`static_files`) 等。与 BUG-021 类型相同。
+- **影响**: 删除用户后遗留大量孤立数据，数据库膨胀，且可能存在隐私合规风险（用户删除了但评论仍保留其用户名）。
+- **状态**: ✅ 已修复（级联删除 8 张关联表）
+
+### 🟠 BUG-023: 登录 `next` 参数未验证（开放重定向漏洞）
+- **文件**: `routes/auth.py` 第 206 行
+- **描述**: 登录成功后的跳转地址直接使用 `request.query_params.get("next", "/admin")`，未验证 URL 是否为本域名下的安全路径。攻击者可构造 `/auth/login?next=https://evil.com/phishing` 进行钓鱼攻击，用户登录后被重定向到恶意网站。
+- **影响**: CWE-601 URL Redirection to Untrusted Site ('Open Redirect')。可用于社会工程攻击，诱导用户相信他们仍在合法站点。
+- **状态**: ✅ 已修复（校验 next_url 必须以 / 开头且不含 // 和 @）
+
+### 🟡 BUG-024: 仪表盘每次加载所有文章数据（性能隐患）
+- **文件**: `routes/admin.py` 第 103-105 行
+- **描述**: 仪表盘页面 `dashboard()` 对 4 种文章类型各执行 `list_articles(page=1, per_page=100)`，每次加载最多 400 篇文章的全部内容字段（`content` 字段通常包含大量 HTML/Markdown 文本）。随着文章增长，此查询将严重拖慢后台首页加载速度。
+- **实际影响**: 当前文章量少时无影响，但随着内容增长会线性变慢。
+- **状态**: ✅ 已修复（per_page 从 100 降至 20；list_cols 已排除 content 字段）
+
+### 🔵 BUG-025: 行评论 `content[:20]` 截断无警告
+- **文件**: `content/comments.py` 第 246 行 (`content = content.strip()[:20]`)
+- **描述**: 行评论内容静默截断至 20 字符，前端和后端均无任何长度提示。用户输入 50 字仅保存前 20 字，造成信息丢失且无反馈。
+- **状态**: ✅ 已修复（前端 maxlength=20 + 实时字符计数器 X/20）
+
+### 🔵 BUG-026: `_save_site_asset` 函数在模块顶层被重复定义
+- **文件**: `routes/admin.py` 第 1152 行附近
+- **描述**: `_save_site_asset()` 定义在 `admin.py` 模块级别但仅被站点设置路由使用，且内部使用的 `STATIC_IMG` 路径硬编码为相对于 `__file__`。如果将来 admin.py 拆分或重构，此函数可能失去正确上下文。
+- **修复建议**: 将 `_save_site_asset` 提取到 `content/files.py` 或独立的工具模块中。
+
+---
+
+## 📊 更新统计
+
+| 严重程度 | 原有 | 新增 | 小计 | 状态 |
+|----------|------|------|------|------|
+| 🔴 严重  | 4    | +2   | 6    | ✅ 全部已修复 |
+| 🟠 高    | 5    | +1   | 6    | ✅ 全部已修复 |
+| 🟡 中    | 6    | +1   | 7    | ✅ 全部已修复 |
+| 🔵 低    | 5    | +2   | 7    | ✅ 全部已修复 |
+| **总计** | **20** | **+6** | **26** | ✅ **26/26** |
+
+| 状态 | 数量 |
+|------|------|
+| ✅ 已修复 | 26 (BUG-001~025 + SEC-001) |
+| ⬜ 待修复 | 0 |

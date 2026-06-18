@@ -203,6 +203,9 @@ async def login_action(request: Request):
     await auth_session.login_user(request, username)
 
     next_url = request.query_params.get("next", "/admin")
+    # 防止开放重定向：仅允许本站内部相对路径
+    if not next_url.startswith("/") or next_url.startswith("//") or "@" in next_url:
+        next_url = "/admin"
     return redirect(next_url)
 
 

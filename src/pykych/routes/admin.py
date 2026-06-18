@@ -103,7 +103,8 @@ async def dashboard(request: Request):
 
     articles_by_type = {}
     for atype in _ARTICLE_TYPES:
-        result = await article_manager.list_articles(atype, page=1, per_page=100, author_id=uid)
+        # 仪表盘仅需概览，per_page=20 足够（不加载 content 字段）
+        result = await article_manager.list_articles(atype, page=1, per_page=20, author_id=uid)
         articles_by_type[atype] = result
 
     users = await auth_user.list_users() if auth_user.is_owner(user) else []
