@@ -953,14 +953,35 @@ async def delete_file_route(file_id: int, request: Request):
 
 # ===== 用户管理（仅站长） =====
 
+def _flash_get(request: Request, key: str) -> str:
+    """读取一次性闪存消息（读取后自动清除）。"""
+    session = request.session if hasattr(request, "session") else {}
+    value = session.pop(key, "")
+    return value if isinstance(value, str) else ""
+
+
+def _flash_set(request: Request, key: str, value: str) -> None:
+    """写入一次性闪存消息。"""
+    if hasattr(request, "session"):
+        request.session[key] = value
+
+
 @admin_route.sub("/users").get
 async def manage_users(request: Request):
     """用户管理页面 — 仅站长可访问。"""
     user, err = await _require_owner(request)
     if err: return err
     users = await auth_user.list_users()
+    error = _flash_get(request, "_admin_error")
+    success = _flash_get(request, "_admin_success")
+    # 读取上次提交的表单值（出错时保留）
+    form_username = _flash_get(request, "_form_username")
+    form_nickname = _flash_get(request, "_form_nickname")
+    form_role = _flash_get(request, "_form_role")
     return render("admin_users.html", title="用户管理 - PyKYCH",
-        current_user=user, users=users, error=None)
+        current_user=user, users=users, error=error, success=success,
+        form_username=form_username, form_nickname=form_nickname,
+        form_role=form_role)
 
 
 @admin_route.sub("/users/add").post
@@ -975,6 +996,10 @@ async def add_user(request: Request):
     role = form.get("role", "user").strip()
 
     if not username or not password:
+        _flash_set(request, "_form_username", username)
+        _flash_set(request, "_form_nickname", nickname)
+        _flash_set(request, "_form_role", role if role in ("user", "admin", "owner") else "user")
+        _flash_set(request, "_admin_error", "用户名和密码不能为空。")
         return redirect("/admin/users")
     if role not in ("user", "admin", "owner"):
         role = "user"
@@ -982,10 +1007,23 @@ async def add_user(request: Request):
     try:
         existing = await auth_user.get_user_by_username(username)
         if existing:
+            _flash_set(request, "_form_username", username)
+            _flash_set(request, "_form_nickname", nickname)
+            _flash_set(request, "_form_role", role)
+            _flash_set(request, "_admin_error", f"用户名 «{username}» 已存在，请换一个。")
             return redirect("/admin/users")
         await auth_user.create_user(username, password, nickname, role=role)
-    except Exception:
-        pass
+        _flash_set(request, "_admin_success", f"用户 «{username}» 创建成功！")
+    except ValueError as e:
+        _flash_set(request, "_form_username", username)
+        _flash_set(request, "_form_nickname", nickname)
+        _flash_set(request, "_form_role", role if role in ("user", "admin", "owner") else "user")
+        _flash_set(request, "_admin_error", str(e))
+    except Exception as e:
+        _flash_set(request, "_form_username", username)
+        _flash_set(request, "_form_nickname", nickname)
+        _flash_set(request, "_form_role", role if role in ("user", "admin", "owner") else "user")
+        _flash_set(request, "_admin_error", f"创建用户失败: {e}")
     return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/delete").post
@@ -994,8 +1032,10 @@ async def delete_user(username: str, request: Request):
     owner_user, err = await _require_owner(request)
     if err: return err
     if username == owner_user["username"]:
+        _flash_set(request, "_admin_error", "不允许删除自己的账户。")
         return redirect("/admin/users")
     await auth_user.delete_user(username)
+    _flash_set(request, "_admin_success", f"用户 «{username}» 已删除。")
     return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/reset-password").post
@@ -1005,8 +1045,19 @@ async def reset_password(username: str, request: Request):
     if err: return err
     form = await request.form()
     new_password = form.get("new_password", "")
-    if new_password:
-        await auth_user.update_user_password(username, new_password)
+    if not new_password:
+        _flash_set(request, "_admin_error", "新密码不能为空。")
+    else:
+        try:
+            ok = await auth_user.update_user_password(username, new_password)
+            if ok:
+                _flash_set(request, "_admin_success", f"用户 «{username}» 的密码已重置。")
+            else:
+                _flash_set(request, "_admin_error", f"用户 «{username}» 不存在。")
+        except ValueError as e:
+            _flash_set(request, "_admin_error", f"密码重置失败: {e}")
+        except Exception as e:
+            _flash_set(request, "_admin_error", f"密码重置失败: {e}")
     return redirect("/admin/users")
 
 @admin_route.sub("/users/{username}/role").post
@@ -1015,11 +1066,15 @@ async def change_role(username: str, request: Request):
     owner_user, err = await _require_owner(request)
     if err: return err
     if username == owner_user["username"]:
-        return redirect("/admin/users")  # 不允许修改自己的角色
+        _flash_set(request, "_admin_error", "不允许修改自己的角色。")
+        return redirect("/admin/users")
     form = await request.form()
     new_role = form.get("role", "user").strip()
     if new_role in ("user", "admin", "owner"):
         await auth_user.update_user_role(username, new_role)
+        _flash_set(request, "_admin_success", f"用户 «{username}» 的角色已更新为 {new_role}。")
+    else:
+        _flash_set(request, "_admin_error", f"无效的角色: {new_role}")
     return redirect("/admin/users")
 
 # ===== 子站点链接管理（仅站长） =====

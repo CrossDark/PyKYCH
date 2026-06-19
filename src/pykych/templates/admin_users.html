@@ -8,6 +8,9 @@
 {% if error %}
 <div class="wp-notice wp-notice-error">{{ error }}</div>
 {% endif %}
+{% if success %}
+<div class="wp-notice wp-notice-success">{{ success }}</div>
+{% endif %}
 
 <div class="wp-card">
     <div class="wp-card-header">
@@ -15,12 +18,16 @@
         <button class="wp-btn wp-btn-primary wp-btn-sm" onclick="document.getElementById('userCreateForm').classList.toggle('hidden')">+ 添加新用户</button>
     </div>
     <div class="wp-card-body">
-        <div id="userCreateForm" class="hidden" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
+        <div id="userCreateForm" class="{{ 'hidden' if not error and not form_username else '' }}" style="margin-bottom:1rem;padding:1rem;background:var(--wp-table-stripe);border-radius:4px;">
             <form method="POST" action="/admin/users/add" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
-                <input name="username" placeholder="用户名" class="wp-form-input" style="flex:1;min-width:100px;" required>
-                <input name="password" type="password" placeholder="密码（支持任意Unicode）" class="wp-form-input" style="flex:1;min-width:100px;" required>
-                <input name="nickname" placeholder="昵称" class="wp-form-input" style="flex:1;min-width:100px;">
-                <select name="role" class="wp-form-input" style="width:auto;"><option value="user">用户</option><option value="admin">管理员</option><option value="owner">站长</option></select>
+                <input name="username" placeholder="用户名（3-64字符）" class="wp-form-input" style="flex:1;min-width:100px;" required value="{{ form_username|default('')|e }}">
+                <input name="password" type="password" placeholder="密码（大小写+数字，≥8位）" class="wp-form-input" style="flex:1;min-width:100px;" required>
+                <input name="nickname" placeholder="昵称" class="wp-form-input" style="flex:1;min-width:100px;" value="{{ form_nickname|default('')|e }}">
+                <select name="role" class="wp-form-input" style="width:auto;">
+                    <option value="user" {% if form_role=='user' %}selected{% endif %}>用户</option>
+                    <option value="admin" {% if form_role=='admin' %}selected{% endif %}>管理员</option>
+                    <option value="owner" {% if form_role=='owner' %}selected{% endif %}>站长</option>
+                </select>
                 <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">添加</button>
             </form>
         </div>
