@@ -40,6 +40,65 @@ from typing import Optional
 
 _typst_available: bool | None = None
 
+# typst 可执行文件的常见安装路径（按优先级排序）
+_TYPST_COMMON_PATHS = [
+    # 通过环境变量指定
+    lambda: os.environ.get("TYPST_PATH", ""),
+    # 通过 PATH 查找
+    lambda: shutil.which("typst") or "",
+    # 常见固定路径
+    lambda: _find_typst_in_common_dirs(),
+]
+
+
+def _find_typst_in_common_dirs() -> str:
+    """在常见安装目录中查找 typst 可执行文件。"""
+    candidates = [
+        # macOS Homebrew (Apple Silicon / Intel)
+        "/opt/homebrew/bin/typst",
+        "/usr/local/bin/typst",
+        # Linux 系统级安装
+        "/usr/bin/typst",
+        "/usr/local/bin/typst",
+        # cargo 安装
+        os.path.expanduser("~/.cargo/bin/typst"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return ""
+
+
+def _resolve_typst_path() -> str:
+    """
+    按优先级查找 typst 可执行文件路径。
+    返回找到的路径，或空字符串。
+    """
+    for getter in _TYPST_COMMON_PATHS:
+        path = getter()
+        if path and os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return ""
+
+
+# 缓存解析后的 typst 路径
+_typst_path: str | None = None
+
+
+def get_typst_path() -> str:
+    """
+    获取 typst 可执行文件的路径。
+    按以下优先级查找:
+        1. 环境变量 TYPST_PATH
+        2. PATH 中的 typst
+        3. 常见安装目录
+    结果会被缓存。
+    """
+    global _typst_path
+    if _typst_path is None:
+        _typst_path = _resolve_typst_path()
+    return _typst_path
+
 
 def check_typst_available() -> bool:
     """
@@ -54,8 +113,15 @@ def check_typst_available() -> bool:
     global _typst_available
     if _typst_available is not None:
         return _typst_available
-    _typst_available = shutil.which("typst") is not None
+    _typst_available = bool(get_typst_path())
     return _typst_available
+
+
+def clear_typst_cache() -> None:
+    """清除 typst 检测缓存（安装 typst 后调用）。"""
+    global _typst_available, _typst_path
+    _typst_available = None
+    _typst_path = None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -263,7 +329,7 @@ async def compile_typst_to_html(
 
         # 运行 typst compile
         cmd = [
-            "typst", "compile",
+            get_typst_path(), "compile",
             "--root", str(workspace),
             "--features", "html",
             "--format", "html",
@@ -366,7 +432,7 @@ async def compile_typst_to_pdf(
         output_path = workspace / "output.pdf"
 
         cmd = [
-            "typst", "compile",
+            get_typst_path(), "compile",
             "--root", str(workspace),
             str(workspace / "index.typ"),
             str(output_path),

@@ -7,7 +7,18 @@ WORKDIR /app
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# 安装 Typst CLI（用于 Typst 文章渲染）
+# 从 GitHub Releases 下载预编译二进制
+RUN ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/aarch64/aarch64/') && \
+    TYPST_VERSION="0.14.2" && \
+    curl -fsSL "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-${ARCH}-unknown-linux-musl.tar.xz" \
+        -o /tmp/typst.tar.xz && \
+    tar -xJf /tmp/typst.tar.xz -C /usr/local/bin --strip-components=1 && \
+    rm /tmp/typst.tar.xz && \
+    typst --version
 
 # 安装 Python 依赖
 COPY pyproject.toml .
