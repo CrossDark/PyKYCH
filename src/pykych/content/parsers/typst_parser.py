@@ -338,11 +338,20 @@ async def compile_typst_to_html(
             str(output_path),
         ]
 
+        # 构造安全的子进程环境变量（避免 HOME/XDG 权限问题）
+        subprocess_env = {
+            **os.environ,
+            "HOME": str(workspace),
+            "XDG_CACHE_HOME": str(workspace / ".cache"),
+            "XDG_RUNTIME_DIR": str(workspace / ".runtime"),
+        }
+
         proc = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=_COMPILE_TIMEOUT,
+            env=subprocess_env,
         )
 
         if proc.returncode != 0:
@@ -439,11 +448,20 @@ async def compile_typst_to_pdf(
             str(output_path),
         ]
 
+        # 构造安全的子进程环境变量（避免 HOME/XDG 权限问题）
+        subprocess_env = {
+            **os.environ,
+            "HOME": str(workspace),
+            "XDG_CACHE_HOME": str(workspace / ".cache"),
+            "XDG_RUNTIME_DIR": str(workspace / ".runtime"),
+        }
+
         proc = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             timeout=_COMPILE_TIMEOUT,
+            env=subprocess_env,
         )
 
         if proc.returncode != 0:
