@@ -59,7 +59,8 @@ def _find_typst_in_common_dirs() -> str:
         "/usr/local/bin/typst",
         # Linux 系统级安装
         "/usr/bin/typst",
-        "/usr/local/bin/typst",
+        # Snap 安装 (Ubuntu)
+        "/snap/bin/typst",
         # cargo 安装
         os.path.expanduser("~/.cargo/bin/typst"),
     ]
