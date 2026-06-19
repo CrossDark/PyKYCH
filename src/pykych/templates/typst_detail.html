@@ -213,47 +213,68 @@
         </div>
     </article>
 
-    <!-- 评分 -->
+    <!-- ── 评分区 ── -->
+    {% set article_type = "typst" %}
+    {% set article_slug = article.slug %}
     {% include "_rating_section.html" %}
 
-    <!-- 评论区 -->
+    <!-- ── 行评论系统 ── -->
     {% include "_line_comments.html" %}
 
-    <!-- 全文评论 -->
-    <section class="comments-section" style="margin-top: 3rem; border-top: 2px solid var(--border); padding-top: 2rem;">
-        <h2>💬 评论 ({{ comments | length }})</h2>
+    <!-- ── 评论区 ── -->
+    <section class="comments-section" style="margin-top: 2.5rem;">
+        <h3 style="font-size: 1.3rem; margin-bottom: 1.25rem;">
+            💬 评论
+            {% if comments %}
+            <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 400;">({{ comments | length }})</span>
+            {% endif %}
+        </h3>
+
         {% if comments %}
-        <ul class="comment-list">
-            {% for c in comments %}
-            <li class="comment-item">
-                <div class="comment-meta">
-                    <strong>{{ c.author_name }}</strong>
-                    <time>{{ c.created_at[:19] }}</time>
+        <div class="comments-list" style="margin-bottom: 2rem;">
+            {% for comment in comments %}
+            <div class="comment-item" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 0.75rem;">
+                <div class="comment-meta" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                    <strong style="color: var(--accent);">{{ comment.author_name | e }}</strong>
+                    <span style="color: var(--text-muted);">·</span>
+                    <span style="color: var(--text-muted);">{{ comment.created_at[:19] }}</span>
                 </div>
-                <div class="comment-body">{{ c.content }}</div>
-            </li>
+                <div class="comment-body" style="color: var(--text); line-height: 1.7; white-space: pre-wrap;">{{ comment.content | e }}</div>
+            </div>
             {% endfor %}
-        </ul>
+        </div>
         {% else %}
-        <p style="color: var(--text-muted);">暂无评论，来抢沙发吧！</p>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">暂无评论，来抢沙发吧～</p>
         {% endif %}
 
-        <!-- 评论表单 -->
-        <form method="POST" action="/comments/typst/{{ article.slug }}" class="comment-form" style="margin-top: 1.5rem;">
-            {% if current_user %}
-            <input type="hidden" name="author_name" value="{{ current_user.username }}">
-            {% else %}
-            <div class="form-group">
-                <label for="author_name">昵称</label>
-                <input type="text" id="author_name" name="author_name" placeholder="你的昵称" required>
+        {% if current_user %}
+        <div style="margin-bottom: 0.75rem; padding: 0.5rem 0.9rem; background: var(--code-bg); border-radius: var(--radius); color: var(--text-secondary); font-size: 0.9rem;">
+            ✏️ 以 <strong style="color: var(--accent);">{{ current_user.nickname or current_user.username }}</strong> 的身份评论
+        </div>
+        <form method="post" action="/comments/add" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem;">
+            <input type="hidden" name="article_type" value="typst">
+            <input type="hidden" name="article_slug" value="{{ article.slug }}">
+            <input type="hidden" name="redirect_url" value="/typst/{{ article.slug }}">
+            <div style="margin-bottom: 0.75rem;">
+                <textarea
+                    name="content"
+                    placeholder="写下你的评论..."
+                    required
+                    maxlength="2000"
+                    rows="3"
+                    style="width: 100%; padding: 0.6rem 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); font-size: 0.95rem; font-family: inherit; resize: vertical; min-height: 80px;"
+                ></textarea>
             </div>
-            {% endif %}
-            <div class="form-group">
-                <label for="comment_content">评论</label>
-                <textarea id="comment_content" name="content" rows="4" placeholder="写下你的想法..." required></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">发表评论</button>
+            <button type="submit" style="padding: 0.55rem 1.5rem; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); cursor: pointer; font-size: 0.95rem; font-weight: 500; transition: background 0.2s;">
+                发表评论
+            </button>
         </form>
+        {% else %}
+        <div style="text-align: center; padding: 2rem 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-muted);">
+            <p style="margin-bottom: 0.5rem; font-size: 1rem;">💬 请先登录后再发表评论</p>
+            <a href="/auth/login?next=/typst/{{ article.slug }}" style="display: inline-block; margin-top: 0.5rem; padding: 0.5rem 1.5rem; background: var(--accent); color: #fff; border-radius: var(--radius); text-decoration: none; font-weight: 500; font-size: 0.95rem;">登录</a>
+        </div>
+        {% endif %}
     </section>
 
 {% else %}
