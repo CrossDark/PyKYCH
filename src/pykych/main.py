@@ -564,6 +564,7 @@ _OLD_AVATAR_DIR = _Path(__file__).parent / "static" / "avatars"
 avatar_route = Route(AVATAR_URL_PREFIX)
 
 @avatar_route.sub("/{filename}").get
+@avatar_route.sub("/{filename}").head
 async def serve_avatar(filename: str):
     """提供头像文件的访问（新路由）。"""
     file_path = _safe_resolve(AVATAR_DIR, filename)
@@ -582,6 +583,7 @@ app.include(avatar_route)
 old_avatar_route = Route(OLD_AVATAR_URL_PREFIX)
 
 @old_avatar_route.sub("/{filename}").get
+@old_avatar_route.sub("/{filename}").head
 async def serve_old_avatar(filename: str):
     """提供头像文件的访问（旧路由，向后兼容）。"""
     file_path = _safe_resolve(AVATAR_DIR, filename)
