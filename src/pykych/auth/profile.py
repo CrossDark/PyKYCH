@@ -15,8 +15,18 @@ logger = logging.getLogger(__name__)
 
 # ── 头像目录 ─────────────────────────────────────────────────
 
-AVATAR_DIR = Path(__file__).parent.parent.parent.parent / "data" / "avatars"
+# 数据根目录，支持环境变量覆盖（方便不同部署环境配置）
+_DATA_ROOT = Path(
+    os.environ.get("PYKYCH_DATA_DIR", Path(__file__).parent.parent.parent.parent / "data")
+)
+AVATAR_DIR = _DATA_ROOT / "avatars"
 DEFAULT_AVATAR = "/static/img/default-avatar.png"
+
+# 新的头像 URL 前缀（使用 /avatars/ 而非 /static/avatars/，
+# 避免被生产环境反向代理的 location /static/ 规则拦截）
+AVATAR_URL_PREFIX = "/avatars"
+# 旧前缀（向后兼容）
+OLD_AVATAR_URL_PREFIX = "/static/avatars"
 
 
 def _ensure_avatar_dir() -> None:
@@ -211,9 +221,9 @@ async def save_avatar(username: str, file_data: bytes, filename: str) -> Optiona
         logger.error(f"无法写入头像文件 {avatar_path}: {e}")
         return None
 
-    avatar_url = f"/static/avatars/{avatar_name}"
+    avatar_url = f"{AVATAR_URL_PREFIX}/{avatar_name}"
 
-    # 更新数据库中的头像路径
+    # 更新数据库中的头像路径（使用新前缀）
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
@@ -221,11 +231,22 @@ async def save_avatar(username: str, file_data: bytes, filename: str) -> Optiona
                 (avatar_url, username),
             )
 
+    logger.info(f"用户 {username} 头像已保存: {avatar_name} -> {avatar_url}")
+
     # 清理旧头像文件（避免磁盘堆积）
-    if old_avatar_url and old_avatar_url.startswith("/static/avatars/"):
-        old_filename = old_avatar_url[len("/static/avatars/"):]
+    if old_avatar_url and (
+        old_avatar_url.startswith(f"{AVATAR_URL_PREFIX}/") or
+        old_avatar_url.startswith(f"{OLD_AVATAR_URL_PREFIX}/")
+    ):
+        # 提取旧文件名
+        for prefix in (AVATAR_URL_PREFIX, OLD_AVATAR_URL_PREFIX):
+            if old_avatar_url.startswith(f"{prefix}/"):
+                old_filename = old_avatar_url[len(prefix) + 1:]
+                break
+        else:
+            old_filename = None
         # 不删除刚写入的新文件
-        if old_filename != avatar_name:
+        if old_filename and old_filename != avatar_name:
             old_path = AVATAR_DIR / old_filename
             if old_path.exists() and old_path.is_file():
                 try:

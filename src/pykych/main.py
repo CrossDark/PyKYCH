@@ -19,6 +19,7 @@ PyKYCH 主应用入口 — 「跨越晨昏」个人网站后端。
 """
 
 import os
+import logging
 from lihil import Lihil, Route, Request
 from starlette.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -47,6 +48,8 @@ from .routes import (
     html_route, bbcode, comments, search,
     typst_route,
 )
+
+logger = logging.getLogger(__name__)
 
 # ── 应用生命周期 ──────────────────────────────────────────────
 
@@ -85,6 +88,13 @@ async def lifespan(app):
         "⚠️  默认管理员账户为 admin/admin123。"
         "如果这是首次启动，请立即登录并修改密码！"
     )
+
+    # 确保头像目录存在并记录路径
+    try:
+        user_profile._ensure_avatar_dir()
+        logger.info(f"头像目录: {user_profile.AVATAR_DIR} (URL前缀: {user_profile.AVATAR_URL_PREFIX})")
+    except Exception:
+        pass
 
     # 加载样式主题
     try:
@@ -544,17 +554,18 @@ async def serve_static_img(filename: str):
 app.include(static_img_route)
 
 # ===== 头像静态文件服务 =====
-from .auth.profile import AVATAR_DIR
+from .auth.profile import AVATAR_DIR, AVATAR_URL_PREFIX, OLD_AVATAR_URL_PREFIX
 
 # 兼容旧头像路径
 from pathlib import Path as _Path
 _OLD_AVATAR_DIR = _Path(__file__).parent / "static" / "avatars"
 
-avatar_route = Route("/static/avatars")
+# ── 新头像路由（/avatars/）─ 避免被生产环境反向代理的 /static/ 规则拦截 ──
+avatar_route = Route(AVATAR_URL_PREFIX)
 
 @avatar_route.sub("/{filename}").get
 async def serve_avatar(filename: str):
-    """提供头像文件的访问。"""
+    """提供头像文件的访问（新路由）。"""
     file_path = _safe_resolve(AVATAR_DIR, filename)
     if file_path is not None and file_path.exists() and file_path.is_file():
         return FileResponse(str(file_path))
@@ -562,9 +573,28 @@ async def serve_avatar(filename: str):
     old_path = _safe_resolve(_OLD_AVATAR_DIR, filename)
     if old_path is not None and old_path.exists() and old_path.is_file():
         return FileResponse(str(old_path))
+    logger.warning(f"头像文件未找到: {filename} (AVATAR_DIR={AVATAR_DIR})")
     return HTMLResponse("<p>头像不存在</p>", status_code=404)
 
 app.include(avatar_route)
+
+# ── 旧头像路由（/static/avatars/）─ 向后兼容已上传的头像 ──
+old_avatar_route = Route(OLD_AVATAR_URL_PREFIX)
+
+@old_avatar_route.sub("/{filename}").get
+async def serve_old_avatar(filename: str):
+    """提供头像文件的访问（旧路由，向后兼容）。"""
+    file_path = _safe_resolve(AVATAR_DIR, filename)
+    if file_path is not None and file_path.exists() and file_path.is_file():
+        return FileResponse(str(file_path))
+    # 兼容旧头像路径
+    old_path = _safe_resolve(_OLD_AVATAR_DIR, filename)
+    if old_path is not None and old_path.exists() and old_path.is_file():
+        return FileResponse(str(old_path))
+    logger.warning(f"头像文件未找到(旧路由): {filename} (AVATAR_DIR={AVATAR_DIR})")
+    return HTMLResponse("<p>头像不存在</p>", status_code=404)
+
+app.include(old_avatar_route)
 
 # ===== 主题 CSS 路由 =====
 @app.sub("/theme.css").get

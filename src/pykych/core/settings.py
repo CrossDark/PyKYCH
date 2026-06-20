@@ -17,6 +17,7 @@
     title = get_setting("site.title", "默认标题")
 """
 
+import os
 import yaml
 import threading
 from pathlib import Path
@@ -24,7 +25,11 @@ from typing import Any
 
 # ── 配置文件路径 ────────────────────────────────────────────
 
-SETTINGS_DIR = Path(__file__).parent.parent.parent.parent / "data" / "settings"
+# 数据根目录，支持环境变量覆盖（方便不同部署环境配置）
+_DATA_ROOT = Path(
+    os.environ.get("PYKYCH_DATA_DIR", Path(__file__).parent.parent.parent.parent / "data")
+)
+SETTINGS_DIR = _DATA_ROOT / "settings"
 SETTINGS_FILE = SETTINGS_DIR / "settings.yml"
 
 # 文件写锁（防止并发写入）

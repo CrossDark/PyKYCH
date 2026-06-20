@@ -24,7 +24,10 @@ import aiomysql
 # ── 配置文件路径 ────────────────────────────────────────────
 # 统一使用 data/settings/db.yaml，测试与生产环境通过文件内容区分。
 _CONFIG_NAME = "db.yaml"
-CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "data" / "settings" / _CONFIG_NAME
+_DATA_ROOT = Path(
+    os.environ.get("PYKYCH_DATA_DIR", Path(__file__).parent.parent.parent.parent / "data")
+)
+CONFIG_PATH = _DATA_ROOT / "settings" / _CONFIG_NAME
 
 _config: dict[str, Any] | None = None
 
