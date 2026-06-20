@@ -270,6 +270,18 @@ CREATE TABLE IF NOT EXISTS typst_files (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+TYPST_CACHE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS typst_cache (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    page_id      INT NOT NULL UNIQUE,
+    html_content LONGTEXT NOT NULL,
+    pdf_content  LONGBLOB NOT NULL,
+    compiled_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (page_id) REFERENCES typst_pages(id) ON DELETE CASCADE,
+    INDEX idx_page (page_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
 # ── 所有建表语句的列表（按依赖顺序） ────────────────────────
 
 ALL_TABLE_SQLS = [
@@ -282,6 +294,7 @@ ALL_TABLE_SQLS = [
     BBCODE_PAGES_TABLE_SQL,
     TYPST_PAGES_TABLE_SQL,
     TYPST_FILES_TABLE_SQL,
+    TYPST_CACHE_TABLE_SQL,
     COMMENTS_TABLE_SQL,
     SUBSITE_LINKS_TABLE_SQL,
     FEATURED_ARTICLES_TABLE_SQL,

@@ -21,6 +21,10 @@ from .typst_parser import (
     get_aux_files,
     save_aux_file,
     delete_aux_file,
+    build_and_cache_typst,
+    get_cached_typst_html,
+    get_cached_typst_pdf,
+    invalidate_typst_cache,
 )
 
 __all__ = [
@@ -32,4 +36,8 @@ __all__ = [
     "get_aux_files",
     "save_aux_file",
     "delete_aux_file",
+    "build_and_cache_typst",
+    "get_cached_typst_html",
+    "get_cached_typst_pdf",
+    "invalidate_typst_cache",
 ]

@@ -519,6 +519,158 @@ def _escape_html(text: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════
+#  编译缓存 — 保存 HTML/PDF 到数据库，加速后续访问
+# ═══════════════════════════════════════════════════════════════
+
+async def build_and_cache_typst(slug: str) -> bool:
+    """
+    编译 Typst 文章为 HTML 和 PDF 并存入缓存表。
+
+    此函数应在文章创建/更新后调用，确保缓存与文章内容同步。
+    编译失败时不会更新缓存，已有缓存保持不变。
+
+    参数:
+        slug: 文章 slug
+
+    返回:
+        True 表示编译并缓存成功，False 表示失败
+    """
+    from ...core.db import _get_pool
+
+    # 1. 读取文章源码
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id, content FROM typst_pages WHERE slug = %s",
+                    (slug,),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return False
+                page_id = row[0]
+                source = row[1]
+    except Exception:
+        return False
+
+    # 2. 获取辅助文件
+    aux_files = await _get_aux_files(slug)
+
+    # 3. 并行编译 HTML 和 PDF
+    html_body, html_err = await compile_typst_to_html(
+        source, slug=slug, aux_files=aux_files
+    )
+    pdf_bytes, pdf_err = await compile_typst_to_pdf(
+        source, slug=slug, aux_files=aux_files
+    )
+
+    # 任一种编译失败则不缓存
+    if html_err or pdf_err:
+        return False
+
+    # 4. 存入缓存（upsert）
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO typst_cache (page_id, html_content, pdf_content) "
+                    "VALUES (%s, %s, %s) "
+                    "ON DUPLICATE KEY UPDATE "
+                    "html_content = VALUES(html_content), "
+                    "pdf_content = VALUES(pdf_content), "
+                    "compiled_at = CURRENT_TIMESTAMP",
+                    (page_id, html_body, pdf_bytes),
+                )
+        return True
+    except Exception:
+        return False
+
+
+async def get_cached_typst_html(slug: str) -> str | None:
+    """
+    获取缓存的 HTML 内容（如果缓存比文章更新）。
+
+    返回:
+        HTML 字符串，或 None（缓存不存在/已过期/编译错误）
+    """
+    from ...core.db import _get_pool
+
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT tc.html_content "
+                    "FROM typst_cache tc "
+                    "JOIN typst_pages tp ON tc.page_id = tp.id "
+                    "WHERE tp.slug = %s AND tc.compiled_at >= tp.updated_at",
+                    (slug,),
+                )
+                row = await cur.fetchone()
+                if row:
+                    return row[0]
+    except Exception:
+        pass
+    return None
+
+
+async def get_cached_typst_pdf(slug: str) -> bytes | None:
+    """
+    获取缓存的 PDF 内容（如果缓存比文章更新）。
+
+    返回:
+        PDF 字节数据，或 None（缓存不存在/已过期）
+    """
+    from ...core.db import _get_pool
+
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT tc.pdf_content "
+                    "FROM typst_cache tc "
+                    "JOIN typst_pages tp ON tc.page_id = tp.id "
+                    "WHERE tp.slug = %s AND tc.compiled_at >= tp.updated_at",
+                    (slug,),
+                )
+                row = await cur.fetchone()
+                if row:
+                    return row[0]
+    except Exception:
+        pass
+    return None
+
+
+async def invalidate_typst_cache(slug: str) -> bool:
+    """
+    删除文章的编译缓存。
+
+    参数:
+        slug: 文章 slug
+
+    返回:
+        True 如果删除了缓存，False 如果缓存不存在
+    """
+    from ...core.db import _get_pool
+
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE tc FROM typst_cache tc "
+                    "JOIN typst_pages tp ON tc.page_id = tp.id "
+                    "WHERE tp.slug = %s",
+                    (slug,),
+                )
+                return cur.rowcount > 0
+    except Exception:
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════
 #  辅助文件管理（供路由层使用）
 # ═══════════════════════════════════════════════════════════════
 

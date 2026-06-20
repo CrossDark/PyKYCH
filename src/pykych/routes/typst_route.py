@@ -7,6 +7,7 @@ Typst 文章路由 — /typst/ 下的所有端点。
     - /typst/{slug}/pdf     下载 PDF 版本
 """
 
+import asyncio
 from lihil import Route
 from starlette.responses import HTMLResponse, Response
 from pathlib import Path
@@ -19,6 +20,8 @@ from ..content.parsers.typst_parser import (
     compile_typst_to_html,
     compile_typst_to_pdf,
     check_typst_available,
+    get_cached_typst_html,
+    get_cached_typst_pdf,
 )
 from ..content import tags as tag_manager
 from ..content import comments as comment_manager
@@ -70,7 +73,7 @@ async def typst_article_list(page: int = 1):
 
 @typst_route.sub("/{slug}").get
 async def typst_article_detail(request: Request, slug: str):
-    """Typst 文章详情页 — 编译 Typst 源码为 HTML 后展示。"""
+    """Typst 文章详情页 — 优先使用缓存 HTML，缓存未命中时实时编译。"""
     article = await db.get_article('typst', slug)
     if not article:
         return render(
@@ -81,10 +84,18 @@ async def typst_article_detail(request: Request, slug: str):
             html_content="<p>抱歉，您查找的 Typst 文章不存在。</p>",
         )
 
-    # 编译 Typst → HTML
-    html_body, compile_error = await compile_typst_to_html(
-        article["content"], slug=slug
-    )
+    # 优先使用缓存
+    compile_error = None
+    html_body = await get_cached_typst_html(slug)
+
+    if html_body is None:
+        # 缓存未命中 → 实时编译并回填缓存
+        html_body, compile_error = await compile_typst_to_html(
+            article["content"], slug=slug
+        )
+        # 编译成功后异步回填缓存（不阻塞响应）
+        if compile_error is None:
+            asyncio.create_task(_fill_cache_after_miss(slug))
 
     # 加载标签
     article["tags"] = await tag_manager.get_tags_for_article("typst", slug)
@@ -115,20 +126,28 @@ async def typst_article_detail(request: Request, slug: str):
 
 @typst_route.sub("/{slug}/pdf").get
 async def typst_article_pdf(request: Request, slug: str):
-    """下载 Typst 文章的 PDF 版本。"""
+    """下载 Typst 文章的 PDF 版本 — 优先使用缓存。"""
     article = await db.get_article('typst', slug)
     if not article:
         return HTMLResponse("<p>文章不存在</p>", status_code=404)
 
-    pdf_bytes, error = await compile_typst_to_pdf(
-        article["content"], slug=slug
-    )
+    # 优先使用缓存
+    pdf_bytes = await get_cached_typst_pdf(slug)
 
-    if error:
-        return HTMLResponse(
-            f"<h2>PDF 生成失败</h2><pre>{error}</pre>",
-            status_code=500,
+    if pdf_bytes is None:
+        # 缓存未命中 → 实时编译
+        pdf_bytes, error = await compile_typst_to_pdf(
+            article["content"], slug=slug
         )
+
+        if error:
+            return HTMLResponse(
+                f"<h2>PDF 生成失败</h2><pre>{error}</pre>",
+                status_code=500,
+            )
+
+        # 编译成功后异步回填缓存
+        asyncio.create_task(_fill_cache_after_miss(slug))
 
     # 生成安全的文件名
     safe_title = slug.replace("/", "-").replace("\\", "-")
@@ -139,3 +158,19 @@ async def typst_article_pdf(request: Request, slug: str):
             "Content-Disposition": f'attachment; filename="{safe_title}.pdf"',
         },
     )
+
+
+# ── 缓存辅助 ─────────────────────────────────────────────────
+
+async def _fill_cache_after_miss(slug: str):
+    """
+    缓存未命中后异步回填缓存（不阻塞用户响应）。
+
+    当用户访问文章时缓存未命中，实时编译完成后，
+    在后台异步将结果写入缓存表，加速后续访问。
+    """
+    from ..content.parsers.typst_parser import build_and_cache_typst
+    try:
+        await build_and_cache_typst(slug)
+    except Exception:
+        pass  # 缓存回填失败不影响用户

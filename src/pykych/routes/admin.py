@@ -10,6 +10,7 @@ from starlette.responses import HTMLResponse, RedirectResponse
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from urllib.parse import quote
+import asyncio
 
 from ..content import articles as article_manager
 from ..content import tags as tag_manager
@@ -191,6 +192,10 @@ async def _article_create(article_type: str, request: Request):
         if cfg["default_tag"] not in tag_names:
             tag_names.append(cfg["default_tag"])
         await tag_manager.set_article_tags(article_type, slug, tag_names)
+        # Typst 文章：后台异步编译并缓存 HTML/PDF
+        if article_type == "typst":
+            from ..content.parsers.typst_parser import build_and_cache_typst
+            asyncio.create_task(build_and_cache_typst(slug))
         return redirect("/admin")
     except Exception as e:
         return render("admin_form.html",
@@ -263,6 +268,10 @@ async def _article_update(article_type: str, slug: str, request: Request):
             if cfg["default_tag"] not in tag_names:
                 tag_names.append(cfg["default_tag"])
             await tag_manager.set_article_tags(article_type, slug, tag_names)
+            # Typst 文章：后台异步编译并缓存 HTML/PDF
+            if article_type == "typst":
+                from ..content.parsers.typst_parser import build_and_cache_typst
+                asyncio.create_task(build_and_cache_typst(slug))
             return redirect("/admin")
         except Exception as e:
             return render("admin_form.html",
@@ -296,6 +305,10 @@ async def _article_update(article_type: str, slug: str, request: Request):
     if cfg["default_tag"] not in tag_names:
         tag_names.append(cfg["default_tag"])
     await tag_manager.set_article_tags(article_type, slug, tag_names)
+    # Typst 文章：后台异步编译并缓存 HTML/PDF
+    if article_type == "typst":
+        from ..content.parsers.typst_parser import build_and_cache_typst
+        asyncio.create_task(build_and_cache_typst(slug))
     return redirect("/admin")
 
 
