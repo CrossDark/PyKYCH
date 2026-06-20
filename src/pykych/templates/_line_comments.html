@@ -386,6 +386,12 @@
         color: var(--accent);
     }
 
+    /* 列表项的行号需要额外左侧空间，避免与列表标记（数字/圆点）重叠 */
+    .content-body li[data-line]::before {
+        left: -4.5rem;
+        width: 4.1rem;
+    }
+
     /* 有评论的行 — 行号更明显 */
     .content-body [data-line].has-line-comments::before {
         opacity: 0.75;
@@ -405,6 +411,11 @@
         background: var(--accent);
         opacity: 0.7;
         pointer-events: none;
+    }
+
+    /* 列表项的小圆点也需左移避开列表标记 */
+    .content-body li[data-line].has-line-comments::after {
+        left: -2.2rem;
     }
 
     /* 单条评论 — 直接在正文左侧展开显示 */
@@ -433,6 +444,11 @@
     .content-body [data-line].single-comment-expanded:hover::after {
         opacity: 1;
         border-color: var(--accent-hover, var(--accent));
+    }
+
+    /* 列表项的单条评论展开也需左移避开列表标记 */
+    .content-body li[data-line].single-comment-expanded::after {
+        left: -16.2rem;
     }
 
     /* 当前激活行 */
