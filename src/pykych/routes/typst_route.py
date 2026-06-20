@@ -8,6 +8,7 @@ Typst 文章路由 — /typst/ 下的所有端点。
 """
 
 import asyncio
+import logging
 from lihil import Route
 from starlette.responses import HTMLResponse, Response
 from pathlib import Path
@@ -28,6 +29,26 @@ from ..content import comments as comment_manager
 from ..content import comments as line_comment_manager
 from ..content import ratings as rating_manager
 from ..auth.session import get_current_user
+
+logger = logging.getLogger(__name__)
+
+
+def _create_background_task(coro, name: str = "unknown"):
+    """
+    安全创建后台异步任务，附带异常日志。
+
+    与裸 asyncio.create_task() 不同，此函数会：
+    1. 保存 Task 引用防止被 GC 回收
+    2. 为任务添加异常回调，确保异常被记录到日志
+    """
+    task = asyncio.create_task(coro)
+    def _log_exception(t: asyncio.Task):
+        try:
+            t.result()
+        except Exception:
+            logger.exception(f"后台任务 [{name}] 异常")
+    task.add_done_callback(_log_exception)
+    return task
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -95,7 +116,7 @@ async def typst_article_detail(request: Request, slug: str):
         )
         # 编译成功后异步回填缓存（不阻塞响应）
         if compile_error is None:
-            asyncio.create_task(_fill_cache_after_miss(slug))
+            _create_background_task(_fill_cache_after_miss(slug), name=f"typst-cache-{slug}")
 
     # 加载标签
     article["tags"] = await tag_manager.get_tags_for_article("typst", slug)
@@ -147,7 +168,7 @@ async def typst_article_pdf(request: Request, slug: str):
             )
 
         # 编译成功后异步回填缓存
-        asyncio.create_task(_fill_cache_after_miss(slug))
+        _create_background_task(_fill_cache_after_miss(slug), name=f"typst-cache-pdf-{slug}")
 
     # 生成安全的文件名
     safe_title = slug.replace("/", "-").replace("\\", "-")

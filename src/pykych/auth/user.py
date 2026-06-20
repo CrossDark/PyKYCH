@@ -259,8 +259,9 @@ async def delete_user(username: str) -> bool:
         4. 标签关联 (article_tags)
         5. 通行密钥 (webauthn_credentials)
         6. 上传文件 (static_files)
-        7. 文章 (articles / pages / html_pages / bbcode_pages)
-        8. 用户本体 (users)
+        7. 推荐文章 (featured_articles)
+        8. 文章 (articles / pages / html_pages / bbcode_pages / typst_pages)
+        9. 用户本体 (users)
 
     参数:
         username: 要删除的用户名
@@ -271,55 +272,69 @@ async def delete_user(username: str) -> bool:
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # 1. 删除用户评论
-            await cur.execute(
-                "DELETE FROM comments WHERE author_name = %s",
-                (username,),
-            )
-            # 2. 删除用户评分
-            await cur.execute(
-                "DELETE FROM ratings WHERE author_name = %s",
-                (username,),
-            )
-            # 3. 删除用户行评论
-            await cur.execute(
-                "DELETE FROM line_comments WHERE author_name = %s",
-                (username,),
-            )
-            # 4. 删除用户文章的标签关联
-            await cur.execute(
-                "DELETE FROM article_tags WHERE article_slug IN "
-                "(SELECT slug FROM articles WHERE author_id = "
-                "(SELECT id FROM users WHERE username = %s))",
-                (username,),
-            )
-            # 5. 删除通行密钥
-            await cur.execute(
-                "DELETE FROM webauthn_credentials WHERE username = %s",
-                (username,),
-            )
-            # 6. 删除上传文件物理记录
-            await cur.execute(
-                "DELETE FROM static_files WHERE uploaded_by = "
-                "(SELECT id FROM users WHERE username = %s)",
-                (username,),
-            )
-            # 7. 删除用户文章
-            for table in ("articles", "pages", "html_pages", "bbcode_pages"):
-                try:
-                    await cur.execute(
-                        f"DELETE FROM {table} WHERE author_id = "
-                        "(SELECT id FROM users WHERE username = %s)",
-                        (username,),
-                    )
-                except Exception:
-                    pass  # 表可能不存在
-            # 8. 删除用户
-            await cur.execute(
-                "DELETE FROM users WHERE username = %s",
-                (username,),
-            )
-            return cur.rowcount > 0
+            # 开启事务，确保所有删除操作原子执行
+            await conn.begin()
+            try:
+                # 1. 删除用户评论
+                await cur.execute(
+                    "DELETE FROM comments WHERE author_name = %s",
+                    (username,),
+                )
+                # 2. 删除用户评分
+                await cur.execute(
+                    "DELETE FROM ratings WHERE author_name = %s",
+                    (username,),
+                )
+                # 3. 删除用户行评论
+                await cur.execute(
+                    "DELETE FROM line_comments WHERE author_name = %s",
+                    (username,),
+                )
+                # 4. 删除用户文章的标签关联
+                await cur.execute(
+                    "DELETE FROM article_tags WHERE article_slug IN "
+                    "(SELECT slug FROM articles WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s))",
+                    (username,),
+                )
+                # 5. 删除通行密钥
+                await cur.execute(
+                    "DELETE FROM webauthn_credentials WHERE username = %s",
+                    (username,),
+                )
+                # 6. 删除上传文件物理记录
+                await cur.execute(
+                    "DELETE FROM static_files WHERE uploaded_by = "
+                    "(SELECT id FROM users WHERE username = %s)",
+                    (username,),
+                )
+                # 7. 删除推荐文章（指向用户文章的推荐记录）
+                await cur.execute(
+                    "DELETE FROM featured_articles WHERE article_slug IN "
+                    "(SELECT slug FROM articles WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s))",
+                    (username,),
+                )
+                # 8. 删除用户文章
+                for table in ("articles", "pages", "html_pages", "bbcode_pages", "typst_pages"):
+                    try:
+                        await cur.execute(
+                            f"DELETE FROM {table} WHERE author_id = "
+                            "(SELECT id FROM users WHERE username = %s)",
+                            (username,),
+                        )
+                    except Exception:
+                        pass  # 表可能不存在
+                # 9. 删除用户
+                await cur.execute(
+                    "DELETE FROM users WHERE username = %s",
+                    (username,),
+                )
+                await conn.commit()
+                return cur.rowcount > 0
+            except Exception:
+                await conn.rollback()
+                raise
 
 
 # ── 角色检查辅助 ────────────────────────────────────────────

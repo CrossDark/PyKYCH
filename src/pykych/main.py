@@ -83,8 +83,7 @@ async def lifespan(app):
     # 创建默认管理员（如不存在）
     # ⚠️ 安全警告：生产环境请在首次登录后立即修改默认密码！
     await seed_admin("admin", "admin123", "管理员")
-    import logging
-    logging.getLogger(__name__).warning(
+    logger.warning(
         "⚠️  默认管理员账户为 admin/admin123。"
         "如果这是首次启动，请立即登录并修改密码！"
     )

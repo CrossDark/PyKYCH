@@ -32,8 +32,12 @@ _DATA_ROOT = Path(
 SETTINGS_DIR = _DATA_ROOT / "settings"
 SETTINGS_FILE = SETTINGS_DIR / "settings.yml"
 
-# 文件写锁（防止并发写入）
+# 文件写锁（防止并发写入）+ 读缓存
 _write_lock = threading.Lock()
+
+# 内存缓存（避免每次 get_setting 都读取文件）
+_cache: dict[str, Any] | None = None
+_cache_mtime: float = 0.0  # 缓存时的文件修改时间
 
 
 # ── 默认设置 ────────────────────────────────────────────────
@@ -99,31 +103,45 @@ def _ensure_settings_file() -> None:
 
 def load_settings() -> dict[str, Any]:
     """
-    加载所有设置。
+    加载所有设置（带内存缓存）。
 
     返回:
         包含所有设置的字典，键为分类名。
         如果文件不存在或无法读取，返回空字典。
+
+    缓存策略:
+        基于文件修改时间（mtime）自动失效，避免每次请求都读取磁盘。
     """
+    global _cache, _cache_mtime
+
     _ensure_settings_file()
     try:
+        current_mtime = SETTINGS_FILE.stat().st_mtime
+        # 缓存命中（文件未修改）
+        if _cache is not None and current_mtime == _cache_mtime:
+            return _cache
+
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+            _cache = yaml.safe_load(f) or {}
+            _cache_mtime = current_mtime
+            return _cache
     except (OSError, yaml.YAMLError):
-        return {}
+        return _cache if _cache is not None else {}
 
 
 def save_settings(settings: dict[str, Any]) -> None:
     """
-    保存所有设置（覆盖写入）。
+    保存所有设置（覆盖写入），并更新内存缓存。
 
     参数:
         settings: 要保存的完整设置字典
 
     注意:
         使用写锁确保线程安全。
-        写入失败时输出警告到 stderr。
+        写入成功后自动更新缓存，避免下次读取时重新解析文件。
     """
+    global _cache, _cache_mtime
+
     _ensure_settings_file()
     with _write_lock:
         try:
@@ -133,6 +151,9 @@ def save_settings(settings: dict[str, Any]) -> None:
                     allow_unicode=True,
                     default_flow_style=False,
                 )
+            # 更新缓存（写入后立即生效，避免下次读取时重新解析）
+            _cache = settings
+            _cache_mtime = SETTINGS_FILE.stat().st_mtime
         except (OSError, PermissionError) as e:
             import sys
             print(
@@ -178,7 +199,8 @@ def set_setting(path: str, value: Any) -> None:
     """
     设置单个设置项（使用点号分隔的路径）。
 
-    修改后会立即保存到文件。
+    整个「读取-修改-写入」操作在写锁保护下原子完成，
+    防止并发请求导致的修改丢失（读-改-写竞态条件）。
 
     参数:
         path:  设置路径，如 "site.title"
@@ -187,15 +209,16 @@ def set_setting(path: str, value: Any) -> None:
     示例:
         >>> set_setting("site.title", "新标题")
     """
-    settings = load_settings()
-    keys = path.split(".")
-    target = settings
-    for key in keys[:-1]:
-        if key not in target or not isinstance(target[key], dict):
-            target[key] = {}
-        target = target[key]
-    target[keys[-1]] = value
-    save_settings(settings)
+    with _write_lock:
+        settings = load_settings()
+        keys = path.split(".")
+        target = settings
+        for key in keys[:-1]:
+            if key not in target or not isinstance(target[key], dict):
+                target[key] = {}
+            target = target[key]
+        target[keys[-1]] = value
+        save_settings(settings)
 
 
 # ── 便捷访问函数 ────────────────────────────────────────────

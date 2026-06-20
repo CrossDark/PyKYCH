@@ -11,6 +11,8 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from urllib.parse import quote
 import asyncio
+import logging
+from contextvars import ContextVar
 
 from ..content import articles as article_manager
 from ..content import tags as tag_manager
@@ -28,6 +30,27 @@ from ..plugins_sys.manager import (
     write_plugin_file, delete_plugin,
 )
 
+logger = logging.getLogger(__name__)
+
+# ── 后台任务辅助 ──
+
+def _create_background_task(coro, name: str = "unknown"):
+    """
+    安全创建后台异步任务，附带异常日志。
+
+    与裸 asyncio.create_task() 不同，此函数会：
+    1. 保存 Task 引用防止被 GC 回收
+    2. 为任务添加异常回调，确保异常被记录到日志
+    """
+    task = asyncio.create_task(coro)
+    def _log_exception(t: asyncio.Task):
+        try:
+            t.result()
+        except Exception:
+            logger.exception(f"后台任务 [{name}] 异常")
+    task.add_done_callback(_log_exception)
+    return task
+
 # ── 模板 ──
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
@@ -39,17 +62,44 @@ jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/s
 jinja_env.globals["site_title_func"] = lambda: get_site_title()
 jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
 
+# ── CSRF Token 上下文（async-safe，无需修改每个 render 调用） ──
+_current_csrf: ContextVar[str] = ContextVar("csrf_token", default="")
+
 def render(template_name: str, status_code: int = 200, **context) -> HTMLResponse:
+    csrf = _current_csrf.get()
+    if csrf:
+        context.setdefault("csrf_token", csrf)
     template = jinja_env.get_template(template_name)
     return HTMLResponse(template.render(**context), status_code=status_code)
 
 def redirect(url: str) -> RedirectResponse:
     return RedirectResponse(url, status_code=303)
 
+# ── CSRF 验证 ──
+
+def _verify_csrf(request: Request, form) -> bool:
+    """
+    验证 POST 请求的 CSRF Token。
+    
+    所有管理后台状态变更操作必须调用此函数。
+    使用 session.py 中的恒定时间比较防止时序攻击。
+    """
+    csrf_token = form.get("csrf_token", "") if hasattr(form, "get") else ""
+    return auth_session.verify_csrf_token(request, csrf_token)
+
+
+def _csrf_error(request: Request, user: dict, error_msg: str = "CSRF 验证失败，请刷新页面后重试。") -> HTMLResponse:
+    """返回 CSRF 验证失败的错误页面。"""
+    return render("admin_dashboard.html", title="验证失败 - PyKYCH",
+        current_user=user, md_articles=[], wk_pages=[],
+        html_pages=[], bb_pages=[], typst_articles=[],
+        md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
+        users=[], permission_error=error_msg)
+
 # ── 登录保护 ──
 
 async def _check(request: Request):
-    """所有管理路由复用此检查。返回 (user, error_response)。"""
+    """所有管理路由复用此检查。返回 (user, error_response)。POST 请求自动验证 CSRF。"""
     user = await auth_session.get_current_user(request)
     if user is None:
         target = quote(request.url.path, safe="")
@@ -57,11 +107,19 @@ async def _check(request: Request):
     # 确保 avatar 有默认值（兼容 avatar 列不存在的情况）
     if not user.get("avatar"):
         user["avatar"] = user_profile.DEFAULT_AVATAR
+    # 设置当前请求的 CSRF Token（供 render 自动注入）
+    _current_csrf.set(auth_session.generate_csrf_token(request))
+    # POST 请求自动验证 CSRF Token
+    if request.method == "POST":
+        form = await request.form()
+        if not _verify_csrf(request, form):
+            logger.warning(f"CSRF 验证失败: user={user.get('username')}, path={request.url.path}")
+            return user, _csrf_error(request, user)
     return user, None
 
 
 async def _require_owner(request: Request):
-    """要求站长权限。返回 (user, error_response)。"""
+    """要求站长权限。返回 (user, error_response)。POST 请求自动验证 CSRF。"""
     user, err = await _check(request)
     if err:
         return None, err
@@ -192,7 +250,7 @@ async def _article_create(article_type: str, request: Request):
         # Typst 文章：后台异步编译并缓存 HTML/PDF
         if article_type == "typst":
             from ..content.parsers.typst_parser import build_and_cache_typst
-            asyncio.create_task(build_and_cache_typst(slug))
+            _create_background_task(build_and_cache_typst(slug), name=f"typst-build-new-{slug}")
         return redirect("/admin")
     except Exception as e:
         return render("admin_form.html",
@@ -268,7 +326,7 @@ async def _article_update(article_type: str, slug: str, request: Request):
             # Typst 文章：后台异步编译并缓存 HTML/PDF
             if article_type == "typst":
                 from ..content.parsers.typst_parser import build_and_cache_typst
-                asyncio.create_task(build_and_cache_typst(slug))
+                _create_background_task(build_and_cache_typst(slug), name=f"typst-build-edit-new-{slug}")
             return redirect("/admin")
         except Exception as e:
             return render("admin_form.html",
@@ -305,7 +363,7 @@ async def _article_update(article_type: str, slug: str, request: Request):
     # Typst 文章：后台异步编译并缓存 HTML/PDF
     if article_type == "typst":
         from ..content.parsers.typst_parser import build_and_cache_typst
-        asyncio.create_task(build_and_cache_typst(slug))
+        _create_background_task(build_and_cache_typst(slug), name=f"typst-build-edit-{slug}")
     return redirect("/admin")
 
 
@@ -777,8 +835,17 @@ async def upload_file(request: Request):
     store_name = file_manager._generate_filename(original_name)
     file_path = file_manager.UPLOAD_DIR / store_name
 
-    with open(file_path, "wb") as f:
-        f.write(content)
+    try:
+        with open(file_path, "wb") as f:
+            f.write(content)
+    except (OSError, PermissionError) as e:
+        logger.error(f"文件写入失败 {file_path}: {e}")
+        result = await file_manager.list_files()
+        return render("admin_files.html", title="文件管理 - PyKYCH",
+            current_user=user, files=result["files"],
+            page=1, total_pages=result["total_pages"],
+            total=result["total"],
+            error=f"文件保存失败：磁盘空间不足或权限不足。")
 
     mime_type = getattr(uploaded, "content_type", "application/octet-stream") or "application/octet-stream"
 
