@@ -280,3 +280,26 @@ async def delete_line_comment(comment_id: int) -> bool:
                 (comment_id,),
             )
             return cur.rowcount > 0
+
+
+# ═══════════════════════════════════════════════════════════════
+# 统计
+# ═══════════════════════════════════════════════════════════════
+
+
+async def count_all_comments() -> int:
+    """
+    获取全站评论总数（全文评论 + 行评论）。
+
+    返回:
+        评论总数
+    """
+    pool = await get_sys_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT (SELECT COUNT(*) FROM comments) + "
+                "(SELECT COUNT(*) FROM line_comments) AS total"
+            )
+            row = await cur.fetchone()
+            return row[0] if row else 0

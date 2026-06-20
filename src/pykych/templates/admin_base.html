@@ -407,12 +407,22 @@
         .wp-stat-icon.green { background: #edfaef; color: #008a20; }
         .wp-stat-icon.purple { background: #f6f0fc; color: #7c3aed; }
         .wp-stat-icon.orange { background: #fcf6e8; color: #d97706; }
+        .wp-stat-icon.teal { background: #e8faf8; color: #0d9488; }
         [data-theme="dark"] .wp-stat-icon.blue { background: rgba(34,113,177,0.15); }
         [data-theme="dark"] .wp-stat-icon.green { background: rgba(0,138,32,0.15); }
         [data-theme="dark"] .wp-stat-icon.purple { background: rgba(124,58,237,0.15); }
         [data-theme="dark"] .wp-stat-icon.orange { background: rgba(217,119,6,0.15); }
+        [data-theme="dark"] .wp-stat-icon.teal { background: rgba(13,148,136,0.15); }
         .wp-stat-num { font-size: 1.5rem; font-weight: 700; color: var(--wp-text); line-height: 1; }
         .wp-stat-label { font-size: 0.78rem; color: var(--wp-text-muted); margin-top: 0.15rem; }
+
+        /* ===== 区块标题 ===== */
+        .wp-section-title {
+            font-size: 0.85rem; font-weight: 700; color: var(--wp-text-secondary);
+            text-transform: uppercase; letter-spacing: 0.04em;
+            margin: 1.75rem 0 0.75rem; padding: 0 0.25rem;
+        }
+        .wp-section-title:first-child { margin-top: 0; }
 
         /* ===== 响应式 ===== */
         @media (max-width: 782px) {
@@ -452,7 +462,7 @@
                 <span class="nav-icon">📊</span>
                 <span class="nav-label">仪表盘</span>
             </a>
-            <a href="/admin" class="{% if active_menu == 'articles' %}active{% endif %}">
+            <a href="/admin/articles" class="{% if active_menu == 'articles' %}active{% endif %}">
                 <span class="nav-icon">📝</span>
                 <span class="nav-label">文章管理</span>
             </a>

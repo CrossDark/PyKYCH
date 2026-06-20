@@ -5,7 +5,8 @@
 <div class="wp-notice wp-notice-error" style="text-align:center;padding:1.25rem;">{{ permission_error }}</div>
 {% endif %}
 
-<!-- 统计卡片 -->
+<!-- ══ 内容统计卡片 ══ -->
+<div class="wp-section-title">📊 内容概览</div>
 <div class="wp-stats-grid">
     <div class="wp-stat-card">
         <div class="wp-stat-icon blue">📝</div>
@@ -44,121 +45,91 @@
     </div>
 </div>
 
-<!-- ══ 文章管理 ══ -->
-    <!-- Markdown -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>📝 Markdown 文章</h2>
-            <a href="/admin/md/new" class="wp-btn wp-btn-primary wp-btn-sm">+ 新建</a>
-        </div>
-        <div class="wp-card-body no-padding">
-            {% if md_articles %}
-            <table class="wp-table"><thead><tr><th>标题</th><th>Slug</th><th class="col-date">创建时间</th><th class="col-actions">操作</th></tr></thead><tbody>
-            {% for a in md_articles %}<tr>
-                <td class="col-title">{{ a.title }}</td>
-                <td class="col-slug">{{ a.slug }}</td>
-                <td class="col-date">{{ a.created_at[:10] }}</td>
-                <td class="col-actions">
-                    <a href="/md/{{ a.slug }}" class="wp-btn wp-btn-outline wp-btn-sm" title="查看">👁</a>
-                    <a href="/admin/md/{{ a.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
-                    <form method="POST" action="/admin/md/{{ a.slug }}/delete" style="display:inline" onsubmit="return confirm('确定删除 «{{ a.title }}» 吗？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
-                </td>
-            </tr>{% endfor %}
-            </tbody></table>{% else %}<div class="wp-empty">暂无 Markdown 文章</div>{% endif %}
+<!-- ══ 系统概览卡片 ══ -->
+{% if current_user.role == 'owner' %}
+<div class="wp-section-title">🖥️ 系统概览</div>
+<div class="wp-stats-grid">
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon blue">📰</div>
+        <div>
+            <div class="wp-stat-num">{{ total_articles }}</div>
+            <div class="wp-stat-label">文章总数</div>
         </div>
     </div>
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon purple">👥</div>
+        <div>
+            <div class="wp-stat-num">{{ users_count }}</div>
+            <div class="wp-stat-label">用户总数</div>
+        </div>
+    </div>
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon green">🏷️</div>
+        <div>
+            <div class="wp-stat-num">{{ tags_count }}</div>
+            <div class="wp-stat-label">标签总数</div>
+        </div>
+    </div>
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon orange">💬</div>
+        <div>
+            <div class="wp-stat-num">{{ comments_count }}</div>
+            <div class="wp-stat-label">评论总数</div>
+        </div>
+    </div>
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon teal">📁</div>
+        <div>
+            <div class="wp-stat-num">{{ files_count }}</div>
+            <div class="wp-stat-label">上传文件</div>
+        </div>
+    </div>
+    <div class="wp-stat-card">
+        <div class="wp-stat-icon blue">🔔</div>
+        <div>
+            <div class="wp-stat-num">{{ notif_count }}</div>
+            <div class="wp-stat-label">通知数量</div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
-    <!-- Wikidot -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>📚 Wikidot 页面</h2>
-            <a href="/admin/wikidot/new" class="wp-btn wp-btn-primary wp-btn-sm">+ 新建</a>
-        </div>
-        <div class="wp-card-body no-padding">
-            {% if wk_pages %}
-            <table class="wp-table"><thead><tr><th>标题</th><th>Slug</th><th class="col-date">创建时间</th><th class="col-actions">操作</th></tr></thead><tbody>
-            {% for p in wk_pages %}<tr>
-                <td class="col-title">{{ p.title }}</td>
-                <td class="col-slug">{{ p.slug }}</td>
-                <td class="col-date">{{ p.created_at[:10] }}</td>
-                <td class="col-actions">
-                    <a href="/wikidot/{{ p.slug }}" class="wp-btn wp-btn-outline wp-btn-sm" title="查看">👁</a>
-                    <a href="/admin/wikidot/{{ p.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
-                    <form method="POST" action="/admin/wikidot/{{ p.slug }}/delete" style="display:inline" onsubmit="return confirm('确定删除 «{{ p.title }}» 吗？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
-                </td>
-            </tr>{% endfor %}
-            </tbody></table>{% else %}<div class="wp-empty">暂无 Wikidot 页面</div>{% endif %}
-        </div>
+<!-- ══ 快捷操作 ══ -->
+<div class="wp-section-title">⚡ 快捷操作</div>
+<div class="wp-card">
+    <div class="wp-card-body" style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+        <a href="/admin/articles" class="wp-btn wp-btn-primary">📝 管理文章</a>
+        <a href="/admin/md/new" class="wp-btn wp-btn-secondary">+ 新建 Markdown</a>
+        <a href="/admin/wikidot/new" class="wp-btn wp-btn-secondary">+ 新建 Wikidot</a>
+        <a href="/admin/html/new" class="wp-btn wp-btn-secondary">+ 新建 HTML</a>
+        <a href="/admin/bbcode/new" class="wp-btn wp-btn-secondary">+ 新建 BBCode</a>
+        <a href="/admin/typst/new" class="wp-btn wp-btn-secondary">+ 新建 Typst</a>
+        {% if current_user.role == 'owner' %}
+        <a href="/admin/settings" class="wp-btn wp-btn-outline">⚙️ 站点设置</a>
+        {% endif %}
+        <a href="/" target="_blank" class="wp-btn wp-btn-outline">🏠 访问网站</a>
     </div>
+</div>
 
-    <!-- HTML -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>🌐 HTML 页面</h2>
-            <a href="/admin/html/new" class="wp-btn wp-btn-primary wp-btn-sm">+ 新建</a>
-        </div>
-        <div class="wp-card-body no-padding">
-            {% if html_pages %}
-            <table class="wp-table"><thead><tr><th>标题</th><th>Slug</th><th class="col-date">创建时间</th><th class="col-actions">操作</th></tr></thead><tbody>
-            {% for p in html_pages %}<tr>
-                <td class="col-title">{{ p.title }}</td>
-                <td class="col-slug">{{ p.slug }}</td>
-                <td class="col-date">{{ p.created_at[:10] }}</td>
-                <td class="col-actions">
-                    <a href="/html/local/{{ p.slug }}" class="wp-btn wp-btn-outline wp-btn-sm" title="查看">👁</a>
-                    <a href="/admin/html/{{ p.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
-                    <form method="POST" action="/admin/html/{{ p.slug }}/delete" style="display:inline" onsubmit="return confirm('确定删除 «{{ p.title }}» 吗？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
-                </td>
-            </tr>{% endfor %}
-            </tbody></table>{% else %}<div class="wp-empty">暂无 HTML 页面</div>{% endif %}
-        </div>
+<!-- ══ 最近文章（仅显示在仪表盘） ══ -->
+<div class="wp-section-title">🕐 最近更新的文章</div>
+<div class="wp-card">
+    <div class="wp-card-body no-padding">
+        {% if recent_articles %}
+        <table class="wp-table"><thead><tr><th>标题</th><th>类型</th><th>Slug</th><th class="col-date">更新时间</th><th class="col-actions">操作</th></tr></thead><tbody>
+        {% for a in recent_articles %}<tr>
+            <td class="col-title">{{ a.title }}</td>
+            <td><span class="wp-badge wp-badge-primary">{{ a.article_type }}</span></td>
+            <td class="col-slug">{{ a.slug }}</td>
+            <td class="col-date">{{ a.updated_at[:10] if a.updated_at else a.created_at[:10] }}</td>
+            <td class="col-actions">
+                <a href="/admin/{{ a.article_type }}/{{ a.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
+            </td>
+        </tr>{% endfor %}
+        </tbody></table>
+        {% else %}<div class="wp-empty">暂无文章</div>{% endif %}
     </div>
-
-    <!-- BBCode -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>📋 BBCode 文章</h2>
-            <a href="/admin/bbcode/new" class="wp-btn wp-btn-primary wp-btn-sm">+ 新建</a>
-        </div>
-        <div class="wp-card-body no-padding">
-            {% if bb_pages %}
-            <table class="wp-table"><thead><tr><th>标题</th><th>Slug</th><th class="col-date">创建时间</th><th class="col-actions">操作</th></tr></thead><tbody>
-            {% for p in bb_pages %}<tr>
-                <td class="col-title">{{ p.title }}</td>
-                <td class="col-slug">{{ p.slug }}</td>
-                <td class="col-date">{{ p.created_at[:10] }}</td>
-                <td class="col-actions">
-                    <a href="/bbcode/{{ p.slug }}" class="wp-btn wp-btn-outline wp-btn-sm" title="查看">👁</a>
-                    <a href="/admin/bbcode/{{ p.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
-                    <form method="POST" action="/admin/bbcode/{{ p.slug }}/delete" style="display:inline" onsubmit="return confirm('确定删除 «{{ p.title }}» 吗？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
-                </td>
-            </tr>{% endfor %}
-            </tbody></table>{% else %}<div class="wp-empty">暂无 BBCode 文章</div>{% endif %}
-        </div>
-    </div>
-
-    <!-- Typst -->
-    <div class="wp-card">
-        <div class="wp-card-header">
-            <h2>📄 Typst 文章</h2>
-            <a href="/admin/typst/new" class="wp-btn wp-btn-primary wp-btn-sm">+ 新建</a>
-        </div>
-        <div class="wp-card-body no-padding">
-            {% if typst_articles %}
-            <table class="wp-table"><thead><tr><th>标题</th><th>Slug</th><th class="col-date">创建时间</th><th class="col-actions">操作</th></tr></thead><tbody>
-            {% for p in typst_articles %}<tr>
-                <td class="col-title">{{ p.title }}</td>
-                <td class="col-slug">{{ p.slug }}</td>
-                <td class="col-date">{{ p.created_at[:10] }}</td>
-                <td class="col-actions">
-                    <a href="/typst/{{ p.slug }}" class="wp-btn wp-btn-outline wp-btn-sm" title="查看">👁</a>
-                    <a href="/admin/typst/{{ p.slug }}/edit" class="wp-btn wp-btn-secondary wp-btn-sm">✏️</a>
-                    <form method="POST" action="/admin/typst/{{ p.slug }}/delete" style="display:inline" onsubmit="return confirm('确定删除 «{{ p.title }}» 吗？')"><button type="submit" class="wp-btn wp-btn-danger wp-btn-sm">🗑</button></form>
-                </td>
-            </tr>{% endfor %}
-            </tbody></table>{% else %}<div class="wp-empty">暂无 Typst 文章</div>{% endif %}
-        </div>
-    </div>
+</div>
 
 {% if current_user.role == 'owner' %}
     <!-- 子站点链接 -->

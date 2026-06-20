@@ -305,6 +305,51 @@ async def delete_article(article_type: str, slug: str) -> bool:
             return cur.rowcount > 0
 
 
+# ── 跨类型查询 ─────────────────────────────────────────────
+
+
+async def list_recent_articles(limit: int = 10, author_id: int = None) -> list[dict]:
+    """
+    获取最近更新的文章（跨所有类型）。
+
+    参数:
+        limit:     返回条数上限
+        author_id: 作者 ID（可选，用于过滤）
+
+    返回:
+        文章列表，每项包含 article_type、slug、title、created_at、updated_at
+    """
+    pool = await _get_pool()
+    queries = []
+    params = []
+
+    for atype, cfg in ARTICLE_TYPES.items():
+        table = cfg["table"]
+        if author_id is not None:
+            queries.append(
+                f"(SELECT '{atype}' AS article_type, slug, title, created_at, updated_at "
+                f"FROM {table} WHERE author_id = %s)"
+            )
+            params.append(author_id)
+        else:
+            queries.append(
+                f"(SELECT '{atype}' AS article_type, slug, title, created_at, updated_at "
+                f"FROM {table})"
+            )
+
+    if not queries:
+        return []
+
+    union_sql = " UNION ALL ".join(queries) + " ORDER BY updated_at DESC, created_at DESC LIMIT %s"
+    params.append(limit)
+
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(union_sql, tuple(params))
+            rows = await cur.fetchall()
+            return [row_to_dict(r, cur) for r in rows]
+
+
 # ── 种子数据 ─────────────────────────────────────────────────
 
 

@@ -91,10 +91,13 @@ def _verify_csrf(request: Request, form) -> bool:
 def _csrf_error(request: Request, user: dict, error_msg: str = "CSRF 验证失败，请刷新页面后重试。") -> HTMLResponse:
     """返回 CSRF 验证失败的错误页面。"""
     return render("admin_dashboard.html", title="验证失败 - PyKYCH",
-        current_user=user, md_articles=[], wk_pages=[],
-        html_pages=[], bb_pages=[], typst_articles=[],
+        current_user=user,
         md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
-        users=[], permission_error=error_msg)
+        total_articles=0, users_count=0, tags_count=0,
+        comments_count=0, files_count=0, notif_count=0,
+        recent_articles=[], users=[],
+        subsite_links=[], featured_articles=[],
+        permission_error=error_msg)
 
 # ── 登录保护 ──
 
@@ -125,10 +128,12 @@ async def _require_owner(request: Request):
         return None, err
     if not auth_user.is_owner(user):
         return None, render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], typst_articles=[],
+            current_user=user,
             md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
-            users=[],
+            total_articles=0, users_count=0, tags_count=0,
+            comments_count=0, files_count=0, notif_count=0,
+            recent_articles=[], users=[],
+            subsite_links=[], featured_articles=[],
             permission_error="仅站长可执行此操作。")
     return user, None
 
@@ -160,20 +165,91 @@ async def dashboard(request: Request):
     is_admin = auth_user.is_admin(user)
     uid = user.get("id") if not is_admin else None
 
+    # 仅统计总数（不加载 content 字段）
+    articles_by_type = {}
+    total_articles_count = 0
+    for atype in _ARTICLE_TYPES:
+        result = await article_manager.list_articles(atype, page=1, per_page=1, author_id=uid)
+        articles_by_type[atype] = result
+        total_articles_count += result["total"]
+
+    # 最近文章（跨类型）
+    recent = await article_manager.list_recent_articles(limit=10, author_id=uid)
+
+    # 站长专属数据
+    users = []
+    users_count = 0
+    tags = []
+    tags_count = 0
+    comments_count = 0
+    files_count = 0
+    notif_count = 0
+    subsite_links = []
+    featured_articles = []
+    site_settings_data = {}
+
+    if auth_user.is_owner(user):
+        users = await auth_user.list_users()
+        users_count = len(users)
+        subsite_links = await site_settings.list_subsite_links()
+        featured_articles = await site_settings.list_featured_articles()
+        site_settings_data = settings_manager.load_settings()
+        tags_data = await tag_manager.get_all_tags_with_counts()
+        tags = tags_data
+        tags_count = len(tags_data)
+        notifications = await notification_manager.list_notifications(include_inactive=True)
+        notif_count = len(notifications) if notifications else 0
+        files_result = await file_manager.list_files(page=1, per_page=1)
+        files_count = files_result["total"] if files_result else 0
+        # 评论总数
+        try:
+            from ..content import comments as comments_mgr
+            comments_count = await comments_mgr.count_all_comments()
+        except Exception:
+            comments_count = 0
+    elif auth_user.is_admin(user):
+        tags_data = await tag_manager.get_all_tags_with_counts()
+        tags = tags_data
+        tags_count = len(tags_data)
+        notifications = await notification_manager.list_notifications(include_inactive=True)
+        notif_count = len(notifications) if notifications else 0
+
+    return render("admin_dashboard.html", title="仪表盘 - PyKYCH",
+        current_user=user,
+        md_total=articles_by_type["md"]["total"],
+        wk_total=articles_by_type["wikidot"]["total"],
+        html_total=articles_by_type["html"]["total"],
+        bb_total=articles_by_type["bbcode"]["total"],
+        typst_total=articles_by_type["typst"]["total"],
+        total_articles=total_articles_count,
+        recent_articles=recent,
+        users=users, users_count=users_count,
+        tags=tags, tags_count=tags_count,
+        comments_count=comments_count,
+        files_count=files_count,
+        notif_count=notif_count,
+        subsite_links=subsite_links, featured_articles=featured_articles,
+        site_settings=site_settings_data,
+        permission_error=None)
+
+
+# ===== 文章管理页面 =====
+
+@admin_route.sub("/articles").get
+async def articles_list(request: Request):
+    """文章管理页面 — 列出所有类型文章。"""
+    user, err = await _check(request)
+    if err: return err
+
+    is_admin = auth_user.is_admin(user)
+    uid = user.get("id") if not is_admin else None
+
     articles_by_type = {}
     for atype in _ARTICLE_TYPES:
-        # 仪表盘仅需概览，per_page=20 足够（不加载 content 字段）
         result = await article_manager.list_articles(atype, page=1, per_page=20, author_id=uid)
         articles_by_type[atype] = result
 
-    users = await auth_user.list_users() if auth_user.is_owner(user) else []
-    subsite_links = await site_settings.list_subsite_links() if auth_user.is_owner(user) else []
-    featured_articles = await site_settings.list_featured_articles() if auth_user.is_owner(user) else []
-    tags = await tag_manager.get_all_tags_with_counts() if auth_user.is_admin(user) else []
-    notifications = await notification_manager.list_notifications(include_inactive=True) if auth_user.is_admin(user) else []
-    site_settings_data = settings_manager.load_settings() if auth_user.is_owner(user) else {}
-
-    return render("admin_dashboard.html", title="管理后台 - PyKYCH",
+    return render("admin_articles.html", title="文章管理 - PyKYCH",
         current_user=user,
         md_articles=articles_by_type["md"]["articles"],
         wk_pages=articles_by_type["wikidot"]["articles"],
@@ -185,10 +261,6 @@ async def dashboard(request: Request):
         html_total=articles_by_type["html"]["total"],
         bb_total=articles_by_type["bbcode"]["total"],
         typst_total=articles_by_type["typst"]["total"],
-        users=users,
-        subsite_links=subsite_links, featured_articles=featured_articles,
-        tags=tags, notifications=notifications,
-        site_settings=site_settings_data,
         permission_error=None)
 
 # ═══════════════════════════════════════════════════════════════
@@ -251,7 +323,7 @@ async def _article_create(article_type: str, request: Request):
         if article_type == "typst":
             from ..content.parsers.typst_parser import build_and_cache_typst
             _create_background_task(build_and_cache_typst(slug), name=f"typst-build-new-{slug}")
-        return redirect("/admin")
+        return redirect("/admin/articles")
     except Exception as e:
         return render("admin_form.html",
             title=f"新建 {cfg['label']} - PyKYCH",
@@ -327,7 +399,7 @@ async def _article_update(article_type: str, slug: str, request: Request):
             if article_type == "typst":
                 from ..content.parsers.typst_parser import build_and_cache_typst
                 _create_background_task(build_and_cache_typst(slug), name=f"typst-build-edit-new-{slug}")
-            return redirect("/admin")
+            return redirect("/admin/articles")
         except Exception as e:
             return render("admin_form.html",
                 title=f"新建 {cfg['label']} - PyKYCH",
@@ -364,7 +436,7 @@ async def _article_update(article_type: str, slug: str, request: Request):
     if article_type == "typst":
         from ..content.parsers.typst_parser import build_and_cache_typst
         _create_background_task(build_and_cache_typst(slug), name=f"typst-build-edit-{slug}")
-    return redirect("/admin")
+    return redirect("/admin/articles")
 
 
 # ── 通用：删除文章 (POST) ──
@@ -374,11 +446,11 @@ async def _article_delete(article_type: str, slug: str, request: Request):
     if err: return err
     article = await article_manager.get_article(article_type, slug)
     if article is None:
-        return redirect("/admin")
+        return redirect("/admin/articles")
     if not _can_edit(article, user):
-        return redirect("/admin")
+        return redirect("/admin/articles")
     await article_manager.delete_article(article_type, slug)
-    return redirect("/admin")
+    return redirect("/admin/articles")
 
 
 # ── 为每种文章类型显式注册路由（不能使用 lambda，LiHiL 需要类型标注） ──
@@ -497,10 +569,11 @@ async def manage_tags(request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], typst_articles=[],
+            current_user=user,
             md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
-            users=[],
+            total_articles=0, users_count=0, tags_count=0,
+            comments_count=0, files_count=0, notif_count=0,
+            recent_articles=[], users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理标签。")
     tags = await tag_manager.get_all_tags_with_counts()
@@ -552,10 +625,12 @@ async def manage_notifications(request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], typst_articles=[],
+            current_user=user,
             md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0, users=[],
+            html_total=0, bb_total=0, typst_total=0,
+            total_articles=0, users_count=0, tags_count=0,
+            comments_count=0, files_count=0, notif_count=0,
+            recent_articles=[], users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理通知。")
     notifications = await notification_manager.list_notifications(include_inactive=True)
@@ -634,10 +709,12 @@ async def manage_plugins(request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], typst_articles=[],
+            current_user=user,
             md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0, users=[],
+            html_total=0, bb_total=0, typst_total=0,
+            total_articles=0, users_count=0, tags_count=0,
+            comments_count=0, files_count=0, notif_count=0,
+            recent_articles=[], users=[],
             subsite_links=[], featured_articles=[],
             permission_error="仅管理员和站长可管理插件。")
     plugins = get_all_plugins_info()
@@ -789,12 +866,13 @@ async def manage_files(request: Request, page: int = 1):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], typst_articles=[],
+            current_user=user,
             md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0, users=[],
+            html_total=0, bb_total=0, typst_total=0,
+            total_articles=0, users_count=0, tags_count=0,
+            comments_count=0, files_count=0, notif_count=0,
+            recent_articles=[], users=[],
             subsite_links=[], featured_articles=[],
-            tags=[], notifications=[], ext_sites=[],
             permission_error="仅管理员和站长可管理文件。")
     result = await file_manager.list_files(page=page, per_page=20)
     return render("admin_files.html", title="文件管理 - PyKYCH",
