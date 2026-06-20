@@ -402,6 +402,22 @@ async def _migrate_enums_for_typst() -> None:
                     pass  # 列可能已是新定义，或表尚不存在
 
 
+async def _migrate_typst_cache_dependencies() -> None:
+    """
+    为 typst_cache 表添加 dependencies 列（跨文章引用依赖追踪）。
+
+    dependencies 存储 JSON 数组格式的引用 slug 列表，
+    用于在缓存查找时验证被引用文章是否已更新。
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await _safe_add_column(
+                cur, "typst_cache", "dependencies",
+                "TEXT DEFAULT NULL"
+            )
+
+
 # ── 初始化入口 ──────────────────────────────────────────────
 
 
@@ -433,6 +449,8 @@ async def init_tables() -> None:
     await _migrate_tags()
     # 迁移 ENUM 以支持 typst
     await _migrate_enums_for_typst()
+    # 迁移 typst_cache 表（跨文章依赖列）
+    await _migrate_typst_cache_dependencies()
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:

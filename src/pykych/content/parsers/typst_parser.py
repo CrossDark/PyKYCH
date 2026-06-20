@@ -136,6 +136,8 @@ def clear_typst_cache() -> None:
 #   #include "file.typ"         — 直接包含
 #   image("imgs/photo.png")     — 图片引用
 #   #import "@preview/pkg:ver"  — 包导入（需要网络，由 typst 自行处理）
+#   #import "site:slug"         — ★ 跨文章导入（本系统特有）
+#   #include "site:slug"        — ★ 跨文章包含（本系统特有）
 
 _IMPORT_RE = re.compile(
     r'#(?:import|include)\s*"([^"]+\.typ)"'
@@ -143,6 +145,11 @@ _IMPORT_RE = re.compile(
 
 _IMAGE_RE = re.compile(
     r'image\s*\(\s*"([^"]+\.(?:png|jpg|jpeg|gif|svg|webp))"'
+)
+
+# 跨文章引用：识别 "#import "site:slug"" 或 "#include "site:slug""
+_SITE_IMPORT_RE = re.compile(
+    r'#(?:import|include)\s*"site:([^"]+)"'
 )
 
 
@@ -173,6 +180,171 @@ def extract_image_refs(source: str) -> list[str]:
     for m in _IMAGE_RE.finditer(source):
         refs.add(m.group(1))
     return sorted(refs)
+
+
+def extract_site_imports(source: str) -> list[str]:
+    """
+    从 Typst 源码中提取所有跨文章引用（site: 语法）。
+
+    返回:
+        去重后的 slug 列表（如 ['shared-utils', 'my-template']）
+    """
+    slugs = set()
+    for m in _SITE_IMPORT_RE.finditer(source):
+        slugs.add(m.group(1))
+    return sorted(slugs)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  跨文章引用解析 — 将 site:slug 导入解析为实际文件
+# ═══════════════════════════════════════════════════════════════
+
+async def _get_article_content(slug: str) -> str | None:
+    """
+    从数据库获取 Typst 文章的内容。
+
+    参数:
+        slug: 文章 slug
+
+    返回:
+        文章 .typ 源码内容，或 None（文章不存在时）
+    """
+    from ...core.db import _get_pool
+
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT content FROM typst_pages WHERE slug = %s",
+                    (slug,),
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+    except Exception:
+        return None
+
+
+async def _get_article_updated_at(slug: str) -> str | None:
+    """
+    获取 Typst 文章的更新时间（用于缓存失效检测）。
+
+    返回:
+        updated_at 字符串，或 None
+    """
+    from ...core.db import _get_pool
+
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT updated_at FROM typst_pages WHERE slug = %s",
+                    (slug,),
+                )
+                row = await cur.fetchone()
+                return row[0].strftime("%Y-%m-%d %H:%M:%S") if row else None
+    except Exception:
+        return None
+
+
+async def _resolve_site_imports(
+    source: str,
+    base_dir: str = "",
+    visited: set | None = None,
+) -> tuple[str, list[dict]]:
+    """
+    递归解析 Typst 源码中的 site: 跨文章引用。
+
+    将 "#import \"site:slug\"" 和 "#include \"site:slug\"" 替换为
+    实际文件路径，并收集所有被引用文章的内容作为辅助文件。
+
+    工作区结构:
+        workspace/
+          index.typ                  ← 主文章
+          config.typ                 ← 共享配置
+          _site_<slug>/
+            index.typ                ← 被引用文章内容
+            config.typ               ← 共享配置（副本）
+            <aux files...>           ← 被引用文章的辅助文件
+
+    参数:
+        source:   Typst 源码
+        base_dir: 当前文件所在目录（用于计算相对路径），顶层为空字符串
+        visited:  已访问的 slug 集合（防止循环引用）
+
+    返回:
+        (modified_source, extra_aux_files)
+        - modified_source:   已将 site: 引用替换为相对路径的源码
+        - extra_aux_files:   需要写入工作区的额外文件列表
+    """
+    if visited is None:
+        visited = set()
+
+    matches = _SITE_IMPORT_RE.findall(source)
+    extra_aux: list[dict] = []
+
+    for slug in matches:
+        if slug in visited:
+            continue  # 防止循环引用
+        visited.add(slug)
+
+        # 获取被引用文章的内容
+        article_content = await _get_article_content(slug)
+        if article_content is None:
+            continue  # 文章不存在，保留原始引用（由 typst 报错）
+
+        # 生成安全的目录名
+        safe_slug = slug.replace("/", "_").replace("\\", "_")
+        import_dir = f"_site_{safe_slug}"
+
+        # 计算从 base_dir 到 import_dir 的相对路径
+        if base_dir:
+            relative_import_path = f"../{import_dir}/index.typ"
+        else:
+            relative_import_path = f"{import_dir}/index.typ"
+
+        # 替换源码中的 site: 引用
+        source = source.replace(f'"site:{slug}"', f'"{relative_import_path}"')
+
+        # 获取被引用文章的辅助文件
+        ref_aux = await _get_aux_files(slug)
+
+        # 递归解析被引用文章中的嵌套 site: 引用
+        ref_source, nested_aux = await _resolve_site_imports(
+            article_content,
+            base_dir=import_dir,
+            visited=visited,
+        )
+
+        # 将被引用文章的主文件添加为辅助文件
+        extra_aux.append({
+            "filename": f"{import_dir}/index.typ",
+            "content": ref_source,
+        })
+
+        # 为被引用文章复制共享配置（确保其 #import "config.typ" 能正常工作）
+        shared_config = _get_shared_config()
+        if shared_config:
+            extra_aux.append({
+                "filename": f"{import_dir}/config.typ",
+                "content": shared_config,
+            })
+
+        # 添加被引用文章的辅助文件（带目录前缀）
+        for aux in ref_aux:
+            fname = aux.get("filename", "")
+            if not fname:
+                continue
+            extra_aux.append({
+                "filename": f"{import_dir}/{fname}",
+                "content": aux.get("content", ""),
+            })
+
+        # 添加嵌套引用产生的辅助文件
+        extra_aux.extend(nested_aux)
+
+    return source, extra_aux
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -316,6 +488,11 @@ async def compile_typst_to_html(
     if aux_files is None:
         aux_files = []
 
+    # ★ 解析跨文章引用（site: 语法）
+    resolved_source, site_aux = await _resolve_site_imports(source)
+    # 合并辅助文件：本文章 + 跨文章引用
+    all_aux = list(aux_files) + site_aux
+
     shared_config = _get_shared_config()
 
     # 创建临时工作区
@@ -323,7 +500,7 @@ async def compile_typst_to_html(
     workspace = Path(tmp_dir)
 
     try:
-        _write_workspace(workspace, source, aux_files, shared_config)
+        _write_workspace(workspace, resolved_source, all_aux, shared_config)
 
         # 输出 HTML 文件
         output_path = workspace / "output.html"
@@ -431,13 +608,17 @@ async def compile_typst_to_pdf(
     if aux_files is None:
         aux_files = []
 
+    # ★ 解析跨文章引用（site: 语法）
+    resolved_source, site_aux = await _resolve_site_imports(source)
+    all_aux = list(aux_files) + site_aux
+
     shared_config = _get_shared_config()
 
     tmp_dir = tempfile.mkdtemp(prefix="pykych_typst_")
     workspace = Path(tmp_dir)
 
     try:
-        _write_workspace(workspace, source, aux_files, shared_config)
+        _write_workspace(workspace, resolved_source, all_aux, shared_config)
 
         output_path = workspace / "output.pdf"
 
@@ -535,6 +716,7 @@ async def build_and_cache_typst(slug: str) -> bool:
     返回:
         True 表示编译并缓存成功，False 表示失败
     """
+    import json
     from ...core.db import _get_pool
 
     # 1. 读取文章源码
@@ -569,18 +751,24 @@ async def build_and_cache_typst(slug: str) -> bool:
     if html_err or pdf_err:
         return False
 
+    # ★ 提取跨文章依赖
+    dependencies = extract_site_imports(source)
+    dependencies_json = json.dumps(dependencies) if dependencies else None
+
     # 4. 存入缓存（upsert）
     try:
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "INSERT INTO typst_cache (page_id, html_content, pdf_content) "
-                    "VALUES (%s, %s, %s) "
+                    "INSERT INTO typst_cache "
+                    "(page_id, html_content, pdf_content, dependencies) "
+                    "VALUES (%s, %s, %s, %s) "
                     "ON DUPLICATE KEY UPDATE "
                     "html_content = VALUES(html_content), "
                     "pdf_content = VALUES(pdf_content), "
+                    "dependencies = VALUES(dependencies), "
                     "compiled_at = CURRENT_TIMESTAMP",
-                    (page_id, html_body, pdf_bytes),
+                    (page_id, html_body, pdf_bytes, dependencies_json),
                 )
         return True
     except Exception:
@@ -589,11 +777,12 @@ async def build_and_cache_typst(slug: str) -> bool:
 
 async def get_cached_typst_html(slug: str) -> str | None:
     """
-    获取缓存的 HTML 内容（如果缓存比文章更新）。
+    获取缓存的 HTML 内容（如果缓存比文章及其所有依赖更新）。
 
     返回:
         HTML 字符串，或 None（缓存不存在/已过期/编译错误）
     """
+    import json
     from ...core.db import _get_pool
 
     try:
@@ -601,15 +790,36 @@ async def get_cached_typst_html(slug: str) -> str | None:
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT tc.html_content "
+                    "SELECT tc.html_content, tc.dependencies, tc.compiled_at "
                     "FROM typst_cache tc "
                     "JOIN typst_pages tp ON tc.page_id = tp.id "
                     "WHERE tp.slug = %s AND tc.compiled_at >= tp.updated_at",
                     (slug,),
                 )
                 row = await cur.fetchone()
-                if row:
-                    return row[0]
+                if not row:
+                    return None
+
+                html_content = row[0]
+                dependencies_json = row[1]
+                compiled_at = row[2]
+
+                # 检查依赖是否过期
+                if dependencies_json:
+                    try:
+                        deps = json.loads(dependencies_json)
+                        for dep_slug in deps:
+                            await cur.execute(
+                                "SELECT updated_at FROM typst_pages WHERE slug = %s",
+                                (dep_slug,),
+                            )
+                            dep_row = await cur.fetchone()
+                            if dep_row and dep_row[0] > compiled_at:
+                                return None  # 依赖已更新，缓存失效
+                    except (json.JSONDecodeError, Exception):
+                        pass
+
+                return html_content
     except Exception:
         pass
     return None
@@ -617,11 +827,12 @@ async def get_cached_typst_html(slug: str) -> str | None:
 
 async def get_cached_typst_pdf(slug: str) -> bytes | None:
     """
-    获取缓存的 PDF 内容（如果缓存比文章更新）。
+    获取缓存的 PDF 内容（如果缓存比文章及其所有依赖更新）。
 
     返回:
         PDF 字节数据，或 None（缓存不存在/已过期）
     """
+    import json
     from ...core.db import _get_pool
 
     try:
@@ -629,15 +840,36 @@ async def get_cached_typst_pdf(slug: str) -> bytes | None:
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT tc.pdf_content "
+                    "SELECT tc.pdf_content, tc.dependencies, tc.compiled_at "
                     "FROM typst_cache tc "
                     "JOIN typst_pages tp ON tc.page_id = tp.id "
                     "WHERE tp.slug = %s AND tc.compiled_at >= tp.updated_at",
                     (slug,),
                 )
                 row = await cur.fetchone()
-                if row:
-                    return row[0]
+                if not row:
+                    return None
+
+                pdf_content = row[0]
+                dependencies_json = row[1]
+                compiled_at = row[2]
+
+                # 检查依赖是否过期
+                if dependencies_json:
+                    try:
+                        deps = json.loads(dependencies_json)
+                        for dep_slug in deps:
+                            await cur.execute(
+                                "SELECT updated_at FROM typst_pages WHERE slug = %s",
+                                (dep_slug,),
+                            )
+                            dep_row = await cur.fetchone()
+                            if dep_row and dep_row[0] > compiled_at:
+                                return None  # 依赖已更新，缓存失效
+                    except (json.JSONDecodeError, Exception):
+                        pass
+
+                return pdf_content
     except Exception:
         pass
     return None

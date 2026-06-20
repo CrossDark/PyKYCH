@@ -23,6 +23,7 @@
 - [提示块（Admonitions）](#提示块admonitions)
 - [中文字体系统](#中文字体系统)
 - [HTML 与 PDF 双输出](#html-与-pdf-双输出)
+- [跨文章引用](#跨文章引用)
 - [最佳实践](#最佳实践)
 - [常见问题](#常见问题)
 
@@ -514,6 +515,115 @@ Typst 文章可以附带辅助文件（如 `.typ` 子模块、图片、数据文
 
 ---
 
+## 跨文章引用
+
+PyKYCH 支持在 Typst 文章中通过 `site:` 语法引用网站上的其他 Typst 文章。这让你可以：
+
+- **创建可复用的工具库**：写一篇包含函数和变量的"库文章"，在其他文章中导入使用
+- **模块化内容**：将长文章拆分为多个独立模块，按需组合
+- **内容复用**：在多篇文章中共享相同的模板、样式或数据
+
+### 基本语法
+
+使用 `#import "site:slug"` 导入其他文章，或使用 `#include "site:slug"` 直接包含其内容：
+
+```typst
+// 导入工具库文章（slug 为 "typst-utils"）
+#import "site:typst-utils": add, PI, format-date
+
+// 在正文中使用导入的函数
+圆的面积：$ A = PI * r^2 $
+#add(3, 4)  // 输出 7
+```
+
+```typst
+// 直接包含另一篇文章的内容
+#include "site:shared-footer"
+```
+
+### 工作原理
+
+当 PyKYCH 编译你的文章时，会自动：
+
+1. **识别** `site:slug` 引用
+2. **获取**被引用文章的内容和所有辅助文件
+3. **递归解析**嵌套的跨文章引用（A 引用 B，B 引用 C）
+4. **替换为实际文件路径**，构建完整的 Typst 工作区
+5. **编译**所有内容为 HTML / PDF
+
+> 循环引用（A → B → A）会被自动检测并跳过，防止无限递归。
+
+### 示例：创建工具库
+
+**步骤 1**：创建一篇 Typst 文章（slug: `math-lib`），包含可复用的函数：
+
+```typst
+// math-lib 文章内容
+#let PI = 3.1415926535
+
+#let add(x, y) = x + y
+#let multiply(x, y) = x * y
+#let square(x) = x * x
+
+#let circle-area(r) = PI * square(r)
+#let sphere-volume(r) = 4/3 * PI * r * r * r
+```
+
+**步骤 2**：在另一篇文章中导入使用：
+
+```typst
+#import "config.typ": article
+#import "site:math-lib": circle-area, sphere-volume, PI
+
+#show: article.with(
+  title: "几何计算器",
+  author: "你的名字",
+)
+
+= 圆的计算
+
+给定半径 $r = 5$：
+- 面积：$ A = #circle-area(5) $
+- 圆周率值：$#PI$
+
+= 球体计算
+
+给定半径 $r = 3$：
+- 体积：$ V = #sphere-volume(3) $
+```
+
+### 示例：模块化长文章
+
+将大型文档拆分到多篇文章中：
+
+```typst
+// 主文章 (slug: complete-guide)
+#import "config.typ": article
+#show: article
+
+= 完整指南
+
+== 第一章
+#include "site:guide-ch1"
+
+== 第二章
+#include "site:guide-ch2"
+
+== 附录
+#import "site:guide-appendix": data-table
+#data-table
+```
+
+### 注意事项
+
+1. **被引用文章必须是 Typst 类型**：`site:` 语法只能引用 Typst 文章，不能引用 Markdown、Wikidot 等类型
+2. **缓存自动失效**：当被引用的文章更新后，引用它的文章会自动重新编译（缓存失效）
+3. **避免循环引用**：A 引用 B、B 又引用 A 会导致循环，系统会自动跳过已访问的文章
+4. **命名空间隔离**：每个被引用文章放在独立子目录中，其内部的相对导入（如 `#import "lib/utils.typ"`）正常工作
+5. **共享配置可用**：每个被引用文章的子目录会自动包含 `config.typ`，因此可以使用所有内置模板和函数
+
+---
+
 ## 常见问题
 
 ### Q: 为什么我的中文显示为方框或乱码？
@@ -548,6 +658,15 @@ brew install typst
 
 # Linux (通过 cargo)
 cargo install typst-cli
+```
+
+### Q: 跨文章引用提示 "file not found" 错误？
+
+A: 请检查：
+1. 被引用的文章 slug 是否正确（大小写敏感）
+2. 被引用的文章是否存在且是 Typst 类型
+3. 被引用的文章是否使用了循环引用（A → B → A）
+4. 确认文章没有被删除或修改 slug
 
 # 或从 GitHub Releases 下载二进制文件
 # https://github.com/typst/typst/releases
