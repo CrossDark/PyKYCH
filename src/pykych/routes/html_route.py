@@ -14,7 +14,6 @@ from ..content import tags as tag_manager
 from ..content import comments as comment_manager
 from ..content import comments as line_comment_manager
 from ..content import ratings as rating_manager
-from ..content import external as external_html
 from ..auth.session import get_current_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
@@ -49,10 +48,6 @@ async def html_page_list(page: int = 1):
     for p in result["pages"]:
         p["tags"] = await tag_manager.get_tags_for_article("html", p["slug"])
 
-    # 获取活跃的外部站点列表
-    ext_sites = await external_html.list_external_sites()
-    ext_sites = [s for s in ext_sites if s.get("is_active")]
-
     return render(
         "html_list.html",
         title="HTML 页面 - PyKYCH",
@@ -60,7 +55,6 @@ async def html_page_list(page: int = 1):
         page=result["page"],
         total_pages=result["total_pages"],
         total=result["total"],
-        external_sites=ext_sites,
     )
 
 
@@ -100,85 +94,4 @@ async def html_page_detail(request: Request, slug: str):
     )
 
 
-# ===== 外部 HTML 站点路由 =====
 
-
-@html_route.sub("/{site_name}").get
-async def external_site_page(site_name: str):
-    """外部站点首页 — 显示缓存的外部 HTML 站点首页。"""
-    # 排除 local 路径
-    if site_name == "local":
-        # 不应该到达这里，但防御性处理
-        return render(
-            "html_detail.html",
-            title="页面未找到 - PyKYCH",
-            status_code=404,
-            page=None,
-            html_content="<p>抱歉，您查找的页面不存在。</p>",
-        )
-
-    page = await external_html.get_cached_page(site_name, "")
-    if not page:
-        # 检查站点是否存在
-        site = await external_html.get_external_site_by_name(site_name)
-        if site:
-            return render(
-                "external_html.html",
-                title=f"{site_name} - PyKYCH",
-                site_name=site_name,
-                page_title=site.get("description", site_name),
-                html_content="<p>该站点尚未缓存内容，请联系管理员刷新。</p>",
-                fetched_at=None,
-            )
-        return render(
-            "html_detail.html",
-            title="页面未找到 - PyKYCH",
-            status_code=404,
-            page=None,
-            html_content=f"<p>未找到外部站点「{site_name}」。</p>",
-        )
-
-    return render(
-        "external_html.html",
-        title=f"{page.get('page_title') or page['title'] or site_name} - PyKYCH",
-        site_name=site_name,
-        page_title=page["title"],
-        html_content=page["content"],
-        fetched_at=page.get("fetched_at"),
-    )
-
-
-@html_route.sub("/{site_name}/{sub_path}").get
-async def external_site_subpage(site_name: str, sub_path: str):
-    """外部站点子页面 — 显示缓存的外部 HTML 子页面。"""
-    if site_name == "local":
-        return render(
-            "html_detail.html",
-            title="页面未找到 - PyKYCH",
-            status_code=404,
-            page=None,
-            html_content="<p>抱歉，您查找的页面不存在。</p>",
-        )
-
-    # sub_path 可能包含多级路径（通过 URL 手动解析）
-    path = sub_path.rstrip("/")
-
-    page = await external_html.get_cached_page(site_name, path)
-    if not page:
-        return render(
-            "external_html.html",
-            title=f"{path} - {site_name} - PyKYCH",
-            site_name=site_name,
-            page_title=f"{site_name}/{path}",
-            html_content=f"<p>页面「{path}」未缓存，请联系管理员刷新。</p>",
-            fetched_at=None,
-        )
-
-    return render(
-        "external_html.html",
-        title=f"{page['title'] or path} - {site_name} - PyKYCH",
-        site_name=site_name,
-        page_title=page["title"],
-        html_content=page["content"],
-        fetched_at=page.get("fetched_at"),
-    )

@@ -132,8 +132,6 @@ PyKYCH/
 | `subsite_links` | 子站点链接 |
 | `featured_articles` | 主页推荐文章 |
 | `notifications` | 通知 |
-| `external_sites` | 外部站点配置 |
-| `external_pages` | 外部站点缓存 |
 | `static_files` | 上传文件记录 |
 
 ### 技术栈
@@ -145,7 +143,7 @@ PyKYCH/
 | 数据库 | MySQL + aiomysql | 异步连接池，单库统一 |
 | 密码哈希 | hashlib PBKDF2-SHA256 | 标准库实现，NFC 规范化 |
 | 通行密钥 | WebAuthn + cryptography | 自研 CBOR 解码器，ECDSA 签名验证 |
-| HTTP 客户端 | aiohttp | 外部站点 HTML 抓取 |
+| HTTP 客户端 | aiohttp | 异步 HTTP 请求 |
 | 配置 | PyYAML | YAML 配置解析 |
 
 ## 快速开始

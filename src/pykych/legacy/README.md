@@ -16,7 +16,6 @@
 | `line_comment_manager.py` | `content/comments.py` | 行评论 |
 | `rating_manager.py` | `content/ratings.py` | 评分系统 |
 | `file_manager.py` | `content/files.py` | 文件上传 |
-| `external_html.py` | `content/external.py` | 外部站点 |
 | `bbcode_parser.py` | `content/parsers/bbcode.py` | BBCode 解析 |
 | `wikidot_parser.py` | `content/parsers/wikidot.py` | Wikidot 解析 |
 | `db.py` | `content/articles.py` | MD 文章 (已统一) |

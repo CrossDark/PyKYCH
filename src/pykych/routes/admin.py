@@ -15,7 +15,6 @@ import asyncio
 from ..content import articles as article_manager
 from ..content import tags as tag_manager
 from ..content import files as file_manager
-from ..content import external as external_html
 from ..content import notifications as notification_manager
 from ..auth import user as auth_user
 from ..auth import session as auth_session
@@ -23,7 +22,6 @@ from ..auth import profile as user_profile
 from ..core import settings as settings_manager
 from ..core import site_settings
 from ..themes_sys import manager as theme_manager
-from ..plugins_sys.manager import run_hook, Hooks
 from ..plugins_sys.manager import get_all_plugins_info, install_plugin_from_zip
 from ..plugins_sys.manager import (
     get_plugin_info, get_plugin_files, read_plugin_file,
@@ -115,7 +113,6 @@ async def dashboard(request: Request):
     featured_articles = await site_settings.list_featured_articles() if auth_user.is_owner(user) else []
     tags = await tag_manager.get_all_tags_with_counts() if auth_user.is_admin(user) else []
     notifications = await notification_manager.list_notifications(include_inactive=True) if auth_user.is_admin(user) else []
-    ext_sites = await external_html.list_external_sites() if auth_user.is_admin(user) else []
     site_settings_data = settings_manager.load_settings() if auth_user.is_owner(user) else {}
 
     return render("admin_dashboard.html", title="管理后台 - PyKYCH",
@@ -132,7 +129,7 @@ async def dashboard(request: Request):
         typst_total=articles_by_type["typst"]["total"],
         users=users,
         subsite_links=subsite_links, featured_articles=featured_articles,
-        tags=tags, notifications=notifications, ext_sites=ext_sites,
+        tags=tags, notifications=notifications,
         site_settings=site_settings_data,
         permission_error=None)
 
@@ -724,168 +721,6 @@ async def plugin_delete(plugin_name: str, request: Request):
             current_user=user, plugins=plugins,
             error=message)
 
-
-# ===== 外部站点管理（管理员/站长） =====
-
-@admin_route.sub("/external").get
-async def manage_external_sites(request: Request):
-    """外部站点管理页面。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user, md_articles=[], wk_pages=[],
-            html_pages=[], bb_pages=[], typst_articles=[],
-            md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0, users=[],
-            subsite_links=[], featured_articles=[],
-            permission_error="仅管理员和站长可管理外部站点。")
-    sites = await external_html.list_external_sites()
-    return render("admin_external.html", title="外部站点管理 - PyKYCH",
-        current_user=user, sites=sites, error=None)
-
-@admin_route.sub("/external/add").post
-async def add_external_site(request: Request):
-    """添加外部站点。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    form = await request.form()
-    name = form.get("name", "").strip()
-    source_url = form.get("source_url", "").strip()
-    description = form.get("description", "").strip()
-    auto_tags = form.get("auto_tags", "").strip()
-    if name and source_url:
-        try:
-            await external_html.create_external_site(name, source_url, description, auto_tags)
-        except Exception:
-            pass
-    return redirect("/admin/external")
-
-@admin_route.sub("/external/{site_id}/edit").post
-async def edit_external_site(site_id: int, request: Request):
-    """编辑外部站点配置。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    form = await request.form()
-    source_url = form.get("source_url", "").strip()
-    description = form.get("description", "").strip()
-    auto_tags = form.get("auto_tags", "").strip()
-    is_active = form.get("is_active") == "1"
-    await external_html.update_external_site(
-        site_id, source_url=source_url, description=description,
-        auto_tags=auto_tags, is_active=is_active
-    )
-    return redirect("/admin/external")
-
-@admin_route.sub("/external/{site_id}/fetch").post
-async def fetch_external_site(site_id: int, request: Request):
-    """手动刷新外部站点首页缓存。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    # 优先使用插件实现，回退到内置实现
-    results = await run_hook(Hooks.EXTERNAL_SITE_FETCH, site_id)
-    if results:
-        result = results[0]
-    else:
-        result = await external_html.fetch_and_cache_site(site_id)
-    return redirect("/admin/external")
-
-@admin_route.sub("/external/{site_id}/crawl").post
-async def crawl_external_site(site_id: int, request: Request):
-    """全面导入：爬取外部站点所有 HTML 页面并缓存。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    form = await request.form()
-    max_pages_str = form.get("max_pages", "500").strip()
-    try:
-        max_pages = int(max_pages_str)
-    except ValueError:
-        max_pages = 500
-    # 优先使用插件实现，回退到内置实现
-    results = await run_hook(Hooks.EXTERNAL_SITE_CRAWL, site_id, max_pages)
-    if results:
-        result = results[0]
-    else:
-        result = await external_html.crawl_and_cache_site(site_id, max_pages=max_pages)
-    sites = await external_html.list_external_sites()
-    return render("admin_external.html", title="外部站点管理 - PyKYCH",
-        current_user=user, sites=sites,
-        success=result.get("message", ""),
-        crawl_result=result,
-        error=None)
-
-
-@admin_route.sub("/external/{site_id}/fetch-page").post
-async def fetch_single_page(site_id: int, request: Request):
-    """导入单个外部页面。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    form = await request.form()
-    page_path = form.get("page_path", "").strip().strip("/")
-    if not page_path:
-        sites = await external_html.list_external_sites()
-        return render("admin_external.html", title="外部站点管理 - PyKYCH",
-            current_user=user, sites=sites,
-            error="请输入页面路径。")
-    # 优先使用插件实现，回退到内置实现
-    results = await run_hook(Hooks.EXTERNAL_PAGE_FETCH, site_id, page_path)
-    if results:
-        result = results[0]
-    else:
-        result = await external_html.fetch_specific_page(site_id, page_path)
-    sites = await external_html.list_external_sites()
-    if result["status"] == "ok":
-        return render("admin_external.html", title="外部站点管理 - PyKYCH",
-            current_user=user, sites=sites,
-            success=result.get("message", ""))
-    else:
-        return render("admin_external.html", title="外部站点管理 - PyKYCH",
-            current_user=user, sites=sites,
-            error=result.get("message", "导入失败"))
-
-@admin_route.sub("/external/{site_id}/toggle").post
-async def toggle_external_site(site_id: int, request: Request):
-    """切换外部站点启用/停用状态。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    site = await external_html.get_external_site(site_id)
-    if site:
-        await external_html.update_external_site(
-            site_id, is_active=not site.get("is_active", True)
-        )
-    return redirect("/admin/external")
-
-@admin_route.sub("/external/{site_id}/clear-cache").post
-async def clear_external_cache(site_id: int, request: Request):
-    """清除外部站点缓存。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    await external_html.clear_site_cache(site_id)
-    return redirect("/admin/external")
-
-@admin_route.sub("/external/{site_id}/delete").post
-async def delete_external_site(site_id: int, request: Request):
-    """删除外部站点。"""
-    user, err = await _check(request)
-    if err: return err
-    if not auth_user.is_admin(user):
-        return redirect("/admin")
-    await external_html.delete_external_site(site_id)
-    return redirect("/admin/external")
 
 # ===== 静态文件管理（管理员/站长） =====
 

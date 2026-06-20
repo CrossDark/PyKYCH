@@ -39,22 +39,4 @@
 </div>
 {% endif %}
 
-<!-- 外部站点 -->
-{% if external_sites %}
-<div style="margin-top: 2.5rem;">
-    <h2 style="font-size: 1.2rem; margin-bottom: 0.75rem;">🌍 外部导入站点</h2>
-    <div class="article-list">
-        {% for site in external_sites %}
-        <a href="/html/{{ site.name }}" class="article-card card">
-            <h3>
-                <span class="article-type-badge">EXT</span>
-                {{ site.description or site.name }}
-            </h3>
-            <div class="date">{{ site.source_url }} · {{ site.page_count }} 页缓存</div>
-            <p class="summary">访问站点 →</p>
-        </a>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
 {% endblock %}

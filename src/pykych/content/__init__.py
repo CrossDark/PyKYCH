@@ -1,5 +1,5 @@
 """
-内容管理模块 (content) — 文章、标签、评论、评分、文件、外部站点。
+内容管理模块 (content) — 文章、标签、评论、评分、文件。
 
 提供 PyKYCH 核心内容功能的统一接口:
     - articles.py:  统一文章 CRUD（MD/Wikidot/HTML/BBCode）
@@ -7,7 +7,6 @@
     - comments.py:  全文评论 + 行评论
     - ratings.py:   评分系统（[-1, 1] 区间）
     - files.py:     静态文件上传管理
-    - external.py:  外部 HTML 站点抓取与管理
     - parsers/:     语法解析器（BBCode、Wikidot）
 
 用法:

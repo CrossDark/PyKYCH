@@ -29,7 +29,6 @@
 - `ratings` — 评分系统
 - `notifications` — 站内通知
 - `subsite_links` / `featured_articles` — 首页展示
-- `external_sites` / `external_pages` — 外部站点缓存
 - `static_files` — 上传文件管理
 - `webauthn_credentials` — 通行密钥
 

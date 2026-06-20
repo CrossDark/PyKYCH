@@ -113,11 +113,6 @@ class Hooks:
     ON_STARTUP = "on_startup"                      # () -> None
     ON_SHUTDOWN = "on_shutdown"                    # () -> None
     
-    # 外部站点导入（由插件实现）
-    EXTERNAL_SITE_FETCH = "external_site_fetch"    # (site_id: int) -> dict result
-    EXTERNAL_SITE_CRAWL = "external_site_crawl"    # (site_id: int, max_pages: int) -> dict result
-    EXTERNAL_PAGE_FETCH = "external_page_fetch"    # (site_id: int, path: str) -> dict result
-
 
 # ── 插件加载器 ──────────────────────────────────────────────
 
