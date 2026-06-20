@@ -292,6 +292,12 @@
     <span>🔄 更新于 {{ page.updated_at[:10] }}</span>
 </div>
 
+{% if current_user and can_edit %}
+<div style="margin-bottom: 1rem;">
+    <a href="/admin/wikidot/{{ page.slug }}/edit" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 1rem; background: var(--accent); color: #fff; border-radius: var(--radius); text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: background 0.2s;">✏️ 编辑</a>
+</div>
+{% endif %}
+
 {% if page.tags %}
 <div class="inline-tags" style="margin-bottom: 1rem;">
     {% for tag in page.tags %}

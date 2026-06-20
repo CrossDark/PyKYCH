@@ -197,6 +197,9 @@
             <h1>{{ article.title }}</h1>
             <div class="article-meta">
                 <time datetime="{{ article.created_at[:10] }}">📅 {{ article.created_at[:10] }}</time>
+                {% if current_user and can_edit %}
+                <a href="/admin/typst/{{ article.slug }}/edit" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.8rem; background: var(--accent); color: #fff; border-radius: var(--radius); text-decoration: none; font-size: 0.8rem; font-weight: 500; transition: background 0.2s;">✏️ 编辑</a>
+                {% endif %}
                 {% if article.tags %}
                 <span class="article-tags">
                     {% for tag in article.tags %}

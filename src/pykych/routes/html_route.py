@@ -15,6 +15,7 @@ from ..content import comments as comment_manager
 from ..content import comments as line_comment_manager
 from ..content import ratings as rating_manager
 from ..auth.session import get_current_user
+from ..auth import user as auth_user
 
 # ── 模板引擎 ────────────────────────────────────────────────
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -81,6 +82,14 @@ async def html_page_detail(request: Request, slug: str):
     rating = await rating_manager.get_article_rating("html", slug)
     # 获取当前用户
     current_user = await get_current_user(request)
+    # 检查当前用户是否有编辑权限（管理员/站长可编辑所有，普通用户只能编辑自己的）
+    can_edit = (
+        current_user is not None
+        and (
+            auth_user.is_admin(current_user)
+            or page.get("author_id") == current_user.get("id")
+        )
+    )
     return render(
         "html_detail.html",
         title=f"{page['title']} - PyKYCH",
@@ -91,6 +100,7 @@ async def html_page_detail(request: Request, slug: str):
         line_comment_counts=line_comment_counts,
         rating=rating,
         current_user=current_user,
+        can_edit=can_edit,
     )
 
 
