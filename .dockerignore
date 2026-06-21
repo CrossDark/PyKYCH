@@ -27,7 +27,7 @@ env/
 
 # 文档
 README.md
-TODO.md
+docs/TODO.md
 LICENSE
 
 # Docker 自身
