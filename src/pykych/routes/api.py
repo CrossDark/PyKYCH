@@ -9,8 +9,6 @@ API 路由模块 — 所有 /api/* 端点。
 从 main.py 提取以减小主入口文件体积，提高模块化程度。
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 from lihil import Route, Request

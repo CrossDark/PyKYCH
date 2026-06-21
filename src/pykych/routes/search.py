@@ -3,8 +3,6 @@
 支持跨全部文章类型（Markdown、Wikidot、HTML、BBCode、Typst）的内容搜索。
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 
