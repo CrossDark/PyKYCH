@@ -114,10 +114,11 @@ async def get_tag_by_id(tag_id: int) -> dict | None:
 
 async def get_all_tags_with_counts() -> list[dict]:
     """
-    获取所有标签及其关联的"真实存在"文章数量。
+    获取所有标签及其关联的文章数量。
 
-    通过子查询验证 article_tags 关联的文章确实存在于对应的文章表中，
-    避免统计已删除但关联未清理的孤立记录。
+    依赖启动时 cleanup_orphan_article_tags() 和删除文章时的级联清理
+    来保证 article_tags 表数据一致性，因此可直接使用简单 COUNT(*)，
+    无需 EXISTS 子查询验证。
 
     返回:
         [{id, name, created_at, count}, ...]
@@ -128,16 +129,7 @@ async def get_all_tags_with_counts() -> list[dict]:
             await cur.execute(
                 """
                 SELECT t.id, t.name, t.created_at,
-                       SUM(
-                           CASE
-                               WHEN at.article_type = 'md' AND EXISTS(SELECT 1 FROM articles a WHERE a.slug = at.article_slug) THEN 1
-                               WHEN at.article_type = 'wikidot' AND EXISTS(SELECT 1 FROM pages p WHERE p.slug = at.article_slug) THEN 1
-                               WHEN at.article_type = 'html' AND EXISTS(SELECT 1 FROM html_pages h WHERE h.slug = at.article_slug) THEN 1
-                               WHEN at.article_type = 'bbcode' AND EXISTS(SELECT 1 FROM bbcode_pages b WHERE b.slug = at.article_slug) THEN 1
-                               WHEN at.article_type = 'typst' AND EXISTS(SELECT 1 FROM typst_pages t2 WHERE t2.slug = at.article_slug) THEN 1
-                               ELSE 0
-                           END
-                       ) as cnt
+                       COUNT(at.tag_id) AS cnt
                 FROM tags t
                 LEFT JOIN article_tags at ON t.id = at.tag_id
                 GROUP BY t.id, t.name, t.created_at

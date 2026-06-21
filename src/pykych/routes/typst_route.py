@@ -11,8 +11,6 @@ import asyncio
 import logging
 from lihil import Route
 from starlette.responses import HTMLResponse, Response
-from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 
 from lihil import Request
 
@@ -30,6 +28,9 @@ from ..content import comments as line_comment_manager
 from ..content import ratings as rating_manager
 from ..auth.session import get_current_user
 from ..auth import user as auth_user
+
+# ── 模板（使用统一模板引擎） ──────────────────────────────
+from ..core.templates import render_template as render
 
 logger = logging.getLogger(__name__)
 
@@ -51,24 +52,6 @@ def _create_background_task(coro, name: str = "unknown"):
     task.add_done_callback(_log_exception)
     return task
 
-# ── 模板引擎 ────────────────────────────────────────────────
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-jinja_env = Environment(
-    loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=True,
-)
-
-from ..core.settings import get_setting, get_site_title, get_site_subtitle
-jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
-jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
-jinja_env.globals["site_title_func"] = lambda: get_site_title()
-jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
-
-
-def render(template_name: str, status_code: int = 200, **context) -> HTMLResponse:
-    template = jinja_env.get_template(template_name)
-    return HTMLResponse(template.render(**context), status_code=status_code)
-
 
 # ── 路由 ────────────────────────────────────────────────────
 
@@ -79,8 +62,11 @@ typst_route = Route("/typst")
 async def typst_article_list(page: int = 1):
     """Typst 文章列表页。"""
     result = await db.list_articles('typst', page=page, per_page=10)
+    # 批量加载所有文章的标签（一次查询，避免 N+1 问题）
+    article_keys = [("typst", a["slug"]) for a in result["articles"]]
+    tags_map = await tag_manager.get_tags_for_articles_batch(article_keys)
     for article in result["articles"]:
-        article["tags"] = await tag_manager.get_tags_for_article("typst", article["slug"])
+        article["tags"] = tags_map.get(("typst", article["slug"]), [])
     return render(
         "typst_list.html",
         title="Typst 文章 - PyKYCH",

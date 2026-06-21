@@ -3,6 +3,7 @@
 支持跨全部文章类型（Markdown、Wikidot、HTML、BBCode、Typst）的内容搜索。
 """
 
+import re
 from lihil import Route
 from starlette.responses import HTMLResponse
 from pathlib import Path

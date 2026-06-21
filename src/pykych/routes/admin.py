@@ -91,13 +91,7 @@ def _verify_csrf(request: Request, form) -> bool:
 def _csrf_error(request: Request, user: dict, error_msg: str = "CSRF 验证失败，请刷新页面后重试。") -> HTMLResponse:
     """返回 CSRF 验证失败的错误页面。"""
     return render("admin_dashboard.html", title="验证失败 - PyKYCH",
-        current_user=user,
-        md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
-        total_articles=0, users_count=0, tags_count=0,
-        comments_count=0, files_count=0, notif_count=0,
-        recent_articles=[], users=[],
-        subsite_links=[], featured_articles=[],
-        permission_error=error_msg)
+        **_empty_dashboard_context(user, permission_error=error_msg))
 
 # ── 登录保护 ──
 
@@ -128,13 +122,7 @@ async def _require_owner(request: Request):
         return None, err
     if not auth_user.is_owner(user):
         return None, render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user,
-            md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
-            total_articles=0, users_count=0, tags_count=0,
-            comments_count=0, files_count=0, notif_count=0,
-            recent_articles=[], users=[],
-            subsite_links=[], featured_articles=[],
-            permission_error="仅站长可执行此操作。")
+            **_empty_dashboard_context(user, permission_error="仅站长可执行此操作。"))
     return user, None
 
 
@@ -145,6 +133,24 @@ def _can_edit(article: dict | None, user: dict) -> bool:
     if auth_user.is_admin(user):
         return True
     return article.get("author_id") == user.get("id")
+
+
+# ── 权限错误页面的空仪表盘上下文（避免重复 20+ 个占位参数） ──
+_EMPTY_DASHBOARD_BASE = dict(
+    md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
+    total_articles=0, users_count=0, tags_count=0,
+    comments_count=0, files_count=0, notif_count=0,
+    recent_articles=[], users=[],
+    subsite_links=[], featured_articles=[],
+)
+
+
+def _empty_dashboard_context(user: dict, permission_error: str = "") -> dict:
+    """返回权限错误页面的最小上下文，复用 _EMPTY_DASHBOARD_BASE。"""
+    ctx = {"current_user": user, **_EMPTY_DASHBOARD_BASE}
+    if permission_error:
+        ctx["permission_error"] = permission_error
+    return ctx
 
 # ── 路由 ──
 
@@ -569,13 +575,7 @@ async def manage_tags(request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user,
-            md_total=0, wk_total=0, html_total=0, bb_total=0, typst_total=0,
-            total_articles=0, users_count=0, tags_count=0,
-            comments_count=0, files_count=0, notif_count=0,
-            recent_articles=[], users=[],
-            subsite_links=[], featured_articles=[],
-            permission_error="仅管理员和站长可管理标签。")
+            **_empty_dashboard_context(user, permission_error="仅管理员和站长可管理标签。"))
     tags = await tag_manager.get_all_tags_with_counts()
     return render("admin_tags.html", title="标签管理 - PyKYCH",
         current_user=user, tags=tags, error=None)
@@ -625,14 +625,7 @@ async def manage_notifications(request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user,
-            md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0,
-            total_articles=0, users_count=0, tags_count=0,
-            comments_count=0, files_count=0, notif_count=0,
-            recent_articles=[], users=[],
-            subsite_links=[], featured_articles=[],
-            permission_error="仅管理员和站长可管理通知。")
+            **_empty_dashboard_context(user, permission_error="仅管理员和站长可管理通知。"))
     notifications = await notification_manager.list_notifications(include_inactive=True)
     return render("admin_notifications.html", title="通知管理 - PyKYCH",
         current_user=user, notifications=notifications, error=None)
@@ -709,14 +702,7 @@ async def manage_plugins(request: Request):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user,
-            md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0,
-            total_articles=0, users_count=0, tags_count=0,
-            comments_count=0, files_count=0, notif_count=0,
-            recent_articles=[], users=[],
-            subsite_links=[], featured_articles=[],
-            permission_error="仅管理员和站长可管理插件。")
+            **_empty_dashboard_context(user, permission_error="仅管理员和站长可管理插件。"))
     plugins = get_all_plugins_info()
     return render("admin_plugins.html", title="插件管理 - PyKYCH",
         current_user=user, plugins=plugins)
@@ -866,14 +852,7 @@ async def manage_files(request: Request, page: int = 1):
     if err: return err
     if not auth_user.is_admin(user):
         return render("admin_dashboard.html", title="权限不足 - PyKYCH",
-            current_user=user,
-            md_total=0, wk_total=0,
-            html_total=0, bb_total=0, typst_total=0,
-            total_articles=0, users_count=0, tags_count=0,
-            comments_count=0, files_count=0, notif_count=0,
-            recent_articles=[], users=[],
-            subsite_links=[], featured_articles=[],
-            permission_error="仅管理员和站长可管理文件。")
+            **_empty_dashboard_context(user, permission_error="仅管理员和站长可管理文件。"))
     result = await file_manager.list_files(page=page, per_page=20)
     return render("admin_files.html", title="文件管理 - PyKYCH",
         current_user=user, files=result["files"],

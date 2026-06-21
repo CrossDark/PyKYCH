@@ -4,8 +4,6 @@ HTML 文章路由 — /html/ 下的所有端点。
 
 from lihil import Route
 from starlette.responses import HTMLResponse
-from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 
 from lihil import Request
 
@@ -17,24 +15,8 @@ from ..content import ratings as rating_manager
 from ..auth.session import get_current_user
 from ..auth import user as auth_user
 
-# ── 模板引擎 ────────────────────────────────────────────────
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-jinja_env = Environment(
-    loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=True,
-)
-
-# 注入站点设置访问函数
-from ..core.settings import get_setting, get_site_title, get_site_subtitle
-jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
-jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
-jinja_env.globals["site_title_func"] = lambda: get_site_title()
-jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
-
-
-def render(template_name: str, status_code: int = 200, **context) -> HTMLResponse:
-    template = jinja_env.get_template(template_name)
-    return HTMLResponse(template.render(**context), status_code=status_code)
+# ── 模板（使用统一模板引擎） ──────────────────────────────
+from ..core.templates import render_template as render
 
 
 # ── 路由 ────────────────────────────────────────────────────
@@ -46,8 +28,11 @@ html_route = Route("/html")
 async def html_page_list(page: int = 1):
     """HTML 页面列表页。"""
     result = await db.list_articles('html', page=page, per_page=10)
+    # 批量加载所有文章的标签（一次查询，避免 N+1 问题）
+    article_keys = [("html", p["slug"]) for p in result["pages"]]
+    tags_map = await tag_manager.get_tags_for_articles_batch(article_keys)
     for p in result["pages"]:
-        p["tags"] = await tag_manager.get_tags_for_article("html", p["slug"])
+        p["tags"] = tags_map.get(("html", p["slug"]), [])
 
     return render(
         "html_list.html",

@@ -28,6 +28,27 @@ from .password import hash_password, validate_password_strength
 
 VALID_ROLES = ("user", "admin", "owner")
 
+# ── 列缓存：启动时一次性检测 avatar 列是否存在 ──────────
+_avatar_column_checked: bool = False
+_has_avatar_column: bool = False
+
+
+async def _check_avatar_column() -> bool:
+    """一次性检测 users 表是否包含 avatar 列，结果缓存到模块变量。"""
+    global _avatar_column_checked, _has_avatar_column
+    if _avatar_column_checked:
+        return _has_avatar_column
+    try:
+        pool = await get_sys_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT avatar FROM users LIMIT 1")
+                _has_avatar_column = True
+    except Exception:
+        _has_avatar_column = False
+    _avatar_column_checked = True
+    return _has_avatar_column
+
 
 # ── 用户查询 ────────────────────────────────────────────────
 
@@ -47,15 +68,14 @@ async def get_user_by_username(username: str) -> Optional[dict]:
     pool = await get_sys_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # 优先查询含 avatar 的完整字段；若 avatar 列不存在则回退
-            try:
+            if await _check_avatar_column():
                 await cur.execute(
                     "SELECT id, username, nickname, role, "
                     "COALESCE(avatar, '') AS avatar, created_at "
                     "FROM users WHERE username = %s",
                     (username,),
                 )
-            except Exception:
+            else:
                 await cur.execute(
                     "SELECT id, username, nickname, role, created_at "
                     "FROM users WHERE username = %s",

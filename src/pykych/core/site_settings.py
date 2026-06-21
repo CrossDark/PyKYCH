@@ -197,15 +197,21 @@ async def move_featured_article(featured_id: int, direction: str) -> bool:
             if not other:
                 return False
 
-            # 交换 sort_order
-            await cur.execute(
-                "UPDATE featured_articles SET sort_order = %s WHERE id = %s",
-                (other[1], featured_id),
-            )
-            await cur.execute(
-                "UPDATE featured_articles SET sort_order = %s WHERE id = %s",
-                (current_order, other[0]),
-            )
+            # 交换 sort_order（使用事务保证原子性）
+            await conn.begin()
+            try:
+                await cur.execute(
+                    "UPDATE featured_articles SET sort_order = %s WHERE id = %s",
+                    (other[1], featured_id),
+                )
+                await cur.execute(
+                    "UPDATE featured_articles SET sort_order = %s WHERE id = %s",
+                    (current_order, other[0]),
+                )
+                await conn.commit()
+            except Exception:
+                await conn.rollback()
+                raise
             return True
 
 

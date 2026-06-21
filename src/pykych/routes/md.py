@@ -4,7 +4,7 @@ Markdown 文章路由 — /md/ 下的所有端点。
 
 from lihil import Route
 from starlette.responses import HTMLResponse
-from markdown import Markdown
+import markdown
 
 from lihil import Request
 
@@ -20,30 +20,31 @@ from ..auth import user as auth_user
 from ..core.templates import render_template as render
 
 
-# ── Markdown 渲染器工厂 ─────────────────────────────────────
+# ── Markdown 渲染器配置（模块级，避免每次请求重复创建实例） ──
 
-def _create_md_parser():
-    """创建新的 Markdown 实例（线程安全）。"""
-    return Markdown(
-        extensions=[
-            "extra",          # 表格、围栏代码块、脚注等
-            "fenced_code",    # ``` 围栏代码块
-            "toc",            # [TOC] 生成目录
-            "admonition",     # !!! note / !!! warning 提示框
-            "sane_lists",     # 更合理的列表解析
-        ],
-        extension_configs={
-            "fenced_code": {
-                "lang_prefix": "language-",
-            },
-        },
-        output_format="html5",
-    )
+_MD_EXTENSIONS = [
+    "extra",          # 表格、围栏代码块、脚注等
+    "fenced_code",    # ``` 围栏代码块
+    "toc",            # [TOC] 生成目录
+    "admonition",     # !!! note / !!! warning 提示框
+    "sane_lists",     # 更合理的列表解析
+]
+
+_MD_EXTENSION_CONFIGS = {
+    "fenced_code": {
+        "lang_prefix": "language-",
+    },
+}
 
 
 def render_markdown(md_text: str) -> str:
-    """将 Markdown 文本渲染为 HTML（每次请求创建新实例，线程安全）。"""
-    return _create_md_parser().convert(md_text)
+    """将 Markdown 文本渲染为 HTML（使用函数式 API，线程安全）。"""
+    return markdown.markdown(
+        md_text,
+        extensions=_MD_EXTENSIONS,
+        extension_configs=_MD_EXTENSION_CONFIGS,
+        output_format="html5",
+    )
 
 
 # ── 路由 ────────────────────────────────────────────────────
