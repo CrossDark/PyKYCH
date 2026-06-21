@@ -252,6 +252,26 @@ CREATE TABLE IF NOT EXISTS typst_cache (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
+# ── 视图（OPT-025：文章表统一视图） ──────────────────────────
+
+VW_ALL_ARTICLES_SQL = """
+CREATE OR REPLACE VIEW VW_ALL_ARTICLES AS
+SELECT 'md' AS article_type, id, slug, title, content, author_id, created_at, updated_at
+FROM articles
+UNION ALL
+SELECT 'wikidot', id, slug, title, content, author_id, created_at, updated_at
+FROM pages
+UNION ALL
+SELECT 'html', id, slug, title, content, author_id, created_at, updated_at
+FROM html_pages
+UNION ALL
+SELECT 'bbcode', id, slug, title, content, author_id, created_at, updated_at
+FROM bbcode_pages
+UNION ALL
+SELECT 'typst', id, slug, title, content, author_id, created_at, updated_at
+FROM typst_pages;
+"""
+
 # ── 所有建表语句的列表（按依赖顺序） ────────────────────────
 
 ALL_TABLE_SQLS = [
@@ -418,6 +438,66 @@ async def _migrate_typst_cache_dependencies() -> None:
             )
 
 
+async def _migrate_missing_indexes() -> None:
+    """
+    为缺少索引的列添加索引（OPT-026）。
+
+    添加:
+        - ratings.author_name 索引（加速 delete_user 时的清理）
+        - static_files.uploaded_by 索引（加速用户文件查询）
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            try:
+                await cur.execute(
+                    "ALTER TABLE ratings ADD INDEX idx_author_name (author_name)"
+                )
+            except Exception:
+                pass  # 索引已存在
+            try:
+                await cur.execute(
+                    "ALTER TABLE static_files ADD INDEX idx_uploaded_by (uploaded_by)"
+                )
+            except Exception:
+                pass  # 索引已存在
+
+
+async def _migrate_fulltext_indexes() -> None:
+    """
+    为文章表添加 FULLTEXT 索引以优化搜索（OPT-007）。
+
+    为 5 张文章表的 title 和 content 列添加 MySQL FULLTEXT 索引，
+    使搜索从 LIKE '%keyword%' 全表扫描升级为全文索引查询。
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            tables = ["articles", "pages", "html_pages", "bbcode_pages", "typst_pages"]
+            for table in tables:
+                try:
+                    await cur.execute(
+                        f"ALTER TABLE {table} ADD FULLTEXT INDEX ft_title_content (title, content)"
+                    )
+                except Exception:
+                    pass  # 索引已存在或表不支持
+
+
+async def _create_all_articles_view() -> None:
+    """
+    创建或替换统一文章视图 VW_ALL_ARTICLES（OPT-025）。
+
+    将 5 张文章表合并为一个视图，方便跨类型查询（搜索、统计、推荐）。
+    """
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            try:
+                await cur.execute(VW_ALL_ARTICLES_SQL)
+            except Exception:
+                pass  # 视图创建失败不影响主流程
+
+
 # ── 初始化入口 ──────────────────────────────────────────────
 
 
@@ -451,6 +531,12 @@ async def init_tables() -> None:
     await _migrate_enums_for_typst()
     # 迁移 typst_cache 表（跨文章依赖列）
     await _migrate_typst_cache_dependencies()
+    # 补充缺失索引（OPT-026）
+    await _migrate_missing_indexes()
+    # 全文索引（OPT-007）
+    await _migrate_fulltext_indexes()
+    # 创建统一文章视图（OPT-025）
+    await _create_all_articles_view()
 
 
 async def seed_admin(username: str, password: str, nickname: str = "") -> None:

@@ -3,7 +3,11 @@
 支持跨全部文章类型（Markdown、Wikidot、HTML、BBCode、Typst）的内容搜索。
 """
 
+from __future__ import annotations
+
 import re
+from typing import Any
+
 from lihil import Route
 from starlette.responses import HTMLResponse
 from pathlib import Path
@@ -18,7 +22,7 @@ from ..core.templates import render_template as render
 search_route = Route("/search")
 
 # 文章类型到路由前缀的映射
-TYPE_ROUTE_MAP = {
+TYPE_ROUTE_MAP: dict[str, str] = {
     "md": "/md/",
     "wikidot": "/wikidot/",
     "html": "/html/local/",
@@ -26,7 +30,7 @@ TYPE_ROUTE_MAP = {
     "typst": "/typst/",
 }
 
-TYPE_LABEL_MAP = {
+TYPE_LABEL_MAP: dict[str, str] = {
     "md": "Markdown",
     "wikidot": "Wikidot",
     "html": "HTML",
@@ -36,8 +40,18 @@ TYPE_LABEL_MAP = {
 
 
 @search_route.get
-async def search(q: str = "", page: int = 1):
-    """搜索页面 — 根据关键词搜索所有类型的文章。"""
+async def search(q: str = "", page: int = 1) -> HTMLResponse:
+    """搜索页面 — 根据关键词搜索所有类型的文章。
+
+    使用 MySQL FULLTEXT 索引进行高效全文搜索（MATCH ... AGAINST IN BOOLEAN MODE）。
+
+    参数:
+        q:    搜索关键词
+        page: 分页页码（从 1 开始）
+
+    返回:
+        搜索结果页面，包含匹配文章列表、分页信息和搜索摘要
+    """
     per_page = 10
     results = []
     total = 0
@@ -45,32 +59,35 @@ async def search(q: str = "", page: int = 1):
 
     if q.strip():
         pool = await _get_pool()
-        keyword = f"%{q.strip()}%"
+        keyword = q.strip()
 
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
-                # 先查总数
+                # 构建 FULLTEXT 搜索查询（MATCH ... AGAINST IN BOOLEAN MODE）
+                # 使用布尔模式支持精确匹配，* 通配符实现前缀搜索
+                ft_keyword = f"{keyword}*"
+
+                # 先查总数（使用 FULLTEXT MATCH）
                 await cur.execute(
                     """
                     SELECT COUNT(*) FROM (
                         SELECT slug FROM articles
-                        WHERE title LIKE %s OR content LIKE %s
+                        WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                         UNION ALL
                         SELECT slug FROM pages
-                        WHERE title LIKE %s OR content LIKE %s
+                        WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                         UNION ALL
                         SELECT slug FROM html_pages
-                        WHERE title LIKE %s OR content LIKE %s
+                        WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                         UNION ALL
                         SELECT slug FROM bbcode_pages
-                        WHERE title LIKE %s OR content LIKE %s
+                        WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                         UNION ALL
                         SELECT slug FROM typst_pages
-                        WHERE title LIKE %s OR content LIKE %s
+                        WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                     ) AS all_results
                     """,
-                    (keyword, keyword, keyword, keyword, keyword, keyword,
-                     keyword, keyword, keyword, keyword),
+                    (ft_keyword, ft_keyword, ft_keyword, ft_keyword, ft_keyword),
                 )
                 total = (await cur.fetchone())[0]
                 total_pages = max(1, (total + per_page - 1) // per_page)
@@ -81,28 +98,27 @@ async def search(q: str = "", page: int = 1):
                     """
                     SELECT slug, title, content, created_at, 'md' AS article_type
                     FROM articles
-                    WHERE title LIKE %s OR content LIKE %s
+                    WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                     UNION ALL
                     SELECT slug, title, content, created_at, 'wikidot' AS article_type
                     FROM pages
-                    WHERE title LIKE %s OR content LIKE %s
+                    WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                     UNION ALL
                     SELECT slug, title, content, created_at, 'html' AS article_type
                     FROM html_pages
-                    WHERE title LIKE %s OR content LIKE %s
+                    WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                     UNION ALL
                     SELECT slug, title, content, created_at, 'bbcode' AS article_type
                     FROM bbcode_pages
-                    WHERE title LIKE %s OR content LIKE %s
+                    WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                     UNION ALL
                     SELECT slug, title, content, created_at, 'typst' AS article_type
                     FROM typst_pages
-                    WHERE title LIKE %s OR content LIKE %s
+                    WHERE MATCH(title, content) AGAINST(%s IN BOOLEAN MODE)
                     ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
-                    (keyword, keyword, keyword, keyword, keyword, keyword,
-                     keyword, keyword, keyword, keyword,
+                    (ft_keyword, ft_keyword, ft_keyword, ft_keyword, ft_keyword,
                      per_page, offset),
                 )
                 page_rows = await cur.fetchall()
