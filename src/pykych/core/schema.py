@@ -5,6 +5,7 @@
 所有表使用 InnoDB 引擎 + utf8mb4 字符集，支持 Emoji 等 4 字节 Unicode。
 """
 
+import os
 import aiomysql
 
 from .db import _get_pool
@@ -469,15 +470,30 @@ async def _migrate_fulltext_indexes() -> None:
 
     为 5 张文章表的 title 和 content 列添加 MySQL FULLTEXT 索引，
     使搜索从 LIKE '%keyword%' 全表扫描升级为全文索引查询。
+
+    注意：FULLTEXT 索引在 LONGTEXT 列上创建可能非常耗时（大表可能需要数分钟）。
+    此迁移设置了 30 秒总超时，超时后跳过剩余索引，不影响应用启动。
+    生产环境建议在低峰期手动执行 ALTER TABLE。
     """
+    import asyncio
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             tables = ["articles", "pages", "html_pages", "bbcode_pages", "typst_pages"]
             for table in tables:
                 try:
-                    await cur.execute(
-                        f"ALTER TABLE {table} ADD FULLTEXT INDEX ft_title_content (title, content)"
+                    # 30 秒超时保护：大表上创建 FULLTEXT 索引可能很慢
+                    await asyncio.wait_for(
+                        cur.execute(
+                            f"ALTER TABLE {table} ADD FULLTEXT INDEX ft_title_content (title, content)"
+                        ),
+                        timeout=30.0,
+                    )
+                except asyncio.TimeoutError:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"⚠️  FULLTEXT 索引创建超时 (表: {table})，已跳过。"
+                        f"请在低峰期手动执行: ALTER TABLE {table} ADD FULLTEXT INDEX ft_title_content (title, content);"
                     )
                 except Exception:
                     pass  # 索引已存在或表不支持
@@ -533,8 +549,9 @@ async def init_tables() -> None:
     await _migrate_typst_cache_dependencies()
     # 补充缺失索引（OPT-026）
     await _migrate_missing_indexes()
-    # 全文索引（OPT-007）
-    await _migrate_fulltext_indexes()
+    # 全文索引（OPT-007）— 可通过环境变量跳过（大表可能很慢）
+    if not os.environ.get("PYKYCH_SKIP_FULLTEXT", "").lower() in ("true", "1", "yes"):
+        await _migrate_fulltext_indexes()
     # 创建统一文章视图（OPT-025）
     await _create_all_articles_view()
 

@@ -385,3 +385,21 @@ async def theme_css():
     from .themes_sys.manager import get_theme_css
     css = get_theme_css()
     return Response(css, media_type="text/css")
+
+
+# ===== 开发/生产启动入口 =====
+if __name__ == "__main__":
+    import uvicorn
+    import os
+
+    host = os.environ.get("PYKYCH_HOST", os.environ.get("HOST", "0.0.0.0"))
+    port = int(os.environ.get("PYKYCH_PORT", os.environ.get("PORT", "8000")))
+    reload = os.environ.get("PYKYCH_RELOAD", "").lower() in ("true", "1", "yes")
+
+    uvicorn.run(
+        "src.pykych.main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_level="info",
+    )
