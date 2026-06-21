@@ -321,6 +321,57 @@ async def get_tags_for_article(
             return [row_to_dict(r, cur) for r in rows]
 
 
+async def get_tags_for_articles_batch(
+    articles: list[tuple[str, str]]
+) -> dict[tuple[str, str], list[dict]]:
+    """
+    批量获取多篇文章的标签（一次查询，避免 N+1 问题）。
+
+    参数:
+        articles: [(article_type, slug), ...] 列表
+
+    返回:
+        {(article_type, slug): [{id, name, created_at}, ...], ...}
+        未匹配的键也会出现在结果中，值为空列表。
+    """
+    if not articles:
+        return {}
+
+    pool = await _get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            # 构建 (article_type, article_slug) IN (...) 查询
+            placeholders = ", ".join(["(%s, %s)"] * len(articles))
+            params = []
+            for atype, aslug in articles:
+                params.extend([atype, aslug])
+
+            await cur.execute(
+                f"SELECT at.article_type, at.article_slug, t.id, t.name, t.created_at "
+                f"FROM article_tags at "
+                f"JOIN tags t ON t.id = at.tag_id "
+                f"WHERE (at.article_type, at.article_slug) IN ({placeholders}) "
+                f"ORDER BY t.name",
+                tuple(params),
+            )
+            rows = await cur.fetchall()
+
+    # 按 (article_type, slug) 分组
+    result: dict[tuple[str, str], list[dict]] = {
+        key: [] for key in articles
+    }
+    for row in rows:
+        atype, aslug, tag_id, tag_name, tag_created = row
+        key = (atype, aslug)
+        if key in result:
+            result[key].append({
+                "id": tag_id,
+                "name": tag_name,
+                "created_at": str(tag_created) if tag_created else None,
+            })
+    return result
+
+
 async def set_article_tags(
     article_type: str, slug: str, tag_names: list[str]
 ) -> None:

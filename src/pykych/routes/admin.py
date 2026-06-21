@@ -8,10 +8,17 @@ from lihil import Route, Request
 from lihil import HTML
 from starlette.responses import HTMLResponse, RedirectResponse
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 from urllib.parse import quote
 import asyncio
+import hashlib
+import io
 import logging
+import os
+import re
+import shutil
+import tempfile
+import yaml
+import zipfile
 from contextvars import ContextVar
 
 from ..content import articles as article_manager
@@ -51,16 +58,9 @@ def _create_background_task(coro, name: str = "unknown"):
     task.add_done_callback(_log_exception)
     return task
 
-# ── 模板 ──
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-jinja_env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)), autoescape=True)
-
-# 注入站点设置访问函数
+# ── 模板（使用统一 jinja_env，自定义 render 注入 CSRF） ──
+from ..core.templates import jinja_env
 from ..core.settings import get_setting, get_site_title, get_site_subtitle
-jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
-jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
-jinja_env.globals["site_title_func"] = lambda: get_site_title()
-jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
 
 # ── CSRF Token 上下文（async-safe，无需修改每个 render 调用） ──
 _current_csrf: ContextVar[str] = ContextVar("csrf_token", default="")
@@ -925,10 +925,24 @@ async def upload_file(request: Request):
             total=result["total"],
             error=f"文件保存失败：磁盘空间不足或权限不足。")
 
-    mime_type = getattr(uploaded, "content_type", "application/octet-stream") or "application/octet-stream"
+    # 服务端 MIME 类型验证（使用文件头魔数检测，不信任客户端 Content-Type）
+    client_mime = getattr(uploaded, "content_type", "") or ""
+    allowed, detected_mime = file_manager.validate_file_type(content, original_name, client_mime)
+    if not allowed:
+        # 删除已写入的非法文件
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+        result = await file_manager.list_files()
+        return render("admin_files.html", title="文件管理 - PyKYCH",
+            current_user=user, files=result["files"],
+            page=1, total_pages=result["total_pages"],
+            total=result["total"],
+            error=f"不支持的文件类型: {detected_mime}")
 
     await file_manager.save_file_record(
-        store_name, original_name, len(content), mime_type,
+        store_name, original_name, len(content), detected_mime,
         uploaded_by=user.get("id"),
     )
 
@@ -1177,6 +1191,9 @@ async def update_site_settings(request: Request):
 
     form = await request.form()
 
+    # 收集所有设置对，最后批量写入（一次 I/O）
+    setting_pairs: list[tuple[str, object]] = []
+
     # ── Logo 上传 ──
     logo_file = form.get("logo_file")
     if logo_file is not None and hasattr(logo_file, "filename") and logo_file.filename:
@@ -1184,7 +1201,7 @@ async def update_site_settings(request: Request):
         if content and len(content) <= 2 * 1024 * 1024:
             logo_url = await _save_site_asset("logo", content, logo_file.filename)
             if logo_url:
-                settings_manager.set_setting("site.logo_path", logo_url)
+                setting_pairs.append(("site.logo_path", logo_url))
 
     # ── Favicon 上传 ──
     favicon_file = form.get("favicon_file")
@@ -1193,24 +1210,24 @@ async def update_site_settings(request: Request):
         if content and len(content) <= 512 * 1024:  # 512KB for favicon
             favicon_url = await _save_site_asset("favicon", content, favicon_file.filename)
             if favicon_url:
-                settings_manager.set_setting("site.favicon_path", favicon_url)
+                setting_pairs.append(("site.favicon_path", favicon_url))
 
     # ── 如果没上传新文件，保留旧路径 ──
     if not (logo_file is not None and hasattr(logo_file, "filename") and logo_file.filename):
-        settings_manager.set_setting("site.logo_path", form.get("site_logo_path", "").strip())
+        setting_pairs.append(("site.logo_path", form.get("site_logo_path", "").strip()))
     if not (favicon_file is not None and hasattr(favicon_file, "filename") and favicon_file.filename):
-        settings_manager.set_setting("site.favicon_path", form.get("favicon_path", "").strip())
+        setting_pairs.append(("site.favicon_path", form.get("favicon_path", "").strip()))
 
     # 站点信息
-    settings_manager.set_setting("site.title", form.get("site_title", "").strip())
-    settings_manager.set_setting("site.subtitle", form.get("site_subtitle", "").strip())
-    settings_manager.set_setting("site.description", form.get("site_description", "").strip())
-    settings_manager.set_setting("site.icp_number", form.get("site_icp", "").strip())
+    setting_pairs.append(("site.title", form.get("site_title", "").strip()))
+    setting_pairs.append(("site.subtitle", form.get("site_subtitle", "").strip()))
+    setting_pairs.append(("site.description", form.get("site_description", "").strip()))
+    setting_pairs.append(("site.icp_number", form.get("site_icp", "").strip()))
 
     # 外观
-    settings_manager.set_setting("appearance.theme", form.get("theme", "auto").strip())
-    settings_manager.set_setting("appearance.style_theme", form.get("style_theme", "default").strip())
-    settings_manager.set_setting("appearance.primary_color", form.get("primary_color", "#3b82f6").strip())
+    setting_pairs.append(("appearance.theme", form.get("theme", "auto").strip()))
+    setting_pairs.append(("appearance.style_theme", form.get("style_theme", "default").strip()))
+    setting_pairs.append(("appearance.primary_color", form.get("primary_color", "#3b82f6").strip()))
 
     # 应用样式主题
     new_style = form.get("style_theme", "default").strip()
@@ -1218,27 +1235,28 @@ async def update_site_settings(request: Request):
         theme_manager.set_active_theme(new_style)
 
     # 功能
-    settings_manager.set_setting("features.enable_comments", form.get("enable_comments") == "1")
-    settings_manager.set_setting("features.enable_search", form.get("enable_search") == "1")
-    settings_manager.set_setting("features.enable_dark_mode", form.get("enable_dark_mode") == "1")
+    setting_pairs.append(("features.enable_comments", form.get("enable_comments") == "1"))
+    setting_pairs.append(("features.enable_search", form.get("enable_search") == "1"))
+    setting_pairs.append(("features.enable_dark_mode", form.get("enable_dark_mode") == "1"))
     try:
         posts_per_page = int(form.get("posts_per_page", "10"))
     except (ValueError, TypeError):
         posts_per_page = 10
-    settings_manager.set_setting("features.posts_per_page", posts_per_page)
+    setting_pairs.append(("features.posts_per_page", posts_per_page))
 
     # 社交
-    settings_manager.set_setting("social.github", form.get("github", "").strip())
-    settings_manager.set_setting("social.twitter", form.get("twitter", "").strip())
-    settings_manager.set_setting("social.email", form.get("email", "").strip())
+    setting_pairs.append(("social.github", form.get("github", "").strip()))
+    setting_pairs.append(("social.twitter", form.get("twitter", "").strip()))
+    setting_pairs.append(("social.email", form.get("email", "").strip()))
+
+    # 批量写入所有设置（一次 I/O）
+    settings_manager.batch_set_settings(setting_pairs)
 
     return redirect("/admin/settings")
 
 
 async def _save_site_asset(name: str, data: bytes, filename: str) -> str | None:
     """保存站点资源文件（logo、favicon）到 static/img/ 目录。返回 URL。"""
-    import os, hashlib
-    from pathlib import Path
 
     STATIC_IMG = Path(__file__).parent.parent / "static" / "img"
     STATIC_IMG.mkdir(parents=True, exist_ok=True)
@@ -1249,7 +1267,7 @@ async def _save_site_asset(name: str, data: bytes, filename: str) -> str | None:
     if ext not in ALLOWED:
         ext = ".png"  # 回退
 
-    unique = hashlib.md5(data).hexdigest()[:12]
+    unique = hashlib.sha256(data).hexdigest()[:12]
     safe_name = f"{name}_{unique}{ext}"
     save_path = STATIC_IMG / safe_name
 
@@ -1300,8 +1318,6 @@ async def upload_theme(request: Request):
             current_user=user, settings=site_cfg, themes=themes,
             error="主题包过大，最大支持 10MB。")
 
-    import zipfile, io, tempfile, shutil
-
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as zf:
             # 查找主题根目录（可能嵌套了一层）
@@ -1339,14 +1355,12 @@ async def upload_theme(request: Request):
                 if not yaml_path.exists():
                     yaml_path = Path(tmpdir) / "theme.yaml"
 
-                import yaml
                 with open(yaml_path, "r", encoding="utf-8") as f:
                     config = yaml.safe_load(f) or {}
 
                 # 主题目录名：使用配置中的 name 或主题根目录名
                 theme_dirname = (config.get("name") or theme_root.rstrip("/")).strip().lower().replace(" ", "_")
                 # 安全检查：只允许字母数字下划线
-                import re
                 theme_dirname = re.sub(r"[^a-z0-9_]", "", theme_dirname)
                 if not theme_dirname:
                     theme_dirname = "uploaded_theme"

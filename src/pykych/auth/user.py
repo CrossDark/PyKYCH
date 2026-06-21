@@ -290,12 +290,25 @@ async def delete_user(username: str) -> bool:
                     "DELETE FROM line_comments WHERE author_name = %s",
                     (username,),
                 )
-                # 4. 删除用户文章的标签关联
+                # 4. 删除用户在所有文章类型中的标签关联
                 await cur.execute(
-                    "DELETE FROM article_tags WHERE article_slug IN "
-                    "(SELECT slug FROM articles WHERE author_id = "
-                    "(SELECT id FROM users WHERE username = %s))",
-                    (username,),
+                    "DELETE FROM article_tags WHERE (article_type, article_slug) IN ("
+                    "SELECT 'md', slug FROM articles WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s) "
+                    "UNION "
+                    "SELECT 'wikidot', slug FROM pages WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s) "
+                    "UNION "
+                    "SELECT 'html', slug FROM html_pages WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s) "
+                    "UNION "
+                    "SELECT 'bbcode', slug FROM bbcode_pages WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s) "
+                    "UNION "
+                    "SELECT 'typst', slug FROM typst_pages WHERE author_id = "
+                    "(SELECT id FROM users WHERE username = %s)"
+                    ")",
+                    (username, username, username, username, username),
                 )
                 # 5. 删除通行密钥
                 await cur.execute(

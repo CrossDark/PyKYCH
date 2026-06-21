@@ -265,6 +265,8 @@ async def delete_article(article_type: str, slug: str) -> bool:
     """
     删除文章及其所有关联数据（标签关联、评论、评分、行评论）。
 
+    所有删除操作在同一事务中执行，确保数据一致性。
+
     参数:
         article_type: 文章类型标识
         slug:         文章唯一标识符
@@ -278,31 +280,38 @@ async def delete_article(article_type: str, slug: str) -> bool:
     pool = await _get_pool()
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            # 删除评论
-            await cur.execute(
-                "DELETE FROM comments WHERE article_type = %s AND article_slug = %s",
-                (article_type, slug),
-            )
-            # 删除评分
-            await cur.execute(
-                "DELETE FROM ratings WHERE article_type = %s AND article_slug = %s",
-                (article_type, slug),
-            )
-            # 删除行评论
-            await cur.execute(
-                "DELETE FROM line_comments WHERE article_type = %s AND article_slug = %s",
-                (article_type, slug),
-            )
-            # 删除标签关联
-            await cur.execute(
-                "DELETE FROM article_tags WHERE article_type = %s AND article_slug = %s",
-                (article_type, slug),
-            )
-            # 删除文章本体
-            await cur.execute(
-                f"DELETE FROM {table} WHERE slug = %s", (slug,)
-            )
-            return cur.rowcount > 0
+            await conn.begin()
+            try:
+                # 删除评论
+                await cur.execute(
+                    "DELETE FROM comments WHERE article_type = %s AND article_slug = %s",
+                    (article_type, slug),
+                )
+                # 删除评分
+                await cur.execute(
+                    "DELETE FROM ratings WHERE article_type = %s AND article_slug = %s",
+                    (article_type, slug),
+                )
+                # 删除行评论
+                await cur.execute(
+                    "DELETE FROM line_comments WHERE article_type = %s AND article_slug = %s",
+                    (article_type, slug),
+                )
+                # 删除标签关联
+                await cur.execute(
+                    "DELETE FROM article_tags WHERE article_type = %s AND article_slug = %s",
+                    (article_type, slug),
+                )
+                # 删除文章本体
+                await cur.execute(
+                    f"DELETE FROM {table} WHERE slug = %s", (slug,)
+                )
+                result = cur.rowcount > 0
+                await conn.commit()
+                return result
+            except Exception:
+                await conn.rollback()
+                raise
 
 
 # ── 跨类型查询 ─────────────────────────────────────────────

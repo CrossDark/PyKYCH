@@ -196,7 +196,7 @@ async def save_avatar(username: str, file_data: bytes, filename: str) -> Optiona
     # 通过文件头魔数检测真实图片格式
     ext = _detect_image_ext(file_data, filename)
 
-    avatar_name = f"{username}_{hashlib.md5(file_data).hexdigest()[:12]}{ext}"
+    avatar_name = f"{username}_{hashlib.sha256(file_data).hexdigest()[:12]}{ext}"
     _ensure_avatar_dir()
     avatar_path = AVATAR_DIR / avatar_name
 

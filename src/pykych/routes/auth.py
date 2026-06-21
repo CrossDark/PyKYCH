@@ -6,31 +6,18 @@ import os
 from lihil import Route, Request
 from starlette.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
-
 from ..auth import password as auth_pwd
 from ..auth import user as auth_user
 from ..auth import session as auth_session
 from ..auth import rate_limit as auth_rate
 from ..auth import webauthn
 
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
-jinja_env = Environment(
-    loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=True,
-)
-
-# 注入站点设置访问函数
-from ..core.settings import get_setting, get_site_title, get_site_subtitle
-jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
-jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
-jinja_env.globals["site_title_func"] = lambda: get_site_title()
-jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
+from ..core.templates import jinja_env, render_template as _render_template
 
 
 def render(template_name: str, status_code: int = 200, **context) -> HTMLResponse:
-    template = jinja_env.get_template(template_name)
-    return HTMLResponse(template.render(**context), status_code=status_code)
+    """渲染模板（保持向后兼容的函数签名）。"""
+    return _render_template(template_name, status_code=status_code, **context)
 
 
 def redirect(url: str) -> RedirectResponse:

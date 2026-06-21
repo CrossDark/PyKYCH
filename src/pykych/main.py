@@ -19,18 +19,39 @@ PyKYCH 主应用入口 — 「跨越晨昏」个人网站后端。
 """
 
 import os
+import sys
+import asyncio
 import logging
 from lihil import Lihil, Route, Request
-from starlette.responses import HTMLResponse
+
+# ── 日志配置 ────────────────────────────────────────────────
+# 支持结构化日志输出（JSON 格式），方便日志收集系统（如 ELK、Loki）解析
+_log_format = os.environ.get("PYKYCH_LOG_FORMAT", "text")
+if _log_format == "json":
+    # JSON 格式：适合生产环境的日志收集系统
+    logging.basicConfig(
+        level=getattr(logging, os.environ.get("PYKYCH_LOG_LEVEL", "INFO").upper(), logging.INFO),
+        format='{"time":"%(asctime)s","level":"%(levelname)s","module":"%(name)s","message":"%(message)s"}',
+        datefmt="%Y-%m-%dT%H:%M:%S",
+        stream=sys.stderr,
+    )
+else:
+    # 文本格式：适合开发环境阅读
+    logging.basicConfig(
+        level=getattr(logging, os.environ.get("PYKYCH_LOG_LEVEL", "INFO").upper(), logging.INFO),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        stream=sys.stderr,
+    )
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from functools import partial
 from pathlib import Path
 from contextlib import asynccontextmanager
-from jinja2 import Environment, FileSystemLoader
-
 from .core.schema import init_tables, seed_admin
 from .core.db import close_pools
 from .core.settings import get_site_title, get_site_subtitle, get_setting
+from .core.templates import jinja_env, render_template
 
 from .content.articles import seed_db
 from .content.tags import auto_tag_article
@@ -107,20 +128,6 @@ async def lifespan(app):
     await run_hook(Hooks.ON_SHUTDOWN)
     await close_pools()
 
-# ── 模板引擎 ──
-TEMPLATE_DIR = Path(__file__).parent / "templates"
-
-jinja_env = Environment(
-    loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=True,
-)
-
-# 注入站点设置访问函数，供所有模板使用
-jinja_env.globals["site_logo"] = lambda: get_setting("site.logo_path", "/static/img/logo.png")
-jinja_env.globals["site_favicon"] = lambda: get_setting("site.favicon_path", "/static/img/favicon.ico")
-jinja_env.globals["site_title_func"] = lambda: get_site_title()
-jinja_env.globals["site_subtitle_func"] = lambda: get_site_subtitle()
-
 # 创建 Lihil 应用
 app = Lihil(lifespan=lifespan)
 
@@ -131,28 +138,47 @@ _SECRET_KEY = os.environ.get(
     "pykych-secret-change-in-production"
 )
 
+# 安全警告：默认密钥
+if _SECRET_KEY == "pykych-secret-change-in-production":
+    logger.warning(
+        "⚠️  安全警告: 使用了默认的 Session 密钥！\n"
+        "   请设置 PYKYCH_SECRET_KEY 环境变量以保护会话安全。\n"
+        "   攻击者可以使用此默认密钥伪造 Session Cookie。"
+    )
+
+# 生产环境下启用 Secure Cookie（HTTPS only）
+# 可通过 PYKYCH_SECURE_COOKIE 环境变量显式控制:
+#   - "true" / "1": 强制启用（仅 HTTPS 传输 Cookie）
+#   - "false" / "0": 强制禁用（开发环境）
+#   - 未设置: 自动检测（非 localhost/127.0.0.1 时启用）
+_secure_cookie_env = os.environ.get("PYKYCH_SECURE_COOKIE", "").lower()
+if _secure_cookie_env in ("true", "1"):
+    _https_only = True
+elif _secure_cookie_env in ("false", "0"):
+    _https_only = False
+else:
+    # 自动检测：非本地地址默认启用 Secure Cookie
+    _host = os.environ.get("PYKYCH_HOST", os.environ.get("HOST", "127.0.0.1"))
+    _https_only = _host not in ("127.0.0.1", "localhost", "0.0.0.0")
+
 app.add_middleware(
-    partial(SessionMiddleware, secret_key=_SECRET_KEY)
+    partial(SessionMiddleware, secret_key=_SECRET_KEY, https_only=_https_only)
 )
+if _https_only:
+    logger.info("🔒 Session Cookie Secure 标志已启用（仅 HTTPS 传输）")
 
 
-# 模板渲染辅助函数
-def render_template(template_name: str, **context) -> HTMLResponse:
-    """渲染 Jinja2 模板并返回 HTML 响应"""
-    template = jinja_env.get_template(template_name)
-    html = template.render(**context)
-    return HTMLResponse(html)
 
-
-# ===== 根路由：首页 =====
 home_route = Route("/")
 
 @home_route.get
 async def home():
-    """首页"""
-    subsite_links = await site_settings.list_subsite_links()
-    featured = await site_settings.list_featured_articles()
-    important_notifications = await notification_manager.get_important_notifications()
+    """首页 — 并行加载不依赖的查询以提升响应速度。"""
+    subsite_links, featured, important_notifications = await asyncio.gather(
+        site_settings.list_subsite_links(),
+        site_settings.list_featured_articles(),
+        notification_manager.get_important_notifications(),
+    )
     site_title = get_site_title()
     site_subtitle = get_site_subtitle()
     return render_template(
@@ -294,8 +320,25 @@ async def get_data():
 # ===== 健康检查 =====
 @app.sub("/health").get
 async def health():
-    """健康检查接口"""
-    return {"status": "healthy", "framework": "LiHiL", "app": "跨越晨昏"}
+    """健康检查接口（含数据库连接验证）。"""
+    db_ok = False
+    try:
+        from .core.db import _get_pool
+        pool = await _get_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT 1")
+                db_ok = True
+    except Exception:
+        pass
+
+    status_code = 200 if db_ok else 503
+    return JSONResponse({
+        "status": "healthy" if db_ok else "degraded",
+        "framework": "LiHiL",
+        "app": "跨越晨昏",
+        "database": "connected" if db_ok else "disconnected",
+    }, status_code=status_code)
 
 
 # ===== Markdown 文章路由 =====
@@ -364,20 +407,17 @@ async def api_add_line_comment(request: Request, article_type: str, article_slug
     """添加一条行评论。"""
     user = await get_current_user(request)
     if user is None:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "请先登录"}, status_code=401)
 
     try:
         body = await request.json()
     except Exception:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "请求格式错误"}, status_code=400)
 
     line_number = body.get("line_number")
     content = body.get("content", "").strip()
 
     if line_number is None or not content:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "缺少参数"}, status_code=400)
 
     try:
@@ -390,7 +430,6 @@ async def api_add_line_comment(request: Request, article_type: str, article_slug
         )
         return {"comment": comment}
     except ValueError as e:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
@@ -440,18 +479,15 @@ async def api_set_rating(request: Request, article_type: str, article_slug: str)
     """提交或更新评分。"""
     user = await get_current_user(request)
     if user is None:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "请先登录"}, status_code=401)
 
     try:
         body = await request.json()
     except Exception:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "请求格式错误"}, status_code=400)
 
     score = body.get("score")
     if score is None:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "缺少评分"}, status_code=400)
 
     try:
@@ -468,7 +504,6 @@ async def api_set_rating(request: Request, article_type: str, article_slug: str)
             "user_score": ur["score"] if ur else None,
         }
     except Exception as e:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": str(e)}, status_code=400)
 
 
@@ -477,7 +512,6 @@ async def api_delete_rating(request: Request, article_type: str, article_slug: s
     """撤销评分。"""
     user = await get_current_user(request)
     if user is None:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "请先登录"}, status_code=401)
 
     deleted = await rating_manager.delete_rating(
@@ -486,7 +520,6 @@ async def api_delete_rating(request: Request, article_type: str, article_slug: s
         author_name=user["username"],
     )
     if not deleted:
-        from starlette.responses import JSONResponse
         return JSONResponse({"error": "你尚未评分"}, status_code=404)
 
     # 返回更新后的汇总
@@ -505,6 +538,18 @@ app.include(search.search_route)
 # ===== 静态文件服务（上传目录） =====
 from starlette.responses import FileResponse
 from .content.files import UPLOAD_DIR
+
+# 静态资源缓存配置（默认缓存 1 小时，可通过环境变量调整）
+_STATIC_CACHE_SECONDS = int(os.environ.get("PYKYCH_STATIC_CACHE_SECONDS", "3600"))
+_STATIC_CACHE_HEADER = f"public, max-age={_STATIC_CACHE_SECONDS}"
+
+
+def _cached_file_response(file_path: str) -> FileResponse:
+    """返回带缓存头的 FileResponse。"""
+    return FileResponse(
+        file_path,
+        headers={"Cache-Control": _STATIC_CACHE_HEADER},
+    )
 
 uploads_route = Route("/static/uploads")
 
@@ -533,7 +578,7 @@ async def serve_upload(filename: str):
     file_path = _safe_resolve(UPLOAD_DIR, filename)
     if file_path is None or not file_path.exists() or not file_path.is_file():
         return HTMLResponse("<p>文件不存在</p>", status_code=404)
-    return FileResponse(str(file_path))
+    return _cached_file_response(str(file_path))
 
 app.include(uploads_route)
 
@@ -548,7 +593,7 @@ async def serve_static_img(filename: str):
     file_path = _safe_resolve(STATIC_IMG_DIR, filename)
     if file_path is None or not file_path.exists() or not file_path.is_file():
         return HTMLResponse("<p>图片不存在</p>", status_code=404)
-    return FileResponse(str(file_path))
+    return _cached_file_response(str(file_path))
 
 app.include(static_img_route)
 
@@ -568,11 +613,11 @@ async def serve_avatar(filename: str):
     """提供头像文件的访问（新路由）。"""
     file_path = _safe_resolve(AVATAR_DIR, filename)
     if file_path is not None and file_path.exists() and file_path.is_file():
-        return FileResponse(str(file_path))
+        return _cached_file_response(str(file_path))
     # 兼容旧头像路径
     old_path = _safe_resolve(_OLD_AVATAR_DIR, filename)
     if old_path is not None and old_path.exists() and old_path.is_file():
-        return FileResponse(str(old_path))
+        return _cached_file_response(str(old_path))
     logger.warning(f"头像文件未找到: {filename} (AVATAR_DIR={AVATAR_DIR})")
     return HTMLResponse("<p>头像不存在</p>", status_code=404)
 
@@ -587,11 +632,11 @@ async def serve_old_avatar(filename: str):
     """提供头像文件的访问（旧路由，向后兼容）。"""
     file_path = _safe_resolve(AVATAR_DIR, filename)
     if file_path is not None and file_path.exists() and file_path.is_file():
-        return FileResponse(str(file_path))
+        return _cached_file_response(str(file_path))
     # 兼容旧头像路径
     old_path = _safe_resolve(_OLD_AVATAR_DIR, filename)
     if old_path is not None and old_path.exists() and old_path.is_file():
-        return FileResponse(str(old_path))
+        return _cached_file_response(str(old_path))
     logger.warning(f"头像文件未找到(旧路由): {filename} (AVATAR_DIR={AVATAR_DIR})")
     return HTMLResponse("<p>头像不存在</p>", status_code=404)
 

@@ -221,6 +221,39 @@ def set_setting(path: str, value: Any) -> None:
         save_settings(settings)
 
 
+def batch_set_settings(pairs: list[tuple[str, Any]]) -> None:
+    """
+    批量设置多个设置项（一次读取、一次写入）。
+
+    相比多次调用 set_setting()，此函数只做一次文件 I/O，
+    大幅减少设置保存时的磁盘操作。
+
+    参数:
+        pairs: [(path, value), ...] 列表，如 [("site.title", "新标题"), ("features.enable_comments", False)]
+
+    示例:
+        >>> batch_set_settings([
+        ...     ("site.title", "新标题"),
+        ...     ("site.subtitle", "新副标题"),
+        ...     ("features.enable_comments", False),
+        ... ])
+    """
+    if not pairs:
+        return
+
+    with _write_lock:
+        settings = load_settings()
+        for path, value in pairs:
+            keys = path.split(".")
+            target = settings
+            for key in keys[:-1]:
+                if key not in target or not isinstance(target[key], dict):
+                    target[key] = {}
+                target = target[key]
+            target[keys[-1]] = value
+        save_settings(settings)
+
+
 # ── 便捷访问函数 ────────────────────────────────────────────
 
 

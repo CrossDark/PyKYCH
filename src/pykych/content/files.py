@@ -68,6 +68,127 @@ def _generate_filename(original_name: str) -> str:
     return f"{uuid.uuid4().hex}{ext}"
 
 
+# ── 文件头魔数 MIME 类型检测 ──────────────────────────────────
+
+# 常见文件类型的魔数签名（前几个字节 → MIME 类型）
+_MAGIC_SIGNATURES: list[tuple[bytes, str]] = [
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+    (b"RIFF", "image/webp"),      # RIFF....WEBP
+    (b"<svg", "image/svg+xml"),
+    (b"<?xml", "image/svg+xml"),  # SVG 可能是 XML 声明开头
+    (b"%PDF", "application/pdf"),
+    (b"PK\x03\x04", "application/zip"),
+    (b"\x1f\x8b", "application/gzip"),
+    (b"ID3", "audio/mpeg"),
+    (b"\xff\xfb", "audio/mpeg"),
+    (b"RIFF", "audio/wav"),       # RIFF....WAVE
+    (b"\x00\x00\x00", "video/mp4"),  # ftyp box, weak match
+    (b"#!", "text/plain"),        # shebang scripts
+]
+
+
+def detect_mime_type(data: bytes, filename: str = "") -> str:
+    """
+    通过文件头魔数检测真实 MIME 类型（不信任客户端提供的 Content-Type）。
+
+    先检查魔数签名，再回退到扩展名推断，最后返回通用二进制类型。
+
+    参数:
+        data:     文件内容（至少前 16 字节）
+        filename: 原始文件名（用于回退扩展名检测）
+
+    返回:
+        检测到的 MIME 类型字符串
+    """
+    # 1. 检查魔数签名
+    for magic, mime in _MAGIC_SIGNATURES:
+        if data[:len(magic)] == magic:
+            # WebP 特殊处理：RIFF 头后第 8-15 字节应为 WEBP
+            if magic == b"RIFF" and len(data) >= 12:
+                if data[8:12] == b"WEBP":
+                    return "image/webp"
+                elif data[8:12] == b"WAVE":
+                    return "audio/wav"
+                continue  # 不是 WEBP/WAVE，继续检查其他签名
+            return mime
+
+    # 2. 回退：通过扩展名推断
+    ext = Path(filename).suffix.lower() if filename else ""
+    ext_map = {
+        ".txt": "text/plain",
+        ".md": "text/markdown",
+        ".html": "text/html",
+        ".htm": "text/html",
+        ".css": "text/css",
+        ".js": "text/javascript",
+        ".json": "application/json",
+        ".xml": "application/xml",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".mp4": "video/mp4",
+        ".zip": "application/zip",
+        ".gz": "application/gzip",
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+        ".ico": "image/x-icon",
+        ".bmp": "image/bmp",
+    }
+    if ext in ext_map:
+        return ext_map[ext]
+
+    # 3. 检查文本内容（无空字节则为文本）
+    if b"\x00" not in data[:1024]:
+        try:
+            data[:1024].decode("utf-8")
+            return "text/plain"
+        except UnicodeDecodeError:
+            pass
+
+    return "application/octet-stream"
+
+
+def validate_file_type(data: bytes, filename: str, client_mime: str = "") -> tuple[bool, str]:
+    """
+    验证文件类型是否在允许列表中。
+
+    使用文件头魔数检测真实 MIME 类型，与白名单比对。
+
+    参数:
+        data:        文件内容
+        filename:    原始文件名
+        client_mime: 客户端声明的 MIME 类型（仅供参考，记录日志用）
+
+    返回:
+        (是否允许, 检测到的 MIME 类型)
+    """
+    detected = detect_mime_type(data, filename)
+
+    # 放宽 SVG 检测：内容以 <svg 或 <?xml 开头也接受
+    if detected == "text/plain" and filename.lower().endswith(".svg"):
+        text = data[:512].decode("utf-8", errors="ignore").strip().lower()
+        if text.startswith("<svg") or text.startswith("<?xml"):
+            detected = "image/svg+xml"
+
+    if detected not in ALLOWED_FILE_TYPES:
+        return False, detected
+
+    if client_mime and client_mime != detected:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"文件 MIME 类型不匹配: 客户端声明={client_mime}, 服务端检测={detected}"
+        )
+
+    return True, detected
+
+
 # ── CRUD ────────────────────────────────────────────────────
 
 
