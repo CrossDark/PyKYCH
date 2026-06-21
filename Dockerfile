@@ -4,6 +4,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# 使用国内 Debian 镜像加速（阿里云）
+RUN sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|http://security.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -36,7 +40,6 @@ RUN pip install --no-cache-dir \
 # 复制应用源码
 COPY src/ ./src/
 COPY data/ ./data/
-COPY settings/ ./settings/
 
 # 复制启动脚本
 COPY docker-entrypoint.sh /docker-entrypoint.sh
